@@ -1,0 +1,164 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { RoleProvider } from "@/contexts/RoleContext";
+import { PanicAlertsProvider } from "@/contexts/PanicAlertsContext";
+import Chatbot from "@/components/Chatbot";
+import PanicNotifier from "@/components/PanicNotifier";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { AnimatePresence, motion } from "framer-motion";
+import Index from "./pages/Index.tsx";
+import WorkerPage from "./pages/WorkerPage.tsx";
+import EmployerPage from "./pages/EmployerPage.tsx";
+import SearchPage from "./pages/SearchPage.tsx";
+import IncidentPage from "./pages/IncidentPage.tsx";
+import NewIncidentPage from "./pages/NewIncidentPage.tsx";
+import EntryReportPage from "./pages/EntryReportPage.tsx";
+import ExpiryReportPage from "./pages/ExpiryReportPage.tsx";
+import PlaceholderPage from "./pages/PlaceholderPage.tsx";
+import Login from "./pages/Login.tsx";
+import Signup from "./pages/Signup.tsx";
+import WorkerLogin from "./pages/WorkerLogin.tsx";
+import EmployerLogin from "./pages/EmployerLogin.tsx";
+import AgencyLogin from "./pages/AgencyLogin.tsx";
+import AdminLogin from "./pages/AdminLogin.tsx";
+import EmbassyLogin from "./pages/EmbassyLogin.tsx";
+import LabourLogin from "./pages/LabourLogin.tsx";
+import WorkerSignup from "./pages/WorkerSignup.tsx";
+import EmployerSignup from "./pages/EmployerSignup.tsx";
+import AgencySignup from "./pages/AgencySignup.tsx";
+import EmbassySignup from "./pages/EmbassySignup.tsx";
+import LabourSignup from "./pages/LabourSignup.tsx";
+import NotFound from "./pages/NotFound.tsx";
+import AdminDashboard from "./pages/AdminDashboard.tsx";
+import AttestationPage from "./pages/AttestationPage.tsx";
+
+const queryClient = new QueryClient();
+
+function AnimatedRoutes() {
+  const location = useLocation();
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.18, ease: "easeOut" }}
+      >
+        <Routes location={location}>
+          <Route path="/" element={<Index />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/login/admin" element={<AdminLogin />} />
+          <Route path="/login/worker" element={<WorkerLogin />} />
+          <Route path="/login/employer" element={<EmployerLogin />} />
+          <Route path="/login/agency" element={<AgencyLogin />} />
+          <Route path="/login/embassy-source" element={<EmbassyLogin variant="source" />} />
+          <Route path="/login/embassy-destination" element={<EmbassyLogin variant="destination" />} />
+          <Route path="/login/labour" element={<LabourLogin />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/signup/worker" element={<WorkerSignup />} />
+          <Route path="/signup/employer" element={<EmployerSignup />} />
+          <Route path="/signup/agency" element={<AgencySignup />} />
+          <Route path="/signup/embassy-source" element={<EmbassySignup variant="source" />} />
+          <Route path="/signup/embassy-destination" element={<EmbassySignup variant="destination" />} />
+          <Route path="/signup/labour" element={<LabourSignup />} />
+          <Route
+            path="/admin/live-alerts"
+            element={
+              <ProtectedRoute allow={["admin"]}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/employer"
+            element={
+              <ProtectedRoute allow={["admin", "agency"]}>
+                <EmployerPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/worker"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer"]}>
+                <WorkerPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/attestation"
+            element={
+              <ProtectedRoute allow={["admin", "agency"]}>
+                <AttestationPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/search"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "embassy_source", "embassy_destination", "labour"]}>
+                <SearchPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/topup" element={<PlaceholderPage title="TopUp" />} />
+          <Route path="/account" element={<PlaceholderPage title="Account" />} />
+          <Route path="/dispute" element={<PlaceholderPage title="Salary Dispute" />} />
+          <Route path="/incident/new" element={<NewIncidentPage />} />
+          <Route path="/incident/:id" element={<IncidentPage />} />
+          <Route path="/reports" element={<PlaceholderPage title="Reports" />} />
+          <Route path="/reports/entry" element={<EntryReportPage />} />
+          <Route path="/reports/insurance" element={<ExpiryReportPage />} />
+          <Route path="/reports/visa" element={<ExpiryReportPage />} />
+          <Route path="/reports/problem" element={<PlaceholderPage title="Problem Report" />} />
+          <Route path="/reports/user-entry" element={<PlaceholderPage title="User Entry Report" />} />
+          <Route
+            path="/users"
+            element={
+              <ProtectedRoute allow={["admin"]}>
+                <PlaceholderPage title="Users" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/administration"
+            element={
+              <ProtectedRoute allow={["admin"]}>
+                <PlaceholderPage title="Administration" />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/my-documents" element={<PlaceholderPage title="My Documents" />} />
+          <Route path="/panic-status" element={<PlaceholderPage title="Panic Status" />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <RoleProvider>
+      <PanicAlertsProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AnimatedRoutes />
+
+          <PanicNotifier />
+          <Chatbot />
+        </BrowserRouter>
+      </TooltipProvider>
+      </PanicAlertsProvider>
+    </RoleProvider>
+  </QueryClientProvider>
+);
+
+export default App;

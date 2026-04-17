@@ -1,0 +1,370 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model Tbl_Agent {
+  ID                      Int       @default(autoincrement())
+  User_Id                 String    @db.VarChar(100)
+  Agent_Name              String    @db.VarChar(100)
+  Agent_Organization_Name String    @db.VarChar(100)
+  Agent_IC_Passport       String    @db.VarChar(100)
+  Agent_EmailID           String    @db.VarChar(100)
+  Agent_Department        Int
+  Agent_Country           Int
+  Agent_ContactNumber     String    @db.VarChar(50)
+  Created_By              String?   @db.VarChar(50)
+  Created_On              DateTime? @db.DateTime
+  Agent_CountryCode       String?   @db.NVarChar(10)
+
+  @@id([User_Id, Agent_EmailID], map: "PK_Tbl_Agent")
+}
+
+model Tbl_Branch {
+  ID               Int       @id(map: "PK_Branch") @default(autoincrement())
+  Branch_Name      String    @db.VarChar(50)
+  Branch_ShortName String    @db.VarChar(10)
+  Branch_Status    Int
+  Created_By       String?   @db.VarChar(50)
+  Created_On       DateTime? @db.DateTime
+}
+
+model Tbl_City {
+  ID             Int       @default(autoincrement())
+  Country_ID     Int
+  State_ID       Int
+  City_Name      String    @db.VarChar(50)
+  City_ShortName String?   @db.VarChar(10)
+  City_Status    Int
+  Created_By     String?   @db.VarChar(50)
+  Created_On     DateTime? @db.DateTime
+
+  @@id([ID, Country_ID, State_ID], map: "PK_City")
+}
+
+model Tbl_Country {
+  ID                Int       @unique(map: "NonClusteredIndex-20250122-133511") @default(autoincrement())
+  Country_Name      String    @db.VarChar(50)
+  Country_ShortName String?   @db.VarChar(10)
+  Country_Status    Int
+  Created_By        String?   @db.VarChar(50)
+  Created_On        DateTime? @db.DateTime
+  Country_Flag      Bytes?
+  CountryCode       String?   @db.NVarChar(10)
+  FlagPath          String?   @db.NVarChar(255)
+}
+
+model Tbl_Department {
+  ID                Int       @id(map: "PK_Department") @default(autoincrement())
+  Department_Name   String    @db.VarChar(50)
+  Department_Status Int
+  Created_By        String?   @db.VarChar(50)
+  Created_On        DateTime? @db.DateTime
+}
+
+model Tbl_Employer {
+  ID                          Int       @default(autoincrement())
+  User_Id                     String    @db.VarChar(100)
+  Employer_Name               String    @db.VarChar(100)
+  Employer_Address            String    @db.VarChar(500)
+  Employer_ContactPerson      String    @db.VarChar(100)
+  Employer_Position           String    @db.VarChar(100)
+  Employer_EmailID            String    @db.VarChar(100)
+  Employer_OfficeNumber       String?   @db.VarChar(20)
+  Employer_SSM_ROC_ROB_Number String?   @db.VarChar(100)
+  Employer_Sector             Int?
+  Employer_SubSector          Int?
+  Employer_PIC_MobileNumber   String    @db.VarChar(20)
+  Employer_Description        String?   @db.VarChar(500)
+  Employer_HFW                Int?
+  Employer_LFW                Int?
+  Employer_FWC_               String?   @map("Employer_FWC ") @db.VarChar(500)
+  Created_By                  String?   @db.VarChar(50)
+  Created_On                  DateTime? @db.DateTime
+  CountryCode                 String?   @db.NVarChar(10)
+
+  @@id([User_Id, Employer_EmailID], map: "PK_Tbl_Employer")
+}
+
+model Tbl_EmployerIndividual {
+  ID                        Int       @default(autoincrement())
+  User_Id                   String    @db.VarChar(100)
+  Employer_Name             String    @db.VarChar(100)
+  Employer_Address          String    @db.VarChar(500)
+  Employer_ContactPerson    String    @db.VarChar(100)
+  Employer_EmailID          String    @db.VarChar(100)
+  CountryCode               String?   @db.NVarChar(10)
+  Employer_PIC_MobileNumber String    @db.VarChar(20)
+  Created_By                String?   @db.VarChar(50)
+  Created_On                DateTime? @db.DateTime
+
+  @@id([User_Id, Employer_EmailID], map: "PK_Tbl_EmployerIndividual")
+}
+
+model Tbl_Insurance {
+  ID                    Int       @id(map: "PK_Insurance") @default(autoincrement())
+  Insurance_Name        String    @db.VarChar(50)
+  Insurance_ShortName   String    @db.VarChar(10)
+  Insurance_Nationality Int
+  Insurance_Status      Int
+  Created_By            String?   @db.VarChar(50)
+  Created_On            DateTime? @db.DateTime
+}
+
+model Tbl_MaritalStatus {
+  ID             Int       @id(map: "PK_MaritalStatus") @default(autoincrement())
+  Marital_Status String    @db.VarChar(50)
+  Created_By     String?   @db.VarChar(50)
+  Created_On     DateTime? @db.DateTime
+}
+
+model Tbl_Menu_Details {
+  ID               Int     @id(map: "PK__Tbl_Menu__3214EC27A381EDE7") @default(autoincrement())
+  PARENT_ID        Int?
+  PAGE_NAME        String? @db.VarChar(50)
+  PAGE_URL         String? @db.VarChar(50)
+  Display_Priority Int?
+}
+
+model Tbl_ProbSol {
+  ID               Int       @id(map: "PK_ProbSol") @default(autoincrement())
+  Prob_ID          String?   @db.VarChar(50)
+  Type             String    @db.VarChar(50)
+  Description      String    @db.VarChar(500)
+  ProbStatus       String?   @db.VarChar(50)
+  Updated_By       String?   @db.VarChar(50)
+  Updated_On       DateTime? @db.DateTime
+  Title            String?   @db.VarChar(200)
+  Document         Bytes?
+  worker_ID        String?   @db.VarChar(50)
+  DocumentPath     String?   @db.VarChar(500)
+  Current_Location String?   @db.VarChar(250)
+  Company_Name     String?   @db.VarChar(250)
+  IsResolved       Boolean?  @default(false, map: "DF__Tbl_ProbS__IsRes__2739D489")
+  Lat              Decimal?  @db.Decimal(10, 7)
+  Lng              Decimal?  @db.Decimal(10, 7)
+}
+
+model Tbl_Rights_Master {
+  ID        Int       @id(map: "PK_tbl_Rights_Master") @default(autoincrement())
+  Role_ID   Int?
+  Menu_ID   Int?
+  Status    Boolean?
+  ISDefault Boolean?
+  UpdatedBy String?   @db.VarChar(20)
+  UpdatedOn DateTime? @db.DateTime
+}
+
+model Tbl_Role {
+  ID          Int       @id(map: "PK_Role") @default(autoincrement())
+  Role_Name   String    @db.VarChar(50)
+  Role_Status Int
+  Created_By  String?   @db.VarChar(50)
+  Created_On  DateTime? @db.DateTime
+}
+
+model Tbl_Sector {
+  ID            Int       @id(map: "PK_Tbl_Sector") @default(autoincrement())
+  Sector_Name   String    @db.VarChar(50)
+  Sector_Status Int
+  Created_By    String?   @db.VarChar(50)
+  Created_On    DateTime? @db.DateTime
+}
+
+model Tbl_SourceCountry_Insurance {
+  ID                       Int       @id(map: "PK_SourceCountry_Insurance") @default(autoincrement())
+  SC_Insurance_Name        String    @db.VarChar(50)
+  SC_Insurance_ShortName   String    @db.VarChar(50)
+  SC_Insurance_Nationality Int
+  SC_Insurance_Status      Int
+  Created_By               String?   @db.VarChar(50)
+  Created_On               DateTime? @db.DateTime
+}
+
+model Tbl_State {
+  ID              Int       @default(autoincrement())
+  Country_ID      Int
+  State_Name      String    @db.VarChar(50)
+  State_ShortName String?   @db.VarChar(10)
+  State_Status    Int
+  Created_By      String?   @db.VarChar(50)
+  Created_On      DateTime? @db.DateTime
+
+  @@id([ID, Country_ID], map: "PK_State")
+}
+
+model Tbl_Status {
+  ID         Int       @id(map: "PK_Status") @default(autoincrement())
+  Status     String    @db.VarChar(50)
+  Created_By String?   @db.VarChar(50)
+  Created_On DateTime? @db.DateTime
+}
+
+model Tbl_SubSector {
+  ID               Int       @id(map: "PK_Tbl_SubSector") @default(autoincrement())
+  Sector_ID        Int
+  SubSector_Name   String    @db.VarChar(50)
+  SubSector_Status Int
+  Created_By       String?   @db.VarChar(50)
+  Created_On       DateTime? @db.DateTime
+}
+
+model Tbl_Title {
+  ID           Int       @id(map: "PK_Title") @default(autoincrement())
+  Title_Name   String    @db.VarChar(50)
+  Title_Status Int
+  Created_By   String?   @db.VarChar(50)
+  Created_On   DateTime? @db.DateTime
+}
+
+model Tbl_User {
+  ID               Int       @default(autoincrement())
+  User_Id          String    @db.VarChar(100)
+  Email_Id         String    @db.VarChar(100)
+  Login_Pwd        String?   @db.VarChar(50)
+  User_Status      Int?
+  User_Role        Int?
+  User_Title       Int?
+  User_Branch      Int?
+  Created_By       String?   @db.VarChar(50)
+  Created_On       DateTime? @db.DateTime
+  User_Name        String?   @db.VarChar(100)
+  Activated_By     String?   @db.VarChar(50)
+  Activated_On     DateTime? @db.DateTime
+  Password_Changed Int?
+  Password_On      DateTime? @db.DateTime
+
+  @@id([User_Id, Email_Id], map: "PK_Tbl_User")
+}
+
+model Tbl_Worker_Attachments {
+  Id                           Int       @default(autoincrement())
+  Worker_Id                    String    @id(map: "PK_Tbl_Worker_Attachments") @db.VarChar(100)
+  Passport_Copy_Filename       String?   @db.VarChar(50)
+  Passport_Copy                String?   @db.VarChar(Max)
+  Permit_Copy_Filename         String?   @db.VarChar(50)
+  Permit_Copy                  String?   @db.VarChar(Max)
+  Demand_Letter_Filename       String?   @db.VarChar(50)
+  Demand_Letter                String?   @db.VarChar(Max)
+  Employment_Contract_Filename String?   @db.VarChar(50)
+  Employment_Contract          String?   @db.VarChar(Max)
+  Insurance_Policy_Filename    String?   @db.VarChar(50)
+  Insurance_Policy             String?   @db.VarChar(Max)
+  Created_By                   String?   @db.VarChar(50)
+  Created_On                   DateTime? @db.DateTime
+}
+
+model Tbl_Worker_EmployerInfo {
+  id                     Int       @default(autoincrement())
+  Worker_Id              String    @id(map: "PK_Tbl_Worker_EmployerInfo") @db.VarChar(100)
+  SOC_ROC_ROC_No         String?   @db.VarChar(50)
+  Employer_Name          String?   @db.VarChar(50)
+  Employer_Address       String?   @db.VarChar(100)
+  Sector                 Int?
+  Sub_Sector             Int?
+  Telephone_No           String?   @db.VarChar(20)
+  Contact_Person         String?   @db.VarChar(20)
+  Contact_Person_IC_No   String?   @db.VarChar(20)
+  Position               String?   @db.VarChar(20)
+  Hp_Number              String?   @db.VarChar(50)
+  Email                  String?   @db.VarChar(50)
+  Contract_Expiry_Date   DateTime?
+  Contract_issue_Date    DateTime?
+  Employment_Description String?   @db.VarChar(500)
+  Created_By             String?   @db.VarChar(50)
+  Created_On             DateTime? @db.DateTime
+  TelephonenoCC          String?   @db.VarChar(10)
+}
+
+model Tbl_Worker_PermitInsurance {
+  Id                       Int       @default(autoincrement())
+  Worker_Id                String    @id(map: "PK_Tbl_Worker_PermitInsurance") @db.VarChar(100)
+  Permit_Issue_Date        DateTime?
+  Permit_Expire_Date       DateTime?
+  Permit_Issue_Place       String?   @db.VarChar(100)
+  Insurance_Policy_Number  String?   @db.VarChar(20)
+  Source_Country_Insurance String?   @db.VarChar(20)
+  Malaysia_Insurance       String?   @db.VarChar(20)
+  SOSCO_Number             String?   @db.VarChar(20)
+  Relationship_Two         String?   @db.VarChar(20)
+  Spouse_Name              String?   @db.VarChar(20)
+  Legal_Beneficiary_Two    String?   @db.VarChar(50)
+  Contact_Number_of_Spouse String?   @db.VarChar(20)
+  Contact_Number_Two       String?   @db.VarChar(20)
+  Legal_Beneficiary_One    String?   @db.VarChar(50)
+  Contact_Number_One       String?   @db.VarChar(20)
+  Relationship_One         String?   @db.VarChar(50)
+  Created_By               String?   @db.VarChar(50)
+  Created_On               DateTime? @db.DateTime
+  Spouse_Contact_No_CC     String?   @db.VarChar(10)
+  Contact_No_Two_CC        String?   @db.VarChar(10)
+  Contact_No_One_CC        String?   @db.VarChar(10)
+}
+
+model Tbl_Worker_PersonalInfo {
+  ID                          Int       @default(autoincrement())
+  Worker_Id                   String    @id(map: "PK_Tbl_Worker_PersonalInfo") @db.VarChar(100)
+  Name                        String?   @db.VarChar(100)
+  Passport_Number             String?   @db.VarChar(20)
+  Passport_Issue_Date         DateTime?
+  Passport_Expire_Date        DateTime?
+  Address                     String?   @db.VarChar(250)
+  District                    String?   @db.VarChar(50)
+  City                        Int?
+  Nationality                 Int?
+  State                       Int?
+  Gender                      String?   @db.VarChar(10)
+  Date_Of_Birth               DateTime?
+  Contact_Number              String?   @db.VarChar(20)
+  Marital_Status              Int?
+  Highest_Education           String?   @db.VarChar(20)
+  Email_Id                    String?   @db.VarChar(50)
+  Mother_Name                 String?   @db.VarChar(20)
+  Father_Name                 String?   @db.VarChar(20)
+  Branch                      Int?
+  Photo                       String?   @db.VarChar(Max)
+  PhotoName                   String?   @db.VarChar(50)
+  Created_By                  String?   @db.VarChar(50)
+  Created_On                  DateTime? @db.DateTime
+  Employer_Id                 String?   @db.VarChar(20)
+  Contact_Number_Country_Code String?   @db.VarChar(20)
+}
+
+model Tbl_Worker_RecruitAgent {
+  Id                                Int       @default(autoincrement())
+  Worker_Id                         String    @id(map: "PK_Tbl_Worker_Recruit_Agent") @db.VarChar(100)
+  Malaysian_Reqruitment_Agency      String?   @db.VarChar(50)
+  Source_Country_Requirtment_Agency String?   @db.VarChar(50)
+  License_No_M                      String?   @db.VarChar(50)
+  License_NO_S                      String?   @db.VarChar(50)
+  Address_M                         String?   @db.VarChar(250)
+  Address_S                         String?   @db.VarChar(250)
+  Email_Address_M                   String?   @db.VarChar(50)
+  Email_Address_S                   String?   @db.VarChar(50)
+  Contact_Person_M                  String?   @db.VarChar(20)
+  Contact_Person_S                  String?   @db.VarChar(20)
+  Contact_Number_M                  String?   @db.VarChar(20)
+  Contact_Number_S                  String?   @db.VarChar(20)
+  Website_M                         String?   @db.VarChar(250)
+  Website_S                         String?   @db.VarChar(250)
+  Created_By                        String?   @db.VarChar(50)
+  Created_On                        DateTime? @db.DateTime
+  Contact_No_S_CC                   String?   @db.VarChar(10)
+  Contact_N0_M_CC                   String?   @db.VarChar(10)
+}
+
+model Tbl_Attestation {
+  AttestationId   Int       @id(map: "PK__Tbl_Atte__5955B4D9A4295717") @default(autoincrement())
+  Worker_Id       String    @db.VarChar(100)
+  Passport_Number String?   @db.VarChar(20)
+  DocumentType    String?   @db.VarChar(50)
+  DocumentPath    String?   @db.VarChar(500)
+  Status          String    @default("Submitted", map: "DF__Tbl_Attes__Statu__2A164134") @db.VarChar(20)
+  AdminRemarks    String?   @db.VarChar(500)
+  Created_On      DateTime? @default(now(), map: "DF__Tbl_Attes__Creat__2B0A656D") @db.DateTime
+  Updated_On      DateTime? @db.DateTime
+}
