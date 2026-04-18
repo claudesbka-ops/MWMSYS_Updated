@@ -5,6 +5,8 @@ import { AUTH_USERNAME_STORAGE_KEY } from "@/services/apiClient";
 import { logout } from "@/services/authService";
 import { alertsData } from "@/data/alertsData";
 import { useTheme } from "next-themes";
+import { useQuery } from "@tanstack/react-query";
+import { getSubscriptionMe } from "@/services/subscriptionService";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,6 +52,16 @@ export default function TopHeader() {
   const navigate = useNavigate();
   const { theme, setTheme, systemTheme } = useTheme();
 
+  const subscriptionQuery = useQuery({
+    queryKey: ["subscription_me"],
+    queryFn: getSubscriptionMe,
+    enabled: currentRole === "agency" || currentRole === "employer",
+    retry: false,
+    staleTime: 30_000,
+  });
+
+  const planLabel = subscriptionQuery.data?.planType;
+
   const userName = (localStorage.getItem(AUTH_USERNAME_STORAGE_KEY) || "FWWMC SEELAAN").toString();
   const localIncidents = readLocalIncidents();
   const allIncidents = [...localIncidents, ...alertsData].sort((a, b) => b.id - a.id);
@@ -87,6 +99,11 @@ export default function TopHeader() {
         <h2 className="text-sm font-medium text-muted-foreground">Dashboard</h2>
         <span className="text-muted-foreground/30">/</span>
         <span className="text-sm font-semibold text-foreground">{breadcrumbMap[currentRole]}</span>
+        {(currentRole === "agency" || currentRole === "employer") && planLabel ? (
+          <span className="ml-2 text-[11px] font-semibold px-2 py-1 rounded-lg border border-border/60 bg-muted/50 text-muted-foreground">
+            Plan: {planLabel}
+          </span>
+        ) : null}
       </div>
       <div className="flex items-center gap-2">
         {/* Quick Actions */}

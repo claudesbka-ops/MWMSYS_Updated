@@ -3,8 +3,10 @@ import type { Request, Response, NextFunction } from "express";
 
 export type JwtClaims = {
   userId: number;
+  userKey?: string;
   roleId?: number;
   appRole?: "admin" | "employer" | "worker" | "agency" | "embassy_source" | "embassy_destination" | "labour";
+  countryCode?: number;
   emailId?: string;
   userName?: string;
 };

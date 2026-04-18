@@ -4,7 +4,7 @@ import { useRole, UserRole } from "@/contexts/RoleContext";
 import {
   Home, Building2, Users, FileCheck, Search, CreditCard,
   Wallet, BarChart3, Shield, ChevronRight,
-  FileText, HeartPulse, Eye, AlertTriangle, UserCheck, Menu, X,
+  FileText, HeartPulse, Eye, AlertTriangle, UserCheck, Menu, X, Clock,
   User, MessageSquare
 } from "lucide-react";
 
@@ -22,7 +22,19 @@ const navItems: NavItem[] = [
   { label: "Worker", icon: Users, path: "/worker", roles: ["admin", "agency", "employer"] },
   { label: "Attestation", icon: FileCheck, path: "/attestation", roles: ["admin", "agency"] },
   { label: "Search", icon: Search, path: "/search", roles: ["admin", "agency", "embassy_source", "embassy_destination", "labour"] },
-  { label: "TopUp", icon: CreditCard, path: "/topup", roles: ["admin", "agency"] },
+  {
+    label: "HRMS",
+    icon: FileText,
+    path: "/hrms",
+    roles: ["admin", "agency", "employer", "worker"],
+    children: [
+      { label: "Attendance", icon: Clock, path: "/hrms/attendance" },
+      { label: "Leave", icon: FileText, path: "/hrms/leave" },
+      { label: "Payroll", icon: Wallet, path: "/hrms/payroll" },
+      { label: "Contracts", icon: Shield, path: "/hrms/contracts" },
+    ],
+  },
+  { label: "Pricing", icon: CreditCard, path: "/pricing", roles: ["agency", "employer"] },
   { label: "Account", icon: Wallet, path: "/account", roles: ["admin", "agency", "employer"] },
   {
     label: "Reports", icon: BarChart3, path: "/reports",

@@ -18,6 +18,11 @@ import NewIncidentPage from "./pages/NewIncidentPage.tsx";
 import EntryReportPage from "./pages/EntryReportPage.tsx";
 import ExpiryReportPage from "./pages/ExpiryReportPage.tsx";
 import PlaceholderPage from "./pages/PlaceholderPage.tsx";
+import PricingPage from "./pages/PricingPage.tsx";
+import AttendancePage from "./pages/AttendancePage.tsx";
+import LeavePage from "./pages/LeavePage.tsx";
+import PayrollPage from "./pages/PayrollPage.tsx";
+import ContractsPage from "./pages/ContractsPage.tsx";
 import Login from "./pages/Login.tsx";
 import Signup from "./pages/Signup.tsx";
 import WorkerLogin from "./pages/WorkerLogin.tsx";
@@ -106,7 +111,46 @@ function AnimatedRoutes() {
               </ProtectedRoute>
             }
           />
-          <Route path="/topup" element={<PlaceholderPage title="TopUp" />} />
+          <Route
+            path="/pricing"
+            element={
+              <ProtectedRoute allow={["agency", "employer"]}>
+                <PricingPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hrms/attendance"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer"]}>
+                <AttendancePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hrms/leave"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer", "worker"]}>
+                <LeavePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hrms/payroll"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer"]}>
+                <PayrollPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hrms/contracts"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer"]}>
+                <ContractsPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/account" element={<PlaceholderPage title="Account" />} />
           <Route path="/dispute" element={<PlaceholderPage title="Salary Dispute" />} />
           <Route path="/incident/new" element={<NewIncidentPage />} />

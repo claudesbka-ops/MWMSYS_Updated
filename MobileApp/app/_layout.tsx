@@ -1,12 +1,13 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { SessionProvider, useSession } from '@/contexts/SessionContext';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -49,11 +50,39 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider>
+    <SessionProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <SessionGate>
+          <Stack>
+            <Stack.Screen name="login" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          </Stack>
+        </SessionGate>
+      </ThemeProvider>
+    </SessionProvider>
   );
+}
+
+function SessionGate({ children }: { children: React.ReactNode }) {
+  const session = useSession();
+  const router = useRouter();
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    session
+      .hydrate()
+      .catch(() => undefined)
+      .finally(() => setReady(true));
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (!session.token) {
+      router.replace('/login' as any);
+    }
+  }, [ready, session.token]);
+
+  if (!ready) return null;
+  return <>{children}</>;
 }
