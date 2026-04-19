@@ -3,6 +3,7 @@ import { Alert, FlatList, StyleSheet, TouchableOpacity } from "react-native";
 import { io, type Socket } from "socket.io-client";
 
 import { Text, View } from "@/components/Themed";
+import { useApiClient } from "@/services/apiClient";
 import { useSession } from "@/contexts/SessionContext";
 
 type AlertRow = {
@@ -17,6 +18,7 @@ type AlertRow = {
 
 export default function LiveAlertsScreen() {
   const session = useSession();
+  const api = useApiClient();
   const [rows, setRows] = useState<AlertRow[]>([]);
   const socketRef = useRef<Socket | null>(null);
 
@@ -26,6 +28,20 @@ export default function LiveAlertsScreen() {
 
   useEffect(() => {
     if (!session.token) return;
+
+    api
+      .get<{ rows: AlertRow[] }>("/Api/Alerts/Recent?limit=50")
+      .then((res) => {
+        const incoming = Array.isArray((res as any)?.rows) ? ((res as any).rows as AlertRow[]) : [];
+        if (incoming.length) {
+          setRows((prev) => {
+            const seen = new Set(prev.map((r) => `${r.kind}:${r.id}`));
+            const merged = [...incoming.filter((r) => !seen.has(`${r.kind}:${r.id}`)), ...prev];
+            return merged;
+          });
+        }
+      })
+      .catch(() => undefined);
 
     const s = io(socketUrl, {
       transports: ["websocket"],
@@ -85,7 +101,7 @@ export default function LiveAlertsScreen() {
       }
       socketRef.current = null;
     };
-  }, [socketUrl, session.token]);
+  }, [api, socketUrl, session.token]);
 
   return (
     <View style={styles.container}>

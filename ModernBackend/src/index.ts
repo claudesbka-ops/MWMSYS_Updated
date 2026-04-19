@@ -8,6 +8,7 @@ import fs from "fs";
 import path from "path";
 import multer from "multer";
 import OpenAI from "openai";
+import Stripe from "stripe";
 
 import { prisma } from "./db";
 import { encryptLegacyPassword } from "./cryptoLegacy";
@@ -39,11 +40,148 @@ async function ensureAttestationTableExists(): Promise<void> {
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+// Stripe webhooks need the raw body; capture it via verify for signature verification.
+app.use(
+  express.json({
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true }));
+
+const stripeSecretKey = (process.env.STRIPE_SECRET_KEY ?? "").toString().trim();
+const stripe = stripeSecretKey ? new Stripe(stripeSecretKey, { apiVersion: "2023-10-16" }) : null;
 
 const uploadsDir = path.join(process.cwd(), "uploads");
 fs.mkdirSync(uploadsDir, { recursive: true });
+
+app.get("/stripe/return", (req, res) => {
+  const raw = Array.isArray((req.query as any)?.redirect) ? (req.query as any).redirect[0] : (req.query as any)?.redirect;
+  const redirect = (raw ?? "").toString().trim();
+  if (!redirect) {
+    return res.status(400).send("Missing redirect");
+  }
+
+  if (/^(javascript|data):/i.test(redirect)) {
+    return res.status(400).send("Invalid redirect");
+  }
+
+  return res.redirect(302, redirect);
+});
+
+app.post("/Api/subscription/checkout", requireAuth, async (req, res, next) => {
+  try {
+    if (!stripe) return res.status(500).json({ error: "Stripe is not configured" });
+
+    const user = (req as any).user as { userKey?: string; roleId?: number; emailId?: string };
+    const roleId = user?.roleId != null ? Number(user.roleId) : null;
+    if (roleId !== 3 && roleId !== 4) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const entityId = (user?.userKey ?? "").toString().trim();
+    if (!entityId) return res.status(400).json({ error: "Missing entity id" });
+
+    const planType = (req.body?.planType ?? "").toString().trim();
+    if (!planType) return res.status(400).json({ error: "planType is required" });
+
+    const planKey = planType.toLowerCase();
+    if (planKey === "free") return res.status(400).json({ error: "Free plan does not require checkout" });
+
+    const priceIdEnvKey = planKey === "pro" ? "STRIPE_PRICE_PRO" : planKey === "enterprise" ? "STRIPE_PRICE_ENTERPRISE" : "";
+    const priceId = priceIdEnvKey ? (process.env as any)[priceIdEnvKey] : null;
+    if (!priceId || typeof priceId !== "string" || !priceId.trim()) {
+      return res.status(500).json({ error: "Stripe price is not configured" });
+    }
+
+    const origin = (req.header("origin") ?? "").toString().trim();
+    const bodySuccess = (req.body?.successUrl ?? "").toString().trim();
+    const bodyCancel = (req.body?.cancelUrl ?? "").toString().trim();
+
+    const envSuccess = (process.env.STRIPE_SUCCESS_URL ?? "").toString().trim();
+    const envCancel = (process.env.STRIPE_CANCEL_URL ?? "").toString().trim();
+
+    const isAbsoluteUrl = (u: string) => /^[a-z][a-z0-9+.-]*:\/\//i.test(u) && !/^(javascript|data):/i.test(u);
+
+    const successUrl = bodySuccess && isAbsoluteUrl(bodySuccess) ? bodySuccess : envSuccess ? envSuccess : origin ? `${origin}/pricing?checkout=success` : "";
+    const cancelUrl = bodyCancel && isAbsoluteUrl(bodyCancel) ? bodyCancel : envCancel ? envCancel : origin ? `${origin}/pricing?checkout=cancel` : "";
+
+    if (!successUrl || !cancelUrl) {
+      return res.status(500).json({ error: "Missing success/cancel URL (set STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL or pass successUrl/cancelUrl)" });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [{ price: priceId.trim(), quantity: 1 }],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      client_reference_id: entityId,
+      customer_email: user?.emailId ? String(user.emailId) : undefined,
+      metadata: {
+        entityId,
+        planType,
+        roleId: roleId != null ? String(roleId) : "",
+      },
+    });
+
+    return res.status(201).json({ ok: true, url: session.url, id: session.id });
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.post(
+  "/webhooks/stripe",
+  async (req, res) => {
+    try {
+      if (!stripe) return res.status(500).send("Stripe not configured");
+
+      const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET ?? "").toString().trim();
+      if (!webhookSecret) return res.status(500).send("Missing webhook secret");
+
+      const sig = req.header("stripe-signature");
+      if (!sig) return res.status(400).send("Missing stripe-signature");
+
+      const payload = (req as any).rawBody;
+      if (!payload) return res.status(400).send("Missing raw body");
+
+      const event = stripe.webhooks.constructEvent(payload, sig, webhookSecret);
+
+      if (event.type === "checkout.session.completed") {
+        const s = event.data.object as Stripe.Checkout.Session;
+        const entityId = (s.metadata?.entityId ?? s.client_reference_id ?? "").toString().trim();
+        const planType = (s.metadata?.planType ?? "").toString().trim();
+
+        if (entityId && planType) {
+          const now = new Date();
+          const end = new Date(now);
+          end.setDate(end.getDate() + 30);
+
+          // deactivate previous active subscriptions for the entity
+          await prisma.tbl_Subscription.updateMany({
+            where: { entityId, status: "Active" },
+            data: { status: "Expired" },
+          });
+
+          await prisma.tbl_Subscription.create({
+            data: {
+              entityId,
+              planType,
+              status: "Active",
+              startDate: now,
+              endDate: end,
+            },
+          });
+        }
+      }
+
+      return res.json({ received: true });
+    } catch (err: any) {
+      return res.status(400).send(err?.message ?? "Webhook Error");
+    }
+  }
+);
 app.use("/uploads", express.static(uploadsDir));
 
 const server = http.createServer(app);
@@ -95,7 +233,7 @@ app.get("/Api/Workers/:workerId", requireAuth, async (req, res, next) => {
       const myId = (user?.userKey ?? "").toString().trim();
       if (!myId || myId !== workerId) return res.status(403).json({ error: "Forbidden" });
     } else if (roleId !== 1) {
-      const scopeWhere = buildWorkerScopeWhere(user);
+      const scopeWhere = await buildWorkerScopeWhere(user);
       const scopedWorker = await prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
       if (!scopedWorker) return res.status(403).json({ error: "Forbidden" });
     }
@@ -122,18 +260,11 @@ app.put("/Api/Workers/:workerId", requireAuth, async (req, res, next) => {
     // only admin/employer/agency/worker can update
     if (![1, 2, 3, 4].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
 
-    if (roleId === 3 || roleId === 4) {
-      const entityId = (user?.userKey ?? "").toString().trim();
-      if (!entityId) return res.status(400).json({ error: "Missing entity id" });
-      const ok = await hasActivePlan(entityId);
-      if (!ok) return res.status(402).json({ error: "Subscription required" });
-    }
-
     if (roleId === 2) {
       const myId = (user?.userKey ?? "").toString().trim();
       if (!myId || myId !== workerId) return res.status(403).json({ error: "Forbidden" });
     } else if (roleId !== 1) {
-      const scopeWhere = buildWorkerScopeWhere(user);
+      const scopeWhere = await buildWorkerScopeWhere(user);
       const scopedWorker = await prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
       if (!scopedWorker) return res.status(403).json({ error: "Forbidden" });
     }
@@ -141,12 +272,40 @@ app.put("/Api/Workers/:workerId", requireAuth, async (req, res, next) => {
     const name = req.body?.Name ?? req.body?.name;
     const email = req.body?.Email_Id ?? req.body?.emailId ?? req.body?.email;
     const contact = req.body?.Contact_Number ?? req.body?.contactNumber;
+    const contactCountryCode = req.body?.Contact_Number_Country_Code ?? req.body?.contactCountryCode;
     const address = req.body?.Address ?? req.body?.address;
+    const district = req.body?.District ?? req.body?.district;
+    const stateRaw = req.body?.State ?? req.body?.state;
+    const cityRaw = req.body?.City ?? req.body?.city;
+
     const nationalityRaw = req.body?.Nationality ?? req.body?.nationality;
+    const gender = req.body?.Gender ?? req.body?.gender;
+    const dateOfBirthRaw = req.body?.Date_Of_Birth ?? req.body?.dateOfBirth;
+    const maritalStatusRaw = req.body?.Marital_Status ?? req.body?.maritalStatus;
+    const highestEducation = req.body?.Highest_Education ?? req.body?.highestEducation;
+    const motherName = req.body?.Mother_Name ?? req.body?.motherName;
+    const fatherName = req.body?.Father_Name ?? req.body?.fatherName;
+
+    const passportNumber = req.body?.Passport_Number ?? req.body?.passportNumber;
+    const passportIssueRaw = req.body?.Passport_Issue_Date ?? req.body?.passportIssueDate;
     const passportExpireRaw = req.body?.Passport_Expire_Date ?? req.body?.passportExpireDate;
 
+    const permitIssueRaw = req.body?.Permit_Issue_Date ?? req.body?.permitIssueDate;
+    const permitExpireRaw = req.body?.Permit_Expire_Date ?? req.body?.permitExpireDate ?? req.body?.visaExpireDate;
+    const permitIssuePlace = req.body?.Permit_Issue_Place ?? req.body?.permitIssuePlace;
+    const insurancePolicyNumber = req.body?.Insurance_Policy_Number ?? req.body?.insurancePolicyNumber;
+    const soscoNumber = req.body?.SOSCO_Number ?? req.body?.soscoNumber;
+
     const nationality = nationalityRaw != null && nationalityRaw !== "" ? Number(nationalityRaw) : undefined;
+    const state = stateRaw != null && stateRaw !== "" ? Number(stateRaw) : undefined;
+    const city = cityRaw != null && cityRaw !== "" ? Number(cityRaw) : undefined;
+    const maritalStatus = maritalStatusRaw != null && maritalStatusRaw !== "" ? Number(maritalStatusRaw) : undefined;
+
+    const dateOfBirth = dateOfBirthRaw ? new Date(String(dateOfBirthRaw)) : undefined;
+    const passportIssue = passportIssueRaw ? new Date(String(passportIssueRaw)) : undefined;
     const passportExpire = passportExpireRaw ? new Date(String(passportExpireRaw)) : undefined;
+    const permitIssue = permitIssueRaw ? new Date(String(permitIssueRaw)) : undefined;
+    const permitExpire = permitExpireRaw ? new Date(String(permitExpireRaw)) : undefined;
 
     const updated = await prisma.tbl_Worker_PersonalInfo.update({
       where: { Worker_Id: workerId },
@@ -154,11 +313,52 @@ app.put("/Api/Workers/:workerId", requireAuth, async (req, res, next) => {
         ...(name != null ? { Name: String(name) } : {}),
         ...(email != null ? { Email_Id: String(email) } : {}),
         ...(contact != null ? { Contact_Number: String(contact) } : {}),
+        ...(contactCountryCode != null ? { Contact_Number_Country_Code: String(contactCountryCode) } : {}),
         ...(address != null ? { Address: String(address) } : {}),
+        ...(district != null ? { District: String(district) } : {}),
+        ...(gender != null ? { Gender: String(gender) } : {}),
+        ...(highestEducation != null ? { Highest_Education: String(highestEducation) } : {}),
+        ...(motherName != null ? { Mother_Name: String(motherName) } : {}),
+        ...(fatherName != null ? { Father_Name: String(fatherName) } : {}),
+        ...(passportNumber != null ? { Passport_Number: String(passportNumber) } : {}),
         ...(nationality != null && Number.isFinite(nationality) ? { Nationality: nationality } : {}),
+        ...(state != null && Number.isFinite(state) ? { State: state } : {}),
+        ...(city != null && Number.isFinite(city) ? { City: city } : {}),
+        ...(maritalStatus != null && Number.isFinite(maritalStatus) ? { Marital_Status: maritalStatus } : {}),
+        ...(dateOfBirth && !isNaN(dateOfBirth.getTime()) ? { Date_Of_Birth: dateOfBirth } : {}),
+        ...(passportIssue && !isNaN(passportIssue.getTime()) ? { Passport_Issue_Date: passportIssue } : {}),
         ...(passportExpire && !isNaN(passportExpire.getTime()) ? { Passport_Expire_Date: passportExpire } : {}),
       },
     });
+
+    if (
+      permitIssue != null ||
+      permitExpire != null ||
+      permitIssuePlace != null ||
+      insurancePolicyNumber != null ||
+      soscoNumber != null
+    ) {
+      await prisma.tbl_Worker_PermitInsurance.upsert({
+        where: { Worker_Id: workerId },
+        create: {
+          Worker_Id: workerId,
+          ...(permitIssue && !isNaN(permitIssue.getTime()) ? { Permit_Issue_Date: permitIssue } : {}),
+          ...(permitExpire && !isNaN(permitExpire.getTime()) ? { Permit_Expire_Date: permitExpire } : {}),
+          ...(permitIssuePlace != null ? { Permit_Issue_Place: String(permitIssuePlace) } : {}),
+          ...(insurancePolicyNumber != null ? { Insurance_Policy_Number: String(insurancePolicyNumber) } : {}),
+          ...(soscoNumber != null ? { SOSCO_Number: String(soscoNumber) } : {}),
+          Created_On: new Date(),
+        } as any,
+        update: {
+          ...(permitIssue && !isNaN(permitIssue.getTime()) ? { Permit_Issue_Date: permitIssue } : {}),
+          ...(permitExpire && !isNaN(permitExpire.getTime()) ? { Permit_Expire_Date: permitExpire } : {}),
+          ...(permitIssuePlace != null ? { Permit_Issue_Place: String(permitIssuePlace) } : {}),
+          ...(insurancePolicyNumber != null ? { Insurance_Policy_Number: String(insurancePolicyNumber) } : {}),
+          ...(soscoNumber != null ? { SOSCO_Number: String(soscoNumber) } : {}),
+          Created_On: new Date(),
+        } as any,
+      });
+    }
 
     if (roleId !== 2) {
       const userRow = await prisma.tbl_User.findFirst({ where: { User_Id: workerId } });
@@ -173,7 +373,8 @@ app.put("/Api/Workers/:workerId", requireAuth, async (req, res, next) => {
       }
     }
 
-    return res.json({ ok: true, personal: updated });
+    const permit = await prisma.tbl_Worker_PermitInsurance.findFirst({ where: { Worker_Id: workerId } });
+    return res.json({ ok: true, personal: updated, permit });
   } catch (e) {
     return next(e);
   }
@@ -183,14 +384,7 @@ app.post("/Api/Workers/Create", requireAuth, async (req, res, next) => {
   try {
     const user = (req as any).user as any;
     const roleId = Number(user?.roleId ?? 0);
-    if (![1, 3, 4].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
-
-    if (roleId === 3 || roleId === 4) {
-      const entityId = (user?.userKey ?? "").toString().trim();
-      if (!entityId) return res.status(400).json({ error: "Missing entity id" });
-      const ok = await hasActivePlan(entityId);
-      if (!ok) return res.status(402).json({ error: "Subscription required" });
-    }
+    if (![1, 3, 4, 5, 6, 7].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
 
     const workerId = (req.body?.workerId ?? req.body?.Worker_Id ?? req.body?.userId ?? "").toString().trim();
     const passportNo = (req.body?.passportNo ?? req.body?.Passport_Number ?? req.body?.passportNumber ?? "").toString().trim();
@@ -200,6 +394,10 @@ app.post("/Api/Workers/Create", requireAuth, async (req, res, next) => {
 
     const employerIdRaw = (req.body?.employerId ?? req.body?.Employer_Id ?? "").toString().trim();
     const employerId = roleId === 3 ? (user?.userKey ?? "").toString().trim() : employerIdRaw;
+
+    if (roleId === 4 && !employerId) {
+      return res.status(400).json({ error: "employerId is required" });
+    }
 
     if (!workerId || !passportNo || !password) {
       return res.status(400).json({ error: "workerId, passportNo and password are required" });
@@ -278,7 +476,7 @@ app.get("/Api/dashboard/me", requireAuth, async (req, res, next) => {
     }
 
     // Employer/Agency/Admin/Authorities: compute based on scoped workers
-    const scopeWhere = buildWorkerScopeWhere(user);
+    const scopeWhere = await buildWorkerScopeWhere(user);
     const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
       where: scopeWhere,
       select: { Worker_Id: true },
@@ -339,7 +537,7 @@ app.post("/Api/Incidents", requireAuth, async (req, res, next) => {
     if (!workerId) return res.status(400).json({ error: "workerId is required" });
 
     if (roleId !== 1) {
-      const scopeWhere = buildWorkerScopeWhere((req as any).user);
+      const scopeWhere = await buildWorkerScopeWhere((req as any).user);
       const scopedWorker = await prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
       if (!scopedWorker) return res.status(403).json({ error: "Forbidden" });
     }
@@ -361,6 +559,19 @@ app.post("/Api/Incidents", requireAuth, async (req, res, next) => {
         IsResolved: false,
       } as any,
     });
+
+    try {
+      io.to("authorities").emit("new_trigger", {
+        id: created.ID,
+        title,
+        description: description || title,
+        workerId,
+        companyName: (employerMeta as any)?.Employer_Name ?? null,
+        createdAt: new Date().toISOString(),
+      });
+    } catch {
+      // ignore emit errors
+    }
 
     return res.status(201).json({ ok: true, id: created.ID });
   } catch (e) {
@@ -1277,11 +1488,26 @@ app.get("/Api/Panic/Latest", requireAuth, checkRole([1, 4, 5, 6, 7]), async (req
   const sinceId = rawSinceId != null ? Number(rawSinceId) : 0;
 
   try {
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+    const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
+      where: scopeWhere,
+      select: { Worker_Id: true },
+      take: 5000,
+    });
+    const allowedWorkerIds = new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean));
+
+    if (roleId !== 1 && !allowedWorkerIds.size) {
+      return res.json([]);
+    }
+
     const rows = await prisma.tbl_ProbSol.findMany({
       where: {
+        Type: "Panic",
         ID: {
           gt: Number.isFinite(sinceId) ? sinceId : 0,
         },
+        ...(roleId !== 1 && allowedWorkerIds.size ? { worker_ID: { in: Array.from(allowedWorkerIds) } } : {}),
       },
       orderBy: {
         ID: "desc",
@@ -1573,16 +1799,31 @@ app.get("/api/search/global", requireAuth, requireAuthority, async (req, res, ne
   if (!q) return res.json({ workers: [], employers: [] });
 
   try {
-    const like = `%${q}%`;
-    const workers = (await prisma.$queryRawUnsafe(
-      "SELECT TOP (10) Worker_Id, Name, Passport_Number, Created_On FROM Tbl_Worker_PersonalInfo WHERE (Name LIKE @p1 OR Passport_Number LIKE @p1 OR Worker_Id LIKE @p1) ORDER BY Created_On DESC",
-      like,
-    )) as any[];
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
 
-    const employers = (await prisma.$queryRawUnsafe(
-      "SELECT TOP (10) User_Id, Employer_Name, Employer_ContactPerson, Employer_EmailID, Created_On FROM Tbl_Employer WHERE (Employer_Name LIKE @p1 OR Employer_ContactPerson LIKE @p1 OR Employer_EmailID LIKE @p1 OR User_Id LIKE @p1) ORDER BY Created_On DESC",
-      like,
-    )) as any[];
+    const workers = await prisma.tbl_Worker_PersonalInfo.findMany({
+      where: {
+        ...scopeWhere,
+        OR: [{ Worker_Id: { contains: q } }, { Name: { contains: q } }, { Passport_Number: { contains: q } }],
+      },
+      select: { Worker_Id: true, Name: true, Passport_Number: true, Created_On: true },
+      orderBy: [{ Created_On: "desc" }],
+      take: 50,
+    });
+
+    const employers = await prisma.tbl_Employer.findMany({
+      where: {
+        OR: [
+          { Employer_Name: { contains: q } },
+          { Employer_ContactPerson: { contains: q } },
+          { Employer_EmailID: { contains: q } },
+          { User_Id: { contains: q } },
+        ],
+      },
+      select: { User_Id: true, Employer_Name: true, Employer_ContactPerson: true, Employer_EmailID: true, Created_On: true },
+      orderBy: [{ Created_On: "desc" }],
+      take: 50,
+    });
 
     return res.json({ workers: workers ?? [], employers: employers ?? [] });
   } catch (e) {
@@ -1598,8 +1839,11 @@ app.get("/api/reports/entry", requireAuth, requireReportsAccess, async (req, res
   const to = rawTo ? new Date(String(rawTo)) : null;
 
   try {
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+
     const rows = await prisma.tbl_Worker_PersonalInfo.findMany({
       where: {
+        ...scopeWhere,
         ...(from && Number.isFinite(from.getTime())
           ? {
               Created_On: {
@@ -1625,7 +1869,23 @@ app.get("/api/reports/entry", requireAuth, requireReportsAccess, async (req, res
       take: 2000,
     });
 
-    return res.json((rows ?? []).map((r) => ({ ...r, Current_Location: null, Company_Name: null })));
+    const workerIds = Array.from(new Set((rows ?? []).map((r) => (r.Worker_Id ?? "").toString()).filter(Boolean)));
+    const employers = workerIds.length
+      ? await prisma.tbl_Worker_EmployerInfo.findMany({
+          where: { Worker_Id: { in: workerIds } },
+          select: { Worker_Id: true, Employer_Name: true },
+          take: 5000,
+        })
+      : [];
+    const employerMap = new Map((employers ?? []).map((e) => [String(e.Worker_Id), (e.Employer_Name ?? "").toString()]));
+
+    return res.json(
+      (rows ?? []).map((r) => ({
+        ...r,
+        Current_Location: null,
+        Company_Name: employerMap.get(String(r.Worker_Id)) ?? null,
+      }))
+    );
   } catch (e) {
     return next(e);
   }
@@ -1640,11 +1900,55 @@ app.get("/api/reports/visa-expire", requireAuth, requireReportsAccess, async (re
     const end = new Date(now);
     end.setDate(end.getDate() + days);
 
-    const rows = (await prisma.$queryRawUnsafe(
-      "SELECT TOP (2000) wpi.Worker_Id, wpi.Name, wpi.Passport_Number, pi.Permit_Expire_Date, wpi.Created_On, wpi.Company_Name, CASE WHEN pi.Permit_Expire_Date IS NULL THEN 'Missing Data' ELSE 'OK' END as StatusLabel FROM Tbl_Worker_PersonalInfo wpi LEFT JOIN Tbl_Worker_PermitInsurance pi ON pi.Worker_Id = wpi.Worker_Id WHERE (pi.Permit_Expire_Date IS NULL OR (pi.Permit_Expire_Date >= @p1 AND pi.Permit_Expire_Date < @p2)) ORDER BY CASE WHEN pi.Permit_Expire_Date IS NULL THEN 1 ELSE 0 END, pi.Permit_Expire_Date ASC",
-      now,
-      end,
-    )) as any[];
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+    const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
+      where: scopeWhere,
+      select: { Worker_Id: true, Name: true, Passport_Number: true, Created_On: true },
+      take: 5000,
+    });
+    const workerIds = Array.from(new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean)));
+
+    const permits = workerIds.length
+      ? await prisma.tbl_Worker_PermitInsurance.findMany({
+          where: { Worker_Id: { in: workerIds }, OR: [{ Permit_Expire_Date: null }, { Permit_Expire_Date: { gte: now, lt: end } }] },
+          select: { Worker_Id: true, Permit_Expire_Date: true },
+          take: 5000,
+        })
+      : [];
+
+    const employers = workerIds.length
+      ? await prisma.tbl_Worker_EmployerInfo.findMany({
+          where: { Worker_Id: { in: workerIds } },
+          select: { Worker_Id: true, Employer_Name: true },
+          take: 5000,
+        })
+      : [];
+    const employerMap = new Map((employers ?? []).map((e) => [String(e.Worker_Id), (e.Employer_Name ?? "").toString()]));
+
+    const metaByWorkerId = new Map(
+      (scopedWorkers ?? []).map((w) => [
+        String(w.Worker_Id),
+        {
+          Worker_Id: w.Worker_Id,
+          Name: w.Name,
+          Passport_Number: w.Passport_Number,
+          Created_On: w.Created_On,
+        },
+      ])
+    );
+
+    const rows = (permits ?? []).map((p) => {
+      const m = metaByWorkerId.get(String(p.Worker_Id));
+      return {
+        Worker_Id: p.Worker_Id,
+        Name: m?.Name ?? null,
+        Passport_Number: m?.Passport_Number ?? null,
+        Permit_Expire_Date: p.Permit_Expire_Date,
+        Created_On: m?.Created_On ?? null,
+        Company_Name: employerMap.get(String(p.Worker_Id)) ?? null,
+        StatusLabel: p.Permit_Expire_Date == null ? "Missing Data" : "OK",
+      };
+    });
 
     return res.json({ windowDays: days, rows: rows ?? [] });
   } catch (e) {
@@ -1661,15 +1965,49 @@ app.get("/api/reports/insurance-expire", requireAuth, requireReportsAccess, asyn
     const end = new Date(now);
     end.setDate(end.getDate() + days);
 
-    const rows = (await prisma.$queryRawUnsafe(
-      "SELECT TOP (2000) wpi.Worker_Id, wpi.Name, wpi.Passport_Number, wei.Contract_Expiry_Date, wpi.Created_On, wei.Employer_Name as Company_Name, CASE WHEN wei.Contract_Expiry_Date IS NULL THEN 'Missing Data' ELSE 'OK' END as StatusLabel " +
-        "FROM Tbl_Worker_PersonalInfo wpi " +
-        "LEFT JOIN Tbl_Worker_EmployerInfo wei ON wei.Worker_Id = wpi.Worker_Id " +
-        "WHERE (wei.Contract_Expiry_Date IS NULL OR (wei.Contract_Expiry_Date >= @p1 AND wei.Contract_Expiry_Date < @p2)) " +
-        "ORDER BY CASE WHEN wei.Contract_Expiry_Date IS NULL THEN 1 ELSE 0 END, wei.Contract_Expiry_Date ASC",
-      now,
-      end,
-    )) as any[];
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+    const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
+      where: scopeWhere,
+      select: { Worker_Id: true, Name: true, Passport_Number: true, Created_On: true },
+      take: 5000,
+    });
+    const workerIds = Array.from(new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean)));
+
+    const employer = workerIds.length
+      ? await prisma.tbl_Worker_EmployerInfo.findMany({
+          where: {
+            Worker_Id: { in: workerIds },
+            OR: [{ Contract_Expiry_Date: null }, { Contract_Expiry_Date: { gte: now, lt: end } }],
+          },
+          select: { Worker_Id: true, Employer_Name: true, Contract_Expiry_Date: true },
+          take: 5000,
+        })
+      : [];
+
+    const metaByWorkerId = new Map(
+      (scopedWorkers ?? []).map((w) => [
+        String(w.Worker_Id),
+        {
+          Worker_Id: w.Worker_Id,
+          Name: w.Name,
+          Passport_Number: w.Passport_Number,
+          Created_On: w.Created_On,
+        },
+      ])
+    );
+
+    const rows = (employer ?? []).map((e) => {
+      const m = metaByWorkerId.get(String(e.Worker_Id));
+      return {
+        Worker_Id: e.Worker_Id,
+        Name: m?.Name ?? null,
+        Passport_Number: m?.Passport_Number ?? null,
+        Contract_Expiry_Date: e.Contract_Expiry_Date,
+        Created_On: m?.Created_On ?? null,
+        Company_Name: e.Employer_Name ?? null,
+        StatusLabel: e.Contract_Expiry_Date == null ? "Missing Data" : "OK",
+      };
+    });
 
     return res.json({ windowDays: days, rows: rows ?? [] });
   } catch (e) {
@@ -1679,7 +2017,7 @@ app.get("/api/reports/insurance-expire", requireAuth, requireReportsAccess, asyn
 
 app.get("/Api/Panic/Active", requireAuth, requireAuthority, async (_req, res, next) => {
   try {
-    const scopeWhere = buildWorkerScopeWhere((_req as any).user);
+    const scopeWhere = await buildWorkerScopeWhere((_req as any).user);
     const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
       where: scopeWhere,
       select: { Worker_Id: true },
@@ -1747,7 +2085,7 @@ app.get("/Api/Panic/Active", requireAuth, requireAuthority, async (_req, res, ne
 
 app.get("/Api/Panic/History", requireAuth, requireAuthority, async (_req, res, next) => {
   try {
-    const scopeWhere = buildWorkerScopeWhere((_req as any).user);
+    const scopeWhere = await buildWorkerScopeWhere((_req as any).user);
     const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
       where: scopeWhere,
       select: { Worker_Id: true },
@@ -1814,7 +2152,7 @@ app.get("/Api/Panic/History", requireAuth, requireAuthority, async (_req, res, n
 
 app.get("/Api/Incidents", requireAuth, requireAuthority, async (_req, res, next) => {
   try {
-    const scopeWhere = buildWorkerScopeWhere((_req as any).user);
+    const scopeWhere = await buildWorkerScopeWhere((_req as any).user);
     const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
       where: scopeWhere,
       select: { Worker_Id: true },
@@ -1824,7 +2162,7 @@ app.get("/Api/Incidents", requireAuth, requireAuthority, async (_req, res, next)
 
     const rows = await prisma.tbl_ProbSol.findMany({
       where: {
-        Type: "Panic",
+        NOT: { Type: "Panic" },
         ...(allowedWorkerIds.size ? { worker_ID: { in: Array.from(allowedWorkerIds) } } : {}),
       },
       select: {
@@ -1888,7 +2226,7 @@ app.get("/Api/Incidents/:id", requireAuth, requireAuthority, async (req, res, ne
     if (!row) return res.status(404).json({ error: "Not found" });
 
     if (roleId !== 1) {
-      const scopeWhere = buildWorkerScopeWhere((req as any).user);
+      const scopeWhere = await buildWorkerScopeWhere((req as any).user);
       const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
         where: scopeWhere,
         select: { Worker_Id: true },
@@ -1900,6 +2238,102 @@ app.get("/Api/Incidents/:id", requireAuth, requireAuthority, async (req, res, ne
     }
 
     return res.json(row);
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.get("/Api/Alerts/Recent", requireAuth, requireAuthority, async (req, res, next) => {
+  try {
+    const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+    const limit = Math.min(200, Math.max(1, Number(rawLimit ?? 50)));
+
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+    const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
+      where: scopeWhere,
+      select: { Worker_Id: true },
+      take: 5000,
+    });
+    const allowedWorkerIds = new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean));
+
+    if (roleId !== 1 && !allowedWorkerIds.size) {
+      return res.json({ rows: [] });
+    }
+
+    const incidents = await prisma.tbl_ProbSol.findMany({
+      where: {
+        ...(roleId !== 1 && allowedWorkerIds.size ? { worker_ID: { in: Array.from(allowedWorkerIds) } } : {}),
+      },
+      select: {
+        ID: true,
+        Type: true,
+        Title: true,
+        Description: true,
+        Updated_On: true,
+        worker_ID: true,
+        Company_Name: true,
+      },
+      orderBy: [{ Updated_On: "desc" }, { ID: "desc" }],
+      take: limit,
+    });
+
+    const leave = await prisma.tbl_Leave.findMany({
+      where: {
+        status: { in: ["Approved", "Rejected"] },
+        ...(roleId !== 1 && allowedWorkerIds.size ? { workerId: { in: Array.from(allowedWorkerIds) } } : {}),
+      },
+      select: { id: true, workerId: true, leaveType: true, status: true, startDate: true, endDate: true },
+      orderBy: [{ id: "desc" }],
+      take: Math.min(100, limit),
+    });
+
+    const payroll = await prisma.tbl_Payroll.findMany({
+      where: {
+        ...(roleId !== 1 && allowedWorkerIds.size ? { workerId: { in: Array.from(allowedWorkerIds) } } : {}),
+      },
+      select: { id: true, workerId: true, month: true, year: true, amount: true, isPaid: true },
+      orderBy: [{ id: "desc" }],
+      take: Math.min(100, limit),
+    });
+
+    const rows = [
+      ...(incidents ?? []).map((x) => ({
+        id: x.ID,
+        kind: x.Type === "Panic" ? "panic_forwarded" : "new_trigger",
+        title: (x.Title ?? x.Type ?? "Alert").toString(),
+        description: (x.Description ?? "").toString(),
+        workerId: x.worker_ID != null ? String(x.worker_ID) : null,
+        companyName: x.Company_Name != null ? String(x.Company_Name) : null,
+        createdAt: x.Updated_On ? new Date(x.Updated_On as any).toISOString() : null,
+      })),
+      ...(leave ?? []).map((x) => ({
+        id: x.id,
+        kind: "new_trigger",
+        title: `Leave ${String(x.status ?? "")}`,
+        description: `Leave ${String(x.status ?? "").toLowerCase()} (${String(x.leaveType ?? "")}) for worker ${String(x.workerId ?? "")}`,
+        workerId: x.workerId ?? null,
+        companyName: null,
+        createdAt: x.endDate ? new Date(x.endDate as any).toISOString() : null,
+      })),
+      ...(payroll ?? []).map((x) => ({
+        id: x.id,
+        kind: "new_trigger",
+        title: "Payroll uploaded",
+        description: `Payroll uploaded for worker ${String(x.workerId ?? "")} (${String(x.month ?? "")}/${String(x.year ?? "")})`,
+        workerId: x.workerId ?? null,
+        companyName: null,
+        createdAt: null,
+      })),
+    ];
+
+    rows.sort((a, b) => {
+      const at = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bt = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bt - at;
+    });
+
+    return res.json({ rows: rows.slice(0, limit) });
   } catch (e) {
     return next(e);
   }
@@ -1920,9 +2354,9 @@ app.delete("/Api/Incidents/:id", requireAuth, checkRole([1]), async (req, res, n
 app.get("/Api/HRMS/Attendance", requireAuth, async (req, res, next) => {
   try {
     const roleId = Number((req as any).user?.roleId ?? 0);
-    if (![1, 3, 4].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
+    if (![1, 3, 4, 5, 6, 7].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
 
-    const scopeWhere = buildWorkerScopeWhere((req as any).user);
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
     const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
       where: scopeWhere,
       select: { Worker_Id: true },
@@ -2022,7 +2456,7 @@ app.get("/Api/HRMS/Leave", requireAuth, async (req, res, next) => {
 
     if (![1, 3, 4].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
 
-    const scopeWhere = buildWorkerScopeWhere((req as any).user);
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
     const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
       where: scopeWhere,
       select: { Worker_Id: true },
@@ -2081,7 +2515,7 @@ app.post("/Api/HRMS/Leave/Decision", requireAuth, requireActivePlanForWrite, asy
     if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: "id is required" });
     if (decision !== "Approved" && decision !== "Rejected") return res.status(400).json({ error: "Invalid status" });
 
-    const scopeWhere = buildWorkerScopeWhere((req as any).user);
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
     const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
       where: scopeWhere,
       select: { Worker_Id: true },
@@ -2094,6 +2528,20 @@ app.post("/Api/HRMS/Leave/Decision", requireAuth, requireActivePlanForWrite, asy
     if (roleId !== 1 && !workerIds.has((row.workerId ?? "").toString())) return res.status(403).json({ error: "Forbidden" });
 
     const updated = await prisma.tbl_Leave.update({ where: { id }, data: { status: decision } });
+
+    try {
+      io.to("authorities").emit("new_trigger", {
+        id: updated.id,
+        title: `Leave ${decision}`,
+        description: `Leave request ${decision} for worker ${String(updated.workerId ?? "")}`,
+        workerId: updated.workerId ?? null,
+        companyName: null,
+        createdAt: new Date().toISOString(),
+      });
+    } catch {
+      // ignore emit errors
+    }
+
     return res.json(updated);
   } catch (e) {
     return next(e);
@@ -2103,9 +2551,9 @@ app.post("/Api/HRMS/Leave/Decision", requireAuth, requireActivePlanForWrite, asy
 app.get("/Api/HRMS/Payroll", requireAuth, async (req, res, next) => {
   try {
     const roleId = Number((req as any).user?.roleId ?? 0);
-    if (![1, 3, 4].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
+    if (![1, 3, 4, 5, 6, 7].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
 
-    const scopeWhere = buildWorkerScopeWhere((req as any).user);
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
     const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
       where: scopeWhere,
       select: { Worker_Id: true },
@@ -2140,7 +2588,7 @@ app.post("/Api/HRMS/Payroll/Upload", requireAuth, requireActivePlanForWrite, asy
       return res.status(400).json({ error: "workerId, month, year are required" });
     }
 
-    const scopeWhere = buildWorkerScopeWhere((req as any).user);
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
     const scopedWorker = await prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
     if (roleId !== 1 && !scopedWorker) return res.status(403).json({ error: "Forbidden" });
 
@@ -2155,6 +2603,19 @@ app.post("/Api/HRMS/Payroll/Upload", requireAuth, requireActivePlanForWrite, asy
       } as any,
     });
 
+    try {
+      io.to("authorities").emit("new_trigger", {
+        id: created.id,
+        title: "Payroll uploaded",
+        description: `Payroll uploaded for worker ${workerId} (${month}/${year})`,
+        workerId,
+        companyName: null,
+        createdAt: new Date().toISOString(),
+      });
+    } catch {
+      // ignore emit errors
+    }
+
     return res.status(201).json(created);
   } catch (e) {
     return next(e);
@@ -2164,7 +2625,7 @@ app.post("/Api/HRMS/Payroll/Upload", requireAuth, requireActivePlanForWrite, asy
 app.get("/Api/HRMS/Contracts/Expiring", requireAuth, async (req, res, next) => {
   try {
     const roleId = Number((req as any).user?.roleId ?? 0);
-    if (![1, 3, 4].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
+    if (![1, 3, 4, 5, 6, 7].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
 
     const rawDays = Array.isArray(req.query.days) ? req.query.days[0] : req.query.days;
     const days = Math.min(3650, Math.max(1, Number(rawDays ?? 90)));
@@ -2172,7 +2633,7 @@ app.get("/Api/HRMS/Contracts/Expiring", requireAuth, async (req, res, next) => {
     const end = new Date(now);
     end.setDate(end.getDate() + days);
 
-    const scopeWhere = buildWorkerScopeWhere((req as any).user);
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
     const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
       where: scopeWhere,
       select: { Worker_Id: true },
@@ -2207,7 +2668,7 @@ app.get("/Api/HRMS/Contracts/Expiring", requireAuth, async (req, res, next) => {
 
 app.get("/Api/Workers/List", requireAuth, requireReportsAccess, async (_req, res, next) => {
   try {
-    const where = buildWorkerScopeWhere((_req as any).user);
+    const where = await buildWorkerScopeWhere((_req as any).user);
     const rows = await prisma.tbl_Worker_PersonalInfo.findMany({
       where,
       select: {
@@ -2306,6 +2767,7 @@ app.post("/Api/AddProblem", requireAuth, async (req, res) => {
 
 app.get("/Api/ProblemList", requireAuth, requireAuthority, async (req, res, next) => {
   try {
+    const roleId = Number((req as any).user?.roleId ?? 0);
     const rawStatus = Array.isArray(req.query.status) ? req.query.status[0] : req.query.status;
     const rawType = Array.isArray(req.query.type) ? req.query.type[0] : req.query.type;
     const rawQ = Array.isArray(req.query.q) ? req.query.q[0] : req.query.q;
@@ -2317,6 +2779,20 @@ app.get("/Api/ProblemList", requireAuth, requireAuthority, async (req, res, next
     const limit = Math.min(1000, Math.max(1, Number(rawLimit ?? 200)));
 
     const wherePrisma: any = {};
+
+    if (roleId !== 1) {
+      const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+      const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
+        where: scopeWhere,
+        select: { Worker_Id: true },
+        take: 5000,
+      });
+      const allowedWorkerIds = Array.from(new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean)));
+      if (!allowedWorkerIds.length) {
+        return res.json({ problemList: [] });
+      }
+      wherePrisma.worker_ID = { in: allowedWorkerIds };
+    }
 
     if (status === "active") {
       wherePrisma.OR = [{ IsResolved: false }, { IsResolved: null }];

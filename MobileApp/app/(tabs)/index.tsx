@@ -5,21 +5,35 @@ import { useRouter } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import { useSession } from '@/contexts/SessionContext';
 import { useDashboardService } from '@/services/dashboardService';
+import { useApiClient } from '@/services/apiClient';
 
 export default function HomeScreen() {
   const router = useRouter();
   const session = useSession();
   const appRole = (session.claims?.appRole ?? 'worker').toString();
   const dashboard = useDashboardService();
+  const api = useApiClient();
 
   const [loading, setLoading] = useState(false);
   const [cards, setCards] = useState<Record<string, number>>({});
+  const [plan, setPlan] = useState<string>('Free');
 
   const refresh = async () => {
     setLoading(true);
     try {
       const res = await dashboard.getMe();
       setCards((res?.cards ?? {}) as any);
+
+      if (appRole === 'employer' || appRole === 'agency') {
+        try {
+          const sub = await api.get<any>('/Api/subscription/me');
+          setPlan((sub?.planType ?? 'Free').toString());
+        } catch {
+          setPlan('Free');
+        }
+      } else {
+        setPlan('Free');
+      }
     } finally {
       setLoading(false);
     }
@@ -32,7 +46,9 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>MWMSYS HRMS</Text>
-      <Text style={styles.subtitle}>{appRole} dashboard</Text>
+      <Text style={styles.subtitle}>
+        {appRole} dashboard{appRole === 'employer' || appRole === 'agency' ? ` • Plan: ${plan}` : ''}
+      </Text>
 
       <View style={styles.kpiWrap}>
         {loading ? (
@@ -109,6 +125,21 @@ export default function HomeScreen() {
             <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/incidents' as any)}>
               <Text style={styles.cardTitle}>Incidents</Text>
               <Text style={styles.cardDesc}>Incident history</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/pricing' as any)}>
+              <Text style={styles.cardTitle}>Pricing</Text>
+              <Text style={styles.cardDesc}>Manage subscription</Text>
+            </TouchableOpacity>
+          </>
+        ) : appRole === 'agency' ? (
+          <>
+            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/employers' as any)}>
+              <Text style={styles.cardTitle}>Employers</Text>
+              <Text style={styles.cardDesc}>Employer directory</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/workers' as any)}>
+              <Text style={styles.cardTitle}>Workers</Text>
+              <Text style={styles.cardDesc}>Workers directory</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/pricing' as any)}>
               <Text style={styles.cardTitle}>Pricing</Text>

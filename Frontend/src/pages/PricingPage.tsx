@@ -5,6 +5,7 @@ import { Check, CreditCard } from "lucide-react";
 import { apiClient } from "@/services/apiClient";
 import { toast } from "sonner";
 import { getSubscriptionMe } from "@/services/subscriptionService";
+import { useEffect } from "react";
 
 type SubscriptionResponse = {
   planType: string;
@@ -47,18 +48,41 @@ export default function PricingPage() {
 
   const purchaseMutation = useMutation({
     mutationFn: async (planType: string) => {
-      const res = await apiClient.post("/Api/subscription/purchase", { planType });
-      return res.data;
+      if (planType.toLowerCase() === "free") {
+        throw new Error("Free plan does not require checkout");
+      }
+
+      const origin = window.location.origin;
+      const successUrl = `${origin}/pricing?checkout=success`;
+      const cancelUrl = `${origin}/pricing?checkout=cancel`;
+
+      const res = await apiClient.post("/Api/subscription/checkout", { planType, successUrl, cancelUrl });
+      return res.data as { url?: string };
     },
-    onSuccess: async () => {
-      toast.success("Subscription updated");
-      await subscriptionQuery.refetch();
+    onSuccess: async (data) => {
+      const url = (data as any)?.url;
+      if (url && typeof url === "string") {
+        window.location.href = url;
+        return;
+      }
+      toast.error("No checkout URL returned");
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.error ?? "Unable to update subscription";
       toast.error(msg);
     },
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const checkout = (params.get("checkout") ?? "").toLowerCase();
+    if (checkout === "success") {
+      toast.success("Payment received. Updating subscription...");
+      subscriptionQuery.refetch().catch(() => undefined);
+    } else if (checkout === "cancel") {
+      toast.message("Payment cancelled");
+    }
+  }, []);
 
   const currentPlan = subscriptionQuery.data?.planType ?? "Free";
   const status = subscriptionQuery.data?.status ?? "Active";
@@ -118,7 +142,7 @@ export default function PricingPage() {
 
         <div className="mt-6 bg-muted/40 border border-border/60 rounded-2xl p-4">
           <p className="text-xs text-muted-foreground">
-            Payment gateway flow (card/bank/checkout) will be added next. For now, choosing a plan simulates activation.
+            Payments are handled via Stripe Checkout. After successful payment you will be redirected back here.
           </p>
         </div>
       </div>

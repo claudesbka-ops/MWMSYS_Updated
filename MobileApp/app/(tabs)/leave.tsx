@@ -1,16 +1,20 @@
 import React, { useState } from "react";
 import { ActivityIndicator, Alert, FlatList, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import { useRouter } from "expo-router";
 
 import { Text, View } from "@/components/Themed";
 import { useHrmsService } from "@/services/hrmsService";
 import { useSession } from "@/contexts/SessionContext";
 import { useApiClient } from "@/services/apiClient";
+import { usePlanGate } from "@/hooks/usePlanGate";
 
 export default function LeaveScreen() {
+  const router = useRouter();
   const hrms = useHrmsService();
   const api = useApiClient();
   const session = useSession();
   const appRole = (session.claims?.appRole ?? "").toString();
+  const gate = usePlanGate();
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [rows, setRows] = useState<any[]>([]);
@@ -98,6 +102,14 @@ export default function LeaveScreen() {
       ) : (
         <View style={styles.formCard}>
           <Text style={styles.formTitle}>Approvals</Text>
+          {!gate.hasPlan && (appRole === "employer" || appRole === "agency") ? (
+            <View style={styles.paywall}>
+              <Text style={styles.paywallText}>Subscription required to approve/reject leave.</Text>
+              <TouchableOpacity style={styles.paywallBtn} onPress={() => router.push("/(tabs)/pricing" as any)}>
+                <Text style={styles.paywallBtnText}>Go to Pricing</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           <View style={styles.formActions}>
             <TouchableOpacity style={[styles.ghostBtn, busy && styles.disabledBtn]} onPress={refresh} disabled={busy}>
               <Text style={styles.ghostBtnText}>Refresh</Text>
@@ -128,8 +140,12 @@ export default function LeaveScreen() {
                   <View style={styles.actionsRow}>
                     <TouchableOpacity
                       style={[styles.okBtn, busy && styles.disabledBtn]}
-                      disabled={busy}
+                      disabled={busy || ((appRole === "employer" || appRole === "agency") && !gate.hasPlan)}
                       onPress={async () => {
+                        if ((appRole === "employer" || appRole === "agency") && !gate.hasPlan) {
+                          Alert.alert("Subscription required", "Please purchase a plan to approve leave.");
+                          return;
+                        }
                         setBusy(true);
                         try {
                           await api.post("/Api/HRMS/Leave/Decision", { id: Number(item?.id ?? 0), status: "Approved" });
@@ -145,8 +161,12 @@ export default function LeaveScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.noBtn, busy && styles.disabledBtn]}
-                      disabled={busy}
+                      disabled={busy || ((appRole === "employer" || appRole === "agency") && !gate.hasPlan)}
                       onPress={async () => {
+                        if ((appRole === "employer" || appRole === "agency") && !gate.hasPlan) {
+                          Alert.alert("Subscription required", "Please purchase a plan to reject leave.");
+                          return;
+                        }
                         setBusy(true);
                         try {
                           await api.post("/Api/HRMS/Leave/Decision", { id: Number(item?.id ?? 0), status: "Rejected" });
@@ -181,12 +201,22 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: "700" },
   subtitle: { marginTop: 6, fontSize: 14, opacity: 0.7 },
   formCard: {
-    marginTop: 14,
+    marginTop: 12,
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "rgba(120,120,120,0.25)",
   },
+  paywall: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.35)",
+  },
+  paywallText: { fontSize: 12, opacity: 0.8, fontWeight: "800" },
+  paywallBtn: { marginTop: 10, paddingVertical: 10, borderRadius: 12, alignItems: "center", backgroundColor: "#111" },
+  paywallBtnText: { color: "#fff", fontWeight: "900" },
   formTitle: { fontSize: 14, fontWeight: "700", marginBottom: 10 },
   input: {
     height: 44,

@@ -7,7 +7,9 @@ import React, { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import Colors from '@/constants/Colors';
 import { SessionProvider, useSession } from '@/contexts/SessionContext';
+import { OnboardingProvider } from '@/contexts/OnboardingContext';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -49,16 +51,37 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
+  const navTheme = React.useMemo(() => {
+    const scheme = colorScheme === 'dark' ? 'dark' : 'light';
+    const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        primary: Colors[scheme].tint,
+        background: Colors[scheme].background,
+        card: (Colors as any)[scheme].card ?? base.colors.card,
+        text: Colors[scheme].text,
+        border: (Colors as any)[scheme].border ?? base.colors.border,
+        notification: (Colors as any)[scheme].danger ?? base.colors.notification,
+      },
+    };
+  }, [colorScheme]);
+
   return (
     <SessionProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <SessionGate>
-          <Stack>
-            <Stack.Screen name="login" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-          </Stack>
-        </SessionGate>
+      <ThemeProvider value={navTheme}>
+        <OnboardingProvider>
+          <SessionGate>
+            <Stack>
+              <Stack.Screen name="login" options={{ headerShown: false }} />
+              <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+              <Stack.Screen name="checkout" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+            </Stack>
+          </SessionGate>
+        </OnboardingProvider>
       </ThemeProvider>
     </SessionProvider>
   );

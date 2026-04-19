@@ -4,21 +4,33 @@ import { useRouter } from "expo-router";
 
 import { Text, View } from "@/components/Themed";
 import { useApiClient } from "@/services/apiClient";
+import { useSession } from "@/contexts/SessionContext";
 
 export default function NewWorkerScreen() {
   const router = useRouter();
   const api = useApiClient();
+  const session = useSession();
+
+  const appRole = (session.claims?.appRole ?? "").toString();
+  const needsEmployerId = appRole === "agency";
+  const canSetEmployerId = appRole === "agency" || appRole === "admin";
 
   const [workerId, setWorkerId] = useState("");
   const [passportNo, setPassportNo] = useState("");
   const [fullName, setFullName] = useState("");
   const [emailId, setEmailId] = useState("");
   const [password, setPassword] = useState("");
+  const [employerId, setEmployerId] = useState("");
   const [busy, setBusy] = useState(false);
 
   const create = async () => {
     if (!workerId.trim() || !passportNo.trim() || !password.trim()) {
       Alert.alert("Missing", "Worker ID, Passport No and Password are required");
+      return;
+    }
+
+    if (needsEmployerId && !employerId.trim()) {
+      Alert.alert("Missing", "Employer ID is required");
       return;
     }
 
@@ -30,6 +42,7 @@ export default function NewWorkerScreen() {
         name: fullName.trim(),
         emailId: emailId.trim() || undefined,
         password,
+        ...(canSetEmployerId && employerId.trim() ? { employerId: employerId.trim() } : {}),
       });
       Alert.alert("Created", "Worker account created");
       router.back();
@@ -64,6 +77,13 @@ export default function NewWorkerScreen() {
 
         <Text style={[styles.label, { marginTop: 12 }]}>Password</Text>
         <TextInput value={password} onChangeText={setPassword} style={styles.input} secureTextEntry autoCapitalize="none" />
+
+        {canSetEmployerId ? (
+          <>
+            <Text style={[styles.label, { marginTop: 12 }]}>Employer ID{needsEmployerId ? "" : " (optional)"}</Text>
+            <TextInput value={employerId} onChangeText={setEmployerId} style={styles.input} autoCapitalize="none" />
+          </>
+        ) : null}
 
         <TouchableOpacity style={[styles.primaryBtn, busy && styles.disabled]} onPress={create} disabled={busy}>
           <Text style={styles.primaryBtnText}>{busy ? "Creating..." : "Create Worker"}</Text>

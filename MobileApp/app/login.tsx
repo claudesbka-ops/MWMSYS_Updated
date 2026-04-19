@@ -106,6 +106,14 @@ export default function LoginScreen() {
 
         <TouchableOpacity
           style={[styles.ghostBtn, busy && styles.disabled]}
+          onPress={() => router.push("/onboarding/start" as any)}
+          disabled={busy}
+        >
+          <Text style={styles.ghostBtnText}>Create account</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.ghostBtn, busy && styles.disabled]}
           onPress={() => router.push("/(tabs)/settings" as any)}
           disabled={busy}
         >

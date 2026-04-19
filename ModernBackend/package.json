@@ -23,11 +23,12 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^1.4.5-lts.2",
     "openai": "^6.34.0",
+    "stripe": "^14.25.0",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
-    "@t ypes/express": "^5.0.6",
+    "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^1.4.12",
     "@types/node": "^25.6.0",

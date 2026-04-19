@@ -1,15 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, StyleSheet, TextInput, TouchableOpacity } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
+import { useRouter } from "expo-router";
 
 import { Text, View } from "@/components/Themed";
 import { useApiClient } from "@/services/apiClient";
 import { useSession } from "@/contexts/SessionContext";
+import { usePlanGate } from "@/hooks/usePlanGate";
 
 export default function PayrollScreen() {
+  const router = useRouter();
   const api = useApiClient();
   const session = useSession();
   const appRole = (session.claims?.appRole ?? "").toString();
+  const gate = usePlanGate();
 
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -39,6 +43,10 @@ export default function PayrollScreen() {
   }, []);
 
   const pickVoucher = async () => {
+    if ((appRole === "employer" || appRole === "agency") && !gate.hasPlan) {
+      Alert.alert("Subscription required", "Please purchase a plan to upload payroll.");
+      return;
+    }
     const picked = await DocumentPicker.getDocumentAsync({
       copyToCacheDirectory: true,
       multiple: false,
@@ -51,6 +59,10 @@ export default function PayrollScreen() {
   };
 
   const upload = async () => {
+    if ((appRole === "employer" || appRole === "agency") && !gate.hasPlan) {
+      Alert.alert("Subscription required", "Please purchase a plan to upload payroll.");
+      return;
+    }
     if (!workerId.trim()) {
       Alert.alert("Missing", "WorkerId is required");
       return;
@@ -101,6 +113,15 @@ export default function PayrollScreen() {
       <Text style={styles.title}>Payroll</Text>
       <Text style={styles.subtitle}>Uploads (paywalled for employer/agency)</Text>
 
+      {!gate.hasPlan && (appRole === "employer" || appRole === "agency") ? (
+        <View style={styles.paywall}>
+          <Text style={styles.paywallText}>Subscription required to upload payroll vouchers.</Text>
+          <TouchableOpacity style={styles.paywallBtn} onPress={() => router.push("/(tabs)/pricing" as any)}>
+            <Text style={styles.paywallBtnText}>Go to Pricing</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       <View style={styles.card}>
         <Text style={styles.label}>Worker ID</Text>
         <TextInput value={workerId} onChangeText={setWorkerId} style={styles.input} autoCapitalize="none" />
@@ -120,10 +141,18 @@ export default function PayrollScreen() {
         <TextInput value={amount} onChangeText={setAmount} style={styles.input} keyboardType="numeric" />
 
         <View style={styles.rowTight}>
-          <TouchableOpacity style={[styles.ghostBtn, busy && styles.disabled]} onPress={pickVoucher} disabled={busy}>
+          <TouchableOpacity
+            style={[styles.ghostBtn, busy && styles.disabled, ((appRole === "employer" || appRole === "agency") && !gate.hasPlan) && styles.disabled]}
+            onPress={pickVoucher}
+            disabled={busy || ((appRole === "employer" || appRole === "agency") && !gate.hasPlan)}
+          >
             <Text style={styles.ghostText}>{voucherUri ? "Change Voucher" : "Pick Voucher"}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.primaryBtn, busy && styles.disabled]} onPress={upload} disabled={busy}>
+          <TouchableOpacity
+            style={[styles.primaryBtn, busy && styles.disabled, ((appRole === "employer" || appRole === "agency") && !gate.hasPlan) && styles.disabled]}
+            onPress={upload}
+            disabled={busy || ((appRole === "employer" || appRole === "agency") && !gate.hasPlan)}
+          >
             <Text style={styles.primaryText}>{busy ? "Working..." : "Upload"}</Text>
           </TouchableOpacity>
         </View>
@@ -159,7 +188,17 @@ export default function PayrollScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 18 },
   title: { fontSize: 22, fontWeight: "700" },
-  subtitle: { marginTop: 6, fontSize: 14, opacity: 0.7 },
+  subtitle: { marginTop: 6, fontSize: 12, opacity: 0.7 },
+  paywall: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.35)",
+  },
+  paywallText: { fontSize: 12, opacity: 0.85, fontWeight: "800" },
+  paywallBtn: { marginTop: 10, paddingVertical: 10, borderRadius: 12, alignItems: "center", backgroundColor: "#111" },
+  paywallBtnText: { color: "#fff", fontWeight: "900" },
   card: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
   label: { marginTop: 10, fontSize: 12, fontWeight: "700", opacity: 0.8 },
   input: { height: 44, borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", paddingHorizontal: 12, marginTop: 8, color: "inherit" as any },
