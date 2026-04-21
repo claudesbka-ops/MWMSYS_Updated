@@ -7,6 +7,13 @@ import { useRole } from "@/contexts/RoleContext";
 import { toast } from "sonner";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Calendar as CalendarIcon, Download } from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { downloadCsv, downloadPdfSimpleTable } from "@/lib/exporters";
 
 export default function LeavePage() {
   const { currentRole } = useRole();
@@ -21,15 +28,15 @@ export default function LeavePage() {
 
   const [form, setForm] = useState({
     leaveType: "Annual",
-    startDate: "",
-    endDate: "",
+    startDate: null as Date | null,
+    endDate: null as Date | null,
   });
 
   const applyMut = useMutation({
     mutationFn: applyLeave,
     onSuccess: () => {
       toast.success("Leave submitted");
-      setForm({ leaveType: "Annual", startDate: "", endDate: "" });
+      setForm({ leaveType: "Annual", startDate: null, endDate: null });
       qc.invalidateQueries({ queryKey: ["hrms_leave"] }).catch(() => undefined);
     },
   });
@@ -60,6 +67,48 @@ export default function LeavePage() {
         <div>
           <h2 className="text-xl font-bold text-foreground">Leave</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Applications and approvals</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              const headers = ["Worker", "Type", "Start", "End", "Status"]; 
+              const out = rows.map((r) => [
+                r.workerId,
+                r.leaveType,
+                (r as any).startFmt,
+                (r as any).endFmt,
+                r.status,
+              ]);
+              downloadCsv(`leave_${new Date().toISOString().slice(0, 10)}.csv`, headers, out);
+            }}
+          >
+            <Download className="h-4 w-4" />
+            CSV
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const headers = ["Worker", "Type", "Start", "End", "Status"]; 
+              const out = rows.map((r) => [
+                r.workerId,
+                r.leaveType,
+                (r as any).startFmt,
+                (r as any).endFmt,
+                r.status,
+              ]);
+              downloadPdfSimpleTable(
+                `leave_${new Date().toISOString().slice(0, 10)}.pdf`,
+                "Leave Applications",
+                headers,
+                out
+              );
+            }}
+          >
+            <Download className="h-4 w-4" />
+            PDF
+          </Button>
         </div>
       </div>
 
@@ -93,21 +142,50 @@ export default function LeavePage() {
               <option value="Sick">Sick</option>
               <option value="Emergency">Emergency</option>
             </select>
-            <input
-              value={form.startDate}
-              onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-              placeholder="Start (YYYY-MM-DD)"
-              className="h-11 px-3 rounded-xl border border-border/60 bg-background text-foreground text-sm"
-            />
-            <input
-              value={form.endDate}
-              onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-              placeholder="End (YYYY-MM-DD)"
-              className="h-11 px-3 rounded-xl border border-border/60 bg-background text-foreground text-sm"
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "h-11 px-3 rounded-xl border border-border/60 bg-background text-foreground text-sm flex items-center justify-between",
+                    !form.startDate && "text-muted-foreground"
+                  )}
+                >
+                  <span>{form.startDate ? format(form.startDate, "PPP") : "Start date"}</span>
+                  <CalendarIcon className="h-4 w-4 opacity-70" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={form.startDate ?? undefined} onSelect={(d) => setForm((p) => ({ ...p, startDate: d ?? null }))} />
+              </PopoverContent>
+            </Popover>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "h-11 px-3 rounded-xl border border-border/60 bg-background text-foreground text-sm flex items-center justify-between",
+                    !form.endDate && "text-muted-foreground"
+                  )}
+                >
+                  <span>{form.endDate ? format(form.endDate, "PPP") : "End date"}</span>
+                  <CalendarIcon className="h-4 w-4 opacity-70" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={form.endDate ?? undefined} onSelect={(d) => setForm((p) => ({ ...p, endDate: d ?? null }))} />
+              </PopoverContent>
+            </Popover>
             <button
-              onClick={() => applyMut.mutate({ ...form })}
-              disabled={applyMut.isPending}
+              onClick={() =>
+                applyMut.mutate({
+                  leaveType: form.leaveType,
+                  startDate: form.startDate ? form.startDate.toISOString().slice(0, 10) : "",
+                  endDate: form.endDate ? form.endDate.toISOString().slice(0, 10) : "",
+                })
+              }
+              disabled={applyMut.isPending || !form.startDate || !form.endDate}
               className="h-11 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-60"
             >
               Submit

@@ -108,7 +108,8 @@ export default function CommandPalette() {
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]" onClick={() => setOpen(false)}>
       <div className="absolute inset-0 bg-foreground/40 backdrop-blur-sm" />
-      <div className="relative w-full max-w-lg bg-card rounded-2xl border border-border/60 shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="relative w-full max-w-lg rounded-3xl p-[1px] bg-gradient-to-br from-primary/35 via-foreground/10 to-accent/20 shadow-2xl shadow-foreground/[0.12]" onClick={e => e.stopPropagation()}>
+        <div className="bg-card/70 backdrop-blur-xl supports-[backdrop-filter]:bg-card/55 rounded-3xl border border-border/60 overflow-hidden">
         {/* Search Input */}
         <div className="flex items-center gap-3 px-4 border-b border-border/40">
           <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
@@ -137,7 +138,9 @@ export default function CommandPalette() {
                 <button
                   key={`${r.type}-${r.id}`}
                   onClick={() => handleSelect(r)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${i === selectedIndex ? "bg-primary/10" : "hover:bg-muted/40"}`}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-left transition-all duration-200 ${
+                    i === selectedIndex ? "bg-primary/12 shadow-sm" : "hover:bg-muted/40"
+                  }`}
                 >
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                     r.type === "worker" ? "bg-primary/10" : r.type === "alert" ? "bg-warning/10" : "bg-success/10"
@@ -164,6 +167,7 @@ export default function CommandPalette() {
             <p className="text-xs text-muted-foreground/60 mt-1">Search by passport number for fastest results</p>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

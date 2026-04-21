@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { Text, View } from "@/components/Themed";
 import { useSubscriptionService } from "@/services/subscriptionService";
+import Colors from "@/constants/Colors";
 
 export default function CheckoutResultScreen() {
   const router = useRouter();
@@ -54,8 +55,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 18, justifyContent: "center" },
   title: { fontSize: 22, fontWeight: "900" },
   subtitle: { marginTop: 8, opacity: 0.7 },
-  card: { marginTop: 16, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  primaryBtn: { paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: "#111" },
+  card: { marginTop: 16, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: Colors.light.border },
+  primaryBtn: { paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: Colors.light.tint },
   primaryText: { color: "#fff", fontWeight: "900" },
   ghostBtn: { marginTop: 12, paddingVertical: 10, borderRadius: 14, alignItems: "center" },
   ghostText: { fontWeight: "800", opacity: 0.8 },

@@ -7,6 +7,9 @@ import { useRole } from "@/contexts/RoleContext";
 import { toast } from "sonner";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import { downloadCsv, downloadPdfSimpleTable } from "@/lib/exporters";
 
 export default function PayrollPage() {
   const { currentRole } = useRole();
@@ -46,12 +49,59 @@ export default function PayrollPage() {
     }));
   }, [data]);
 
+  const years = useMemo(() => {
+    const y = new Date().getFullYear();
+    return [y - 1, y, y + 1];
+  }, []);
+
   return (
     <DashboardLayout>
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <h2 className="text-xl font-bold text-foreground">Payroll</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Vouchers and payment tracking</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              const headers = ["Worker", "Period", "Amount", "Paid", "Voucher"]; 
+              const out = rows.map((r: any) => [
+                r.workerId,
+                r.period,
+                Number(r.amount ?? 0).toFixed(2),
+                r.isPaid ? "Yes" : "No",
+                r.voucherUrl ?? "",
+              ]);
+              downloadCsv(`payroll_${new Date().toISOString().slice(0, 10)}.csv`, headers, out);
+            }}
+          >
+            <Download className="h-4 w-4" />
+            CSV
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const headers = ["Worker", "Period", "Amount", "Paid", "Voucher"]; 
+              const out = rows.map((r: any) => [
+                r.workerId,
+                r.period,
+                Number(r.amount ?? 0).toFixed(2),
+                r.isPaid ? "Yes" : "No",
+                r.voucherUrl ?? "",
+              ]);
+              downloadPdfSimpleTable(
+                `payroll_${new Date().toISOString().slice(0, 10)}.pdf`,
+                "Payroll",
+                headers,
+                out
+              );
+            }}
+          >
+            <Download className="h-4 w-4" />
+            PDF
+          </Button>
         </div>
       </div>
 
@@ -82,18 +132,28 @@ export default function PayrollPage() {
               placeholder="Worker Id"
               className="h-11 px-3 rounded-xl border border-border/60 bg-background text-foreground text-sm md:col-span-2"
             />
-            <input
+            <select
               value={form.month}
               onChange={(e) => setForm({ ...form, month: Number(e.target.value) })}
-              placeholder="Month"
               className="h-11 px-3 rounded-xl border border-border/60 bg-background text-foreground text-sm"
-            />
-            <input
+            >
+              {Array.from({ length: 12 }).map((_, i) => (
+                <option key={i + 1} value={i + 1}>
+                  {String(i + 1).padStart(2, "0")}
+                </option>
+              ))}
+            </select>
+            <select
               value={form.year}
               onChange={(e) => setForm({ ...form, year: Number(e.target.value) })}
-              placeholder="Year"
               className="h-11 px-3 rounded-xl border border-border/60 bg-background text-foreground text-sm"
-            />
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
             <input
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}

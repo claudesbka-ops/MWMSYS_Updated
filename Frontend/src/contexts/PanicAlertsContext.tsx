@@ -37,7 +37,14 @@ export function usePanicAlerts(): PanicContextValue {
 }
 
 function isAuthorityRole(currentRole: string): boolean {
-  return currentRole === "admin" || currentRole === "embassy_source" || currentRole === "embassy_destination" || currentRole === "labour";
+  return (
+    currentRole === "admin" ||
+    currentRole === "employer" ||
+    currentRole === "agency" ||
+    currentRole === "embassy_source" ||
+    currentRole === "embassy_destination" ||
+    currentRole === "labour"
+  );
 }
 
 export function PanicAlertsProvider({ children }: { children: React.ReactNode }) {
@@ -99,7 +106,7 @@ export function PanicAlertsProvider({ children }: { children: React.ReactNode })
           Type: "Panic",
           Title: payload?.title?.toString?.() ?? "Panic Alert",
           Description: payload?.description?.toString?.() ?? "Panic alert triggered",
-          ProbStatus: "New",
+          ProbStatus: payload?.status?.toString?.() ?? payload?.ProbStatus?.toString?.() ?? "New",
           Updated_On: payload?.createdAt?.toString?.() ?? new Date().toISOString(),
           worker_ID: payload?.workerId?.toString?.() ?? null,
           DocumentPath: payload?.uploadedFileUrl?.toString?.() ?? null,

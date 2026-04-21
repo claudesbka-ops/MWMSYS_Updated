@@ -11,6 +11,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { AnimatePresence, motion } from "framer-motion";
 import Index from "./pages/Index.tsx";
 import WorkerPage from "./pages/WorkerPage.tsx";
+import WorkerProfilePage from "./pages/WorkerProfilePage.tsx";
 import EmployerPage from "./pages/EmployerPage.tsx";
 import SearchPage from "./pages/SearchPage.tsx";
 import IncidentPage from "./pages/IncidentPage.tsx";
@@ -19,10 +20,16 @@ import EntryReportPage from "./pages/EntryReportPage.tsx";
 import ExpiryReportPage from "./pages/ExpiryReportPage.tsx";
 import PlaceholderPage from "./pages/PlaceholderPage.tsx";
 import PricingPage from "./pages/PricingPage.tsx";
-import AttendancePage from "./pages/AttendancePage.tsx";
-import LeavePage from "./pages/LeavePage.tsx";
-import PayrollPage from "./pages/PayrollPage.tsx";
-import ContractsPage from "./pages/ContractsPage.tsx";
+import AttendancePage from "./pages/AttendancePage";
+import LeavePage from "./pages/LeavePage";
+import PayrollPage from "./pages/PayrollPage";
+import ContractsPage from "./pages/ContractsPage";
+import RosterPage from "./pages/RosterPage";
+import TimesheetsPage from "./pages/TimesheetsPage";
+import BroadcastPage from "./pages/BroadcastPage";
+import HrmsRequestsPage from "./pages/HrmsRequestsPage";
+import HrmsReportPage from "./pages/HrmsReportPage";
+import WorkerHrmsRequestsPage from "./pages/WorkerHrmsRequestsPage";
 import Login from "./pages/Login.tsx";
 import Signup from "./pages/Signup.tsx";
 import WorkerLogin from "./pages/WorkerLogin.tsx";
@@ -39,6 +46,7 @@ import LabourSignup from "./pages/LabourSignup.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import AdminDashboard from "./pages/AdminDashboard.tsx";
 import AttestationPage from "./pages/AttestationPage.tsx";
+import LiveMapPage from "./pages/LiveMapPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -80,6 +88,14 @@ function AnimatedRoutes() {
             }
           />
           <Route
+            path="/live-map"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer", "embassy_source", "embassy_destination", "labour"]}>
+                <LiveMapPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/employer"
             element={
               <ProtectedRoute allow={["admin", "agency"]}>
@@ -92,6 +108,14 @@ function AnimatedRoutes() {
             element={
               <ProtectedRoute allow={["admin", "agency", "employer"]}>
                 <WorkerPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/worker/:workerId"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer"]}>
+                <WorkerProfilePage />
               </ProtectedRoute>
             }
           />
@@ -136,6 +160,14 @@ function AnimatedRoutes() {
             }
           />
           <Route
+            path="/hrms/my-requests"
+            element={
+              <ProtectedRoute allow={["worker"]}>
+                <WorkerHrmsRequestsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/hrms/payroll"
             element={
               <ProtectedRoute allow={["admin", "agency", "employer"]}>
@@ -148,6 +180,46 @@ function AnimatedRoutes() {
             element={
               <ProtectedRoute allow={["admin", "agency", "employer"]}>
                 <ContractsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hrms/roster"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer"]}>
+                <RosterPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hrms/timesheets"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer"]}>
+                <TimesheetsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hrms/requests"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer"]}>
+                <HrmsRequestsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hrms/report"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer"]}>
+                <HrmsReportPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/broadcast"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer", "worker", "embassy_source", "embassy_destination", "labour"]}>
+                <BroadcastPage />
               </ProtectedRoute>
             }
           />

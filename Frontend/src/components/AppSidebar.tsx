@@ -5,7 +5,7 @@ import {
   Home, Building2, Users, FileCheck, Search, CreditCard,
   Wallet, BarChart3, Shield, ChevronRight,
   FileText, HeartPulse, Eye, AlertTriangle, UserCheck, Menu, X, Clock,
-  User, MessageSquare
+  User, MessageSquare, Megaphone
 } from "lucide-react";
 
 interface NavItem {
@@ -18,6 +18,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: "Home", icon: Home, path: "/", roles: ["admin", "agency", "employer", "worker", "embassy_source", "embassy_destination", "labour"] },
+  { label: "Broadcast", icon: Megaphone, path: "/broadcast", roles: ["admin", "agency", "employer", "worker", "embassy_source", "embassy_destination", "labour"] },
   { label: "Employer", icon: Building2, path: "/employer", roles: ["admin", "agency"] },
   { label: "Worker", icon: Users, path: "/worker", roles: ["admin", "agency", "employer"] },
   { label: "Attestation", icon: FileCheck, path: "/attestation", roles: ["admin", "agency"] },
@@ -30,8 +31,13 @@ const navItems: NavItem[] = [
     children: [
       { label: "Attendance", icon: Clock, path: "/hrms/attendance" },
       { label: "Leave", icon: FileText, path: "/hrms/leave" },
+      { label: "My Requests", icon: FileText, path: "/hrms/my-requests" },
       { label: "Payroll", icon: Wallet, path: "/hrms/payroll" },
       { label: "Contracts", icon: Shield, path: "/hrms/contracts" },
+      { label: "Roster", icon: Clock, path: "/hrms/roster" },
+      { label: "Timesheets", icon: BarChart3, path: "/hrms/timesheets" },
+      { label: "Requests", icon: FileText, path: "/hrms/requests" },
+      { label: "Report", icon: BarChart3, path: "/hrms/report" },
     ],
   },
   { label: "Pricing", icon: CreditCard, path: "/pricing", roles: ["agency", "employer"] },
@@ -63,6 +69,16 @@ export default function AppSidebar() {
 
   const filteredItems = navItems.filter(item => item.roles.includes(currentRole));
 
+  const allowedChildPath = (path: string): boolean => {
+    // Worker should only see worker-relevant HRMS pages
+    if (currentRole === "worker") {
+      return new Set(["/hrms/leave", "/hrms/my-requests"]).has(path);
+    }
+    // Non-worker should not see worker-only entry
+    if (path === "/hrms/my-requests") return false;
+    return true;
+  };
+
   return (
     <>
       <button
@@ -78,14 +94,14 @@ export default function AppSidebar() {
 
       <aside className={`
         fixed top-0 left-0 z-40 h-screen w-64 flex flex-col
-        bg-sidebar/70 backdrop-blur-xl supports-[backdrop-filter]:bg-sidebar/55
-        border-r border-border/60 shadow-2xl
+        sidebar-gradient
+        border-r border-sidebar-border/70 shadow-2xl shadow-foreground/[0.08]
         transition-transform duration-300 ease-out
         ${collapsed ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0
       `}>
         {/* Logo */}
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-border/60">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg shadow-primary/20">
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border/70">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary via-primary/80 to-accent flex items-center justify-center shadow-lg shadow-primary/25 ring-1 ring-white/10">
             <span className="text-primary-foreground font-bold text-sm">MW</span>
           </div>
           <div>
@@ -107,47 +123,55 @@ export default function AppSidebar() {
                 {hasChildren ? (
                   <button
                     onClick={() => setExpandedItem(isExpanded ? null : item.label)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+                    className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm font-semibold transition-all duration-200 premium-ring
                       ${isActive
-                        ? "bg-primary/15 text-primary"
-                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"}
+                        ? "bg-white/10 text-sidebar-foreground shadow-sm"
+                        : "text-sidebar-foreground/70 hover:bg-white/5 hover:text-sidebar-foreground"}
                     `}
                   >
-                    <item.icon className="w-[18px] h-[18px] flex-shrink-0" />
+                    <span className={`w-9 h-9 rounded-2xl flex items-center justify-center border transition-colors
+                      ${isActive ? "bg-primary/15 border-primary/30" : "bg-white/5 border-white/10 group-hover:border-white/15"}
+                    `}>
+                      <item.icon className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? "text-primary" : "text-sidebar-foreground/70 group-hover:text-sidebar-foreground"}`} />
+                    </span>
                     <span className="flex-1 text-left">{item.label}</span>
                     <div className={`transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}>
-                      <ChevronRight className="w-3.5 h-3.5" />
+                      <ChevronRight className="w-3.5 h-3.5 text-sidebar-foreground/60 group-hover:text-sidebar-foreground" />
                     </div>
                   </button>
                 ) : (
                   <Link
                     to={item.path}
                     onClick={() => setCollapsed(false)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+                    className={`group flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm font-semibold transition-all duration-200 premium-ring
                       ${isActive
-                        ? "bg-primary/15 text-primary shadow-sm"
-                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"}
+                        ? "bg-white/10 text-sidebar-foreground shadow-sm"
+                        : "text-sidebar-foreground/70 hover:bg-white/5 hover:text-sidebar-foreground"}
                     `}
                   >
-                    <item.icon className="w-[18px] h-[18px] flex-shrink-0" />
+                    <span className={`w-9 h-9 rounded-2xl flex items-center justify-center border transition-colors
+                      ${isActive ? "bg-primary/15 border-primary/30" : "bg-white/5 border-white/10 group-hover:border-white/15"}
+                    `}>
+                      <item.icon className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? "text-primary" : "text-sidebar-foreground/70 group-hover:text-sidebar-foreground"}`} />
+                    </span>
                     <span>{item.label}</span>
                   </Link>
                 )}
 
                 {hasChildren && isExpanded && (
-                  <div className="ml-5 mt-1 space-y-0.5 border-l-2 border-border/60 pl-3">
-                    {item.children!.map((child) => (
+                  <div className="ml-7 mt-1 space-y-0.5 border-l border-white/10 pl-3">
+                    {item.children!.filter((c) => allowedChildPath(c.path)).map((child) => (
                       <Link
                         key={child.path}
                         to={child.path}
                         onClick={() => setCollapsed(false)}
-                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-200
+                        className={`group flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-semibold transition-all duration-200
                           ${location.pathname === child.path
-                            ? "text-primary bg-primary/10"
-                            : "text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-sidebar-accent/40"}
+                            ? "text-sidebar-foreground bg-white/10"
+                            : "text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-white/5"}
                         `}
                       >
-                        <child.icon className="w-4 h-4 flex-shrink-0" />
+                        <child.icon className={`w-4 h-4 flex-shrink-0 ${location.pathname === child.path ? "text-primary" : "text-sidebar-foreground/70 group-hover:text-sidebar-foreground"}`} />
                         <span>{child.label}</span>
                       </Link>
                     ))}
@@ -159,7 +183,7 @@ export default function AppSidebar() {
         </nav>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-border/60">
+        <div className="px-5 py-4 border-t border-sidebar-border/70">
           <p className="text-[11px] text-sidebar-foreground/60 font-medium">© 2018 MWMSYS</p>
         </div>
       </aside>

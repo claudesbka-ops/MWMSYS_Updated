@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import { Alert, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 
 import { Text, View } from "@/components/Themed";
 import { useOnboarding } from "@/contexts/OnboardingContext";
+import Colors from "@/constants/Colors";
+import { ThemedTextInput } from "@/components/ThemedTextInput";
 
 export default function OnboardingCompanyScreen() {
   const router = useRouter();
@@ -48,16 +50,16 @@ export default function OnboardingCompanyScreen() {
 
       <View style={styles.card}>
         <Text style={styles.label}>{draft?.role === "agency" ? "Agency / Organization Name" : "Company Name"}</Text>
-        <TextInput value={organizationName} onChangeText={setOrganizationName} style={styles.input} />
+        <ThemedTextInput value={organizationName} onChangeText={setOrganizationName} style={styles.input} />
 
         <Text style={[styles.label, { marginTop: 12 }]}>Address</Text>
-        <TextInput value={address} onChangeText={setAddress} style={[styles.input, styles.multiline]} multiline />
+        <ThemedTextInput value={address} onChangeText={setAddress} style={[styles.input, styles.multiline]} multiline />
 
         <Text style={[styles.label, { marginTop: 12 }]}>Phone</Text>
-        <TextInput value={phone} onChangeText={setPhone} style={styles.input} autoCapitalize="none" />
+        <ThemedTextInput value={phone} onChangeText={setPhone} style={styles.input} autoCapitalize="none" />
 
         <Text style={[styles.label, { marginTop: 12 }]}>SSM / License No (optional)</Text>
-        <TextInput value={ssmNumber} onChangeText={setSsmNumber} style={styles.input} autoCapitalize="none" />
+        <ThemedTextInput value={ssmNumber} onChangeText={setSsmNumber} style={styles.input} autoCapitalize="none" />
 
         <TouchableOpacity style={styles.primaryBtn} onPress={next}>
           <Text style={styles.primaryText}>Next</Text>
@@ -73,10 +75,10 @@ const styles = StyleSheet.create({
   backText: { fontWeight: "800", opacity: 0.8 },
   title: { marginTop: 6, fontSize: 22, fontWeight: "900" },
   subtitle: { marginTop: 6, fontSize: 13, opacity: 0.7 },
-  card: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
+  card: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: Colors.light.border },
   label: { fontSize: 12, opacity: 0.7, fontWeight: "700" },
-  input: { marginTop: 6, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", borderRadius: 12, padding: 10 },
+  input: { marginTop: 6, borderWidth: 1, borderColor: Colors.light.border, borderRadius: 12, padding: 10 },
   multiline: { minHeight: 80, textAlignVertical: "top" },
-  primaryBtn: { marginTop: 16, paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: "#111" },
+  primaryBtn: { marginTop: 16, paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: Colors.light.tint },
   primaryText: { color: "#fff", fontWeight: "900" },
 });

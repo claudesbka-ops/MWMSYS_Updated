@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 
 import { Text, View } from "@/components/Themed";
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import { useSignupService } from "@/services/signupService";
+import Colors from "@/constants/Colors";
+import { ThemedTextInput } from "@/components/ThemedTextInput";
 
 export default function OnboardingContactScreen() {
   const router = useRouter();
@@ -78,16 +80,16 @@ export default function OnboardingContactScreen() {
 
       <View style={styles.card}>
         <Text style={styles.label}>Contact person name</Text>
-        <TextInput value={contactPersonName} onChangeText={setContactPersonName} style={styles.input} editable={!busy} />
+        <ThemedTextInput value={contactPersonName} onChangeText={setContactPersonName} style={styles.input} editable={!busy} />
 
         <Text style={[styles.label, { marginTop: 12 }]}>Position (optional)</Text>
-        <TextInput value={contactPersonPosition} onChangeText={setContactPersonPosition} style={styles.input} editable={!busy} />
+        <ThemedTextInput value={contactPersonPosition} onChangeText={setContactPersonPosition} style={styles.input} editable={!busy} />
 
         <Text style={[styles.label, { marginTop: 12 }]}>IC / Passport (optional)</Text>
-        <TextInput value={contactPersonIc} onChangeText={setContactPersonIc} style={styles.input} autoCapitalize="none" editable={!busy} />
+        <ThemedTextInput value={contactPersonIc} onChangeText={setContactPersonIc} style={styles.input} autoCapitalize="none" editable={!busy} />
 
         <Text style={[styles.label, { marginTop: 12 }]}>Phone</Text>
-        <TextInput value={contactPersonPhone} onChangeText={setContactPersonPhone} style={styles.input} autoCapitalize="none" editable={!busy} />
+        <ThemedTextInput value={contactPersonPhone} onChangeText={setContactPersonPhone} style={styles.input} autoCapitalize="none" editable={!busy} />
 
         <TouchableOpacity style={[styles.primaryBtn, busy && styles.disabled]} onPress={finish} disabled={busy}>
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Create account</Text>}
@@ -103,10 +105,10 @@ const styles = StyleSheet.create({
   backText: { fontWeight: "800", opacity: 0.8 },
   title: { marginTop: 6, fontSize: 22, fontWeight: "900" },
   subtitle: { marginTop: 6, fontSize: 13, opacity: 0.7 },
-  card: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
+  card: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: Colors.light.border },
   label: { fontSize: 12, opacity: 0.7, fontWeight: "700" },
-  input: { marginTop: 6, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", borderRadius: 12, padding: 10 },
-  primaryBtn: { marginTop: 16, paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: "#111" },
+  input: { marginTop: 6, borderWidth: 1, borderColor: Colors.light.border, borderRadius: 12, padding: 10 },
+  primaryBtn: { marginTop: 16, paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: Colors.light.tint },
   primaryText: { color: "#fff", fontWeight: "900" },
   disabled: { opacity: 0.6 },
 });

@@ -6,6 +6,7 @@ import * as Linking from "expo-linking";
 import { Text, View } from "@/components/Themed";
 import { useApiClient } from "@/services/apiClient";
 import { useSession } from "@/contexts/SessionContext";
+import Colors from "@/constants/Colors";
 
 export default function CheckoutSummaryScreen() {
   const router = useRouter();
@@ -84,7 +85,7 @@ const styles = StyleSheet.create({
   backText: { fontWeight: "800", opacity: 0.8 },
   title: { marginTop: 6, fontSize: 22, fontWeight: "800" },
   subtitle: { marginTop: 6, fontSize: 13, opacity: 0.7 },
-  card: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
+  card: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: Colors.light.border },
   label: { fontSize: 12, opacity: 0.7, fontWeight: "700" },
   value: { marginTop: 6, fontSize: 16, fontWeight: "900" },
   hint: { fontSize: 12, opacity: 0.7, lineHeight: 16 },
@@ -93,7 +94,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 14,
     alignItems: "center",
-    backgroundColor: "#111",
+    backgroundColor: Colors.light.tint,
   },
   primaryText: { color: "#fff", fontWeight: "900" },
   disabled: { opacity: 0.6 },

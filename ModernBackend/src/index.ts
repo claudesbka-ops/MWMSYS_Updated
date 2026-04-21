@@ -37,6 +37,317 @@ async function ensureAttestationTableExists(): Promise<void> {
   }
 }
 
+async function ensureChatTablesExist(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.ChatSessions','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.ChatSessions (" +
+        "ChatSessionId INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+        "WorkerId INT NOT NULL," +
+        "CreatedOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+        ");" +
+        "CREATE INDEX IX_ChatSessions_WorkerId ON dbo.ChatSessions(WorkerId);" +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.ChatMessages','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.ChatMessages (" +
+        "ChatMessageId INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+        "ChatSessionId INT NOT NULL," +
+        "SenderType VARCHAR(20) NOT NULL," +
+        "Message NVARCHAR(2000) NOT NULL," +
+        "CreatedOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+        ");" +
+        "CREATE INDEX IX_ChatMessages_SessionId ON dbo.ChatMessages(ChatSessionId);" +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.SupportRequests','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.SupportRequests (" +
+        "SupportRequestId INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+        "ChatSessionId INT NOT NULL," +
+        "WorkerId INT NOT NULL," +
+        "Reason NVARCHAR(500) NULL," +
+        "CreatedOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+        ");" +
+        "CREATE INDEX IX_SupportRequests_SessionId ON dbo.SupportRequests(ChatSessionId);" +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+}
+
+async function assertChatSessionOwner(chatSessionId: number, workerId: number): Promise<boolean> {
+  const rows = (await prisma.$queryRawUnsafe(
+    "SELECT TOP (1) [ChatSessionId] FROM [dbo].[ChatSessions] WHERE [ChatSessionId]=@p1 AND [WorkerId]=@p2;",
+    chatSessionId,
+    workerId
+  )) as any[];
+  return !!rows?.[0]?.ChatSessionId;
+}
+
+async function ensureHrmsRequestTablesExist(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.Tbl_HRMS_Overtime_Request','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.Tbl_HRMS_Overtime_Request (" +
+        "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+        "workerId VARCHAR(100) NOT NULL," +
+        "workDate DATE NOT NULL," +
+        "hours DECIMAL(10,2) NOT NULL DEFAULT(0)," +
+        "reason NVARCHAR(500) NULL," +
+        "status VARCHAR(20) NOT NULL DEFAULT('Pending')," +
+        "createdOn DATETIME NOT NULL DEFAULT(GETDATE())," +
+        "decisionBy VARCHAR(100) NULL," +
+        "decisionOn DATETIME NULL" +
+        ");" +
+        "CREATE INDEX IX_HRMS_OT_workerId ON dbo.Tbl_HRMS_Overtime_Request(workerId);" +
+        "CREATE INDEX IX_HRMS_OT_status ON dbo.Tbl_HRMS_Overtime_Request(status);" +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.Tbl_HRMS_Expense_Claim','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.Tbl_HRMS_Expense_Claim (" +
+        "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+        "workerId VARCHAR(100) NOT NULL," +
+        "claimDate DATE NOT NULL," +
+        "amount DECIMAL(18,2) NOT NULL DEFAULT(0)," +
+        "category VARCHAR(50) NULL," +
+        "description NVARCHAR(500) NULL," +
+        "status VARCHAR(20) NOT NULL DEFAULT('Pending')," +
+        "createdOn DATETIME NOT NULL DEFAULT(GETDATE())," +
+        "decisionBy VARCHAR(100) NULL," +
+        "decisionOn DATETIME NULL" +
+        ");" +
+        "CREATE INDEX IX_HRMS_EXP_workerId ON dbo.Tbl_HRMS_Expense_Claim(workerId);" +
+        "CREATE INDEX IX_HRMS_EXP_status ON dbo.Tbl_HRMS_Expense_Claim(status);" +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.Tbl_HRMS_Expense_Attachment','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.Tbl_HRMS_Expense_Attachment (" +
+        "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+        "claimId INT NOT NULL," +
+        "filePath VARCHAR(500) NOT NULL," +
+        "originalName NVARCHAR(255) NULL," +
+        "mimeType VARCHAR(120) NULL," +
+        "fileSize INT NULL," +
+        "createdOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+        ");" +
+        "CREATE INDEX IX_HRMS_EXP_ATT_claimId ON dbo.Tbl_HRMS_Expense_Attachment(claimId);" +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+}
+
+async function broadcastTableExists(): Promise<boolean> {
+  try {
+    const rows = (await prisma.$queryRawUnsafe(
+      "SELECT OBJECT_ID('dbo.Tbl_Broadcast_Message','U') AS oid;"
+    )) as Array<{ oid: any }>;
+    const oid = rows?.[0]?.oid;
+    return oid != null;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureBroadcastTableExists(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.Tbl_Broadcast_Message','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.Tbl_Broadcast_Message (" +
+        "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+        "senderRoleId INT NOT NULL," +
+        "senderKey VARCHAR(120) NULL," +
+        "senderName VARCHAR(120) NULL," +
+        "message NVARCHAR(2000) NOT NULL," +
+        "target VARCHAR(30) NOT NULL," +
+        "createdOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+        ");" +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.Tbl_Broadcast_Attachment','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.Tbl_Broadcast_Attachment (" +
+        "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+        "messageId INT NOT NULL," +
+        "url VARCHAR(500) NOT NULL," +
+        "mime VARCHAR(120) NULL," +
+        "originalName VARCHAR(260) NULL," +
+        "sizeBytes BIGINT NULL," +
+        "createdOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+        ");" +
+        "CREATE INDEX IX_Broadcast_Att_MessageId ON dbo.Tbl_Broadcast_Attachment(messageId);" +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+}
+
+const broadcastUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req: express.Request, _file: any, cb: (error: Error | null, destination: string) => void) => cb(null, uploadsDir),
+    filename: (_req: express.Request, file: any, cb: (error: Error | null, filename: string) => void) => {
+      const safeOriginal = (file.originalname || "file").replace(/[^a-zA-Z0-9._-]/g, "_");
+      const ext = path.extname(safeOriginal);
+      const base = path.basename(safeOriginal, ext);
+      cb(null, `${Date.now()}_${Math.round(Math.random() * 1e9)}_${base}${ext}`);
+    },
+  }),
+  limits: {
+    fileSize: 50 * 1024 * 1024,
+    files: 5,
+  },
+});
+
+async function resolveWorkerScopes(workerId: string): Promise<{ employerId: string | null; nationality: number | null; agencyIds: string[] }> {
+  const wid = (workerId ?? "").toString().trim();
+  if (!wid) return { employerId: null, nationality: null, agencyIds: [] };
+
+  const info = await prisma.tbl_Worker_PersonalInfo.findFirst({
+    where: { Worker_Id: wid },
+    select: { Employer_Id: true, Nationality: true },
+  });
+
+  const links = await prisma.tbl_Worker_RecruitAgent.findMany({
+    where: { Worker_Id: wid },
+    select: { Malaysian_Reqruitment_Agency: true, Source_Country_Requirtment_Agency: true },
+    take: 10,
+  });
+
+  const agencyIds = new Set<string>();
+  for (const l of links ?? []) {
+    const a = (l.Malaysian_Reqruitment_Agency ?? "").toString().trim();
+    const b = (l.Source_Country_Requirtment_Agency ?? "").toString().trim();
+    if (a) agencyIds.add(a);
+    if (b) agencyIds.add(b);
+  }
+
+  const employerId = (info?.Employer_Id ?? "").toString().trim() || null;
+  const nationality = info?.Nationality != null ? Number(info.Nationality) : NaN;
+
+  return {
+    employerId,
+    nationality: Number.isFinite(nationality) ? nationality : null,
+    agencyIds: Array.from(agencyIds),
+  };
+}
+
+async function resolveEmployerAgencies(employerId: string): Promise<string[]> {
+  const eid = (employerId ?? "").toString().trim();
+  if (!eid) return [];
+
+  const workers = await prisma.tbl_Worker_PersonalInfo.findMany({
+    where: { Employer_Id: eid },
+    select: { Worker_Id: true },
+    take: 5000,
+  });
+  const wids = Array.from(new Set((workers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean)));
+  if (!wids.length) return [];
+
+  const links = await prisma.tbl_Worker_RecruitAgent.findMany({
+    where: { Worker_Id: { in: wids } },
+    select: { Malaysian_Reqruitment_Agency: true, Source_Country_Requirtment_Agency: true },
+    take: 5000,
+  });
+
+  const agencyIds = new Set<string>();
+  for (const l of links ?? []) {
+    const a = (l.Malaysian_Reqruitment_Agency ?? "").toString().trim();
+    const b = (l.Source_Country_Requirtment_Agency ?? "").toString().trim();
+    if (a) agencyIds.add(a);
+    if (b) agencyIds.add(b);
+  }
+  return Array.from(agencyIds);
+}
+
+async function ensureRosterTablesExist(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.Tbl_Shift_Template','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.Tbl_Shift_Template (" +
+        "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+        "entityId VARCHAR(100) NOT NULL," +
+        "name VARCHAR(80) NOT NULL," +
+        "startTime VARCHAR(5) NOT NULL," +
+        "endTime VARCHAR(5) NOT NULL," +
+        "breakMinutes INT NOT NULL DEFAULT(0)," +
+        "createdOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+        ");" +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.Tbl_Roster_Assignment','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.Tbl_Roster_Assignment (" +
+        "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+        "workerId VARCHAR(100) NOT NULL," +
+        "entityId VARCHAR(100) NOT NULL," +
+        "date DATE NOT NULL," +
+        "shiftId INT NOT NULL," +
+        "updatedOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+        ");" +
+        "CREATE UNIQUE INDEX UX_Roster_Worker_Date ON dbo.Tbl_Roster_Assignment(workerId,date);" +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+}
+
+async function ensureSubscriptionTableExists(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.Tbl_Subscription','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.Tbl_Subscription (" +
+        "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+        "entityId VARCHAR(100) NOT NULL," +
+        "planType VARCHAR(20) NOT NULL," +
+        "status VARCHAR(20) NOT NULL," +
+        "startDate DATETIME NOT NULL," +
+        "endDate DATETIME NOT NULL" +
+        ");" +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+}
+
 const app = express();
 
 app.use(cors());
@@ -67,12 +378,350 @@ app.get("/stripe/return", (req, res) => {
     return res.status(400).send("Invalid redirect");
   }
 
-  return res.redirect(302, redirect);
+  // Prevent open redirects: allow only configured schemes/hosts.
+  // - Allowed schemes default: http, https, exp (Expo).
+  // - Allowed hosts can be set via STRIPE_RETURN_ALLOWED_HOSTS (comma-separated).
+  const allowedSchemes = new Set(["http", "https", "exp"]);
+  const allowedHostsEnv = (process.env.STRIPE_RETURN_ALLOWED_HOSTS ?? "").toString();
+  const allowedHosts = new Set(
+    allowedHostsEnv
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  try {
+    const u = new URL(redirect);
+    const scheme = (u.protocol ?? "").replace(":", "").toLowerCase();
+    const host = (u.hostname ?? "").toLowerCase();
+
+    if (!allowedSchemes.has(scheme)) {
+      return res.status(400).send("Invalid redirect scheme");
+    }
+
+    if ((scheme === "http" || scheme === "https") && allowedHosts.size > 0 && !allowedHosts.has(host)) {
+      return res.status(400).send("Invalid redirect host");
+    }
+
+    return res.redirect(302, redirect);
+  } catch {
+    return res.status(400).send("Invalid redirect");
+  }
+});
+
+app.get("/Api/HRMS/Overtime/me", requireAuth, checkRole([2]), async (req, res, next) => {
+  try {
+    await ensureHrmsRequestTablesExist();
+
+    const userKey = ((req as any).user?.userKey ?? "").toString().trim();
+    if (!userKey) return res.status(400).json({ error: "Missing worker id" });
+
+    const rows = (await prisma.$queryRawUnsafe(
+      "SELECT TOP (1000) id, workerId, workDate, hours, reason, status, createdOn, decisionBy, decisionOn FROM dbo.Tbl_HRMS_Overtime_Request WHERE workerId=@P1 ORDER BY id DESC",
+      userKey
+    )) as any[];
+
+    return res.json(rows ?? []);
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.post("/Api/Worker/Location", requireAuth, async (req, res, next) => {
+  try {
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    if (roleId !== 2) return res.status(403).json({ error: "Forbidden" });
+
+    const jwtUserId = Number((req as any).user?.userId ?? 0);
+    const workerId = await findWorkerIdByJwtUserId(jwtUserId);
+    if (!workerId) return res.status(400).json({ error: "Worker not found" });
+
+    const lat = req.body?.lat ?? req.body?.Lat ?? req.body?.latitude ?? req.body?.Latitude;
+    const lng = req.body?.lng ?? req.body?.Lng ?? req.body?.longitude ?? req.body?.Longitude;
+    const accuracy = req.body?.accuracy ?? req.body?.Accuracy;
+
+    const latNum = Number(lat);
+    const lngNum = Number(lng);
+    const accNum = accuracy != null ? Number(accuracy) : NaN;
+
+    if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+      return res.status(400).json({ error: "lat and lng are required" });
+    }
+
+    const updatedOn = new Date();
+
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.Tbl_Worker_Location','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.Tbl_Worker_Location (" +
+        "workerId VARCHAR(100) NOT NULL PRIMARY KEY," +
+        "lat DECIMAL(10,7) NULL," +
+        "lng DECIMAL(10,7) NULL," +
+        "accuracy DECIMAL(10,2) NULL," +
+        "updatedOn DATETIME NULL" +
+        ") END"
+    );
+
+    const accVal = Number.isFinite(accNum) ? accNum : null;
+    await prisma.$executeRawUnsafe(
+      "MERGE dbo.Tbl_Worker_Location AS t " +
+        "USING (SELECT ? AS workerId, ? AS lat, ? AS lng, ? AS accuracy, ? AS updatedOn) AS s " +
+        "ON (t.workerId = s.workerId) " +
+        "WHEN MATCHED THEN UPDATE SET lat=s.lat, lng=s.lng, accuracy=s.accuracy, updatedOn=s.updatedOn " +
+        "WHEN NOT MATCHED THEN INSERT (workerId,lat,lng,accuracy,updatedOn) VALUES (s.workerId,s.lat,s.lng,s.accuracy,s.updatedOn);",
+      workerId,
+      latNum,
+      lngNum,
+      accVal,
+      updatedOn
+    );
+
+    const workerInfo = await prisma.tbl_Worker_PersonalInfo.findFirst({
+      where: { Worker_Id: workerId },
+      select: { Employer_Id: true, Nationality: true, Name: true },
+    });
+
+    const agencyLinks = await prisma.tbl_Worker_RecruitAgent.findMany({
+      where: { Worker_Id: workerId },
+      select: { Malaysian_Reqruitment_Agency: true, Source_Country_Requirtment_Agency: true },
+      take: 5,
+    });
+
+    const agencyIds = new Set<string>();
+    for (const l of agencyLinks ?? []) {
+      const a = (l.Malaysian_Reqruitment_Agency ?? "").toString().trim();
+      const b = (l.Source_Country_Requirtment_Agency ?? "").toString().trim();
+      if (a) agencyIds.add(a);
+      if (b) agencyIds.add(b);
+    }
+
+    const payload = {
+      workerId,
+      name: workerInfo?.Name ?? null,
+      lat: latNum,
+      lng: lngNum,
+      accuracy: Number.isFinite(accNum) ? accNum : null,
+      updatedAt: updatedOn.toISOString(),
+    };
+
+    try {
+      io.to("admin").emit("worker_location_update", payload);
+
+      const employerId = (workerInfo?.Employer_Id ?? "").toString().trim();
+      if (employerId) io.to(`employer:${employerId}`).emit("worker_location_update", payload);
+
+      for (const id of agencyIds) {
+        io.to(`agency:${id}`).emit("worker_location_update", payload);
+      }
+
+      const nationality = workerInfo?.Nationality != null ? Number(workerInfo.Nationality) : NaN;
+      if (Number.isFinite(nationality)) io.to(`nationality:${nationality}`).emit("worker_location_update", payload);
+    } catch {
+      // ignore emit errors
+    }
+
+    return res.json({ ok: true });
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.get("/Api/HRMS/Timesheets", requireAuth, async (req, res, next) => {
+  try {
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    if (![1, 3, 4, 5, 6, 7].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
+
+    await ensureRosterTablesExist();
+
+    const rawFrom = Array.isArray(req.query.from) ? req.query.from[0] : req.query.from;
+    const rawTo = Array.isArray(req.query.to) ? req.query.to[0] : req.query.to;
+    const from = rawFrom ? new Date(String(rawFrom)) : null;
+    const to = rawTo ? new Date(String(rawTo)) : null;
+    if (!from || !to || isNaN(from.getTime()) || isNaN(to.getTime())) {
+      return res.status(400).json({ error: "from and to are required" });
+    }
+
+    const fromStr = from.toISOString().slice(0, 10);
+    const toStr = to.toISOString().slice(0, 10);
+
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+    const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
+      where: scopeWhere,
+      select: { Worker_Id: true, Name: true },
+      take: 5000,
+    });
+    const workerIds = Array.from(new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean)));
+    if (roleId !== 1 && !workerIds.length) return res.json({ rows: [], days: [] });
+
+    const nameById = new Map<string, string | null>();
+    for (const w of scopedWorkers ?? []) {
+      nameById.set((w.Worker_Id ?? "").toString(), w.Name ?? null);
+    }
+
+    const rosterRows = (await prisma.$queryRawUnsafe(
+      roleId === 1
+        ? "SELECT TOP (50000) r.workerId, r.date, s.startTime, s.endTime, s.breakMinutes FROM dbo.Tbl_Roster_Assignment r LEFT JOIN dbo.Tbl_Shift_Template s ON s.id=r.shiftId WHERE r.date >= CAST(? AS DATE) AND r.date <= CAST(? AS DATE)"
+        : `SELECT TOP (50000) r.workerId, r.date, s.startTime, s.endTime, s.breakMinutes FROM dbo.Tbl_Roster_Assignment r LEFT JOIN dbo.Tbl_Shift_Template s ON s.id=r.shiftId WHERE r.date >= CAST(? AS DATE) AND r.date <= CAST(? AS DATE) AND r.workerId IN (${workerIds
+            .map(() => "?")
+            .join(",")})`,
+      fromStr,
+      toStr,
+      ...(roleId === 1 ? [] : workerIds)
+    )) as Array<any>;
+
+    const attendanceRows = (await prisma.$queryRawUnsafe(
+      roleId === 1
+        ? "SELECT TOP (50000) workerId, checkIn, checkOut FROM dbo.Tbl_Attendance WHERE checkIn >= ? AND checkIn <= DATEADD(day,1,?)"
+        : `SELECT TOP (50000) workerId, checkIn, checkOut FROM dbo.Tbl_Attendance WHERE checkIn >= ? AND checkIn <= DATEADD(day,1,?) AND workerId IN (${workerIds
+            .map(() => "?")
+            .join(",")})`,
+      fromStr,
+      toStr,
+      ...(roleId === 1 ? [] : workerIds)
+    )) as Array<any>;
+
+    const parseTime = (t: string) => {
+      const m = /^\s*(\d{1,2}):(\d{2})\s*$/.exec(String(t ?? ""));
+      if (!m) return null;
+      const hh = Number(m[1]);
+      const mm = Number(m[2]);
+      if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+      return hh * 60 + mm;
+    };
+
+    const plannedByWorkerDay = new Map<string, number>();
+    for (const r of rosterRows ?? []) {
+      const workerId = (r.workerId ?? "").toString();
+      const d = r.date ? new Date(r.date) : null;
+      if (!workerId || !d || isNaN(d.getTime())) continue;
+      const day = d.toISOString().slice(0, 10);
+      const startMin = parseTime(r.startTime);
+      const endMin = parseTime(r.endTime);
+      const breakMin = Number(r.breakMinutes ?? 0);
+      const minutes = startMin != null && endMin != null ? Math.max(0, endMin - startMin - (Number.isFinite(breakMin) ? breakMin : 0)) : 0;
+      const hours = Math.round((minutes / 60) * 100) / 100;
+      plannedByWorkerDay.set(`${workerId}|${day}`, hours);
+    }
+
+    const actualByWorkerDay = new Map<string, number>();
+    for (const a of attendanceRows ?? []) {
+      const workerId = (a.workerId ?? "").toString();
+      const cin = a.checkIn ? new Date(a.checkIn) : null;
+      const cout = a.checkOut ? new Date(a.checkOut) : null;
+      if (!workerId || !cin || isNaN(cin.getTime())) continue;
+      const day = cin.toISOString().slice(0, 10);
+      if (!cout || isNaN(cout.getTime())) continue;
+      const minutes = Math.max(0, (cout.getTime() - cin.getTime()) / 60000);
+      const hours = Math.round((minutes / 60) * 100) / 100;
+      const key = `${workerId}|${day}`;
+      actualByWorkerDay.set(key, Math.round(((actualByWorkerDay.get(key) ?? 0) + hours) * 100) / 100);
+    }
+
+    const allKeys = new Set<string>();
+    for (const k of plannedByWorkerDay.keys()) allKeys.add(k);
+    for (const k of actualByWorkerDay.keys()) allKeys.add(k);
+
+    const dayRows = Array.from(allKeys)
+      .map((k) => {
+        const [workerId, day] = k.split("|");
+        const planned = plannedByWorkerDay.get(k) ?? 0;
+        const actual = actualByWorkerDay.get(k) ?? 0;
+        const overtime = Math.max(0, Math.round((actual - planned) * 100) / 100);
+        return {
+          workerId,
+          name: nameById.get(workerId) ?? null,
+          day,
+          plannedHours: planned,
+          actualHours: actual,
+          overtimeHours: overtime,
+        };
+      })
+      .sort((a, b) => (a.day === b.day ? a.workerId.localeCompare(b.workerId) : b.day.localeCompare(a.day)));
+
+    const agg = new Map<string, { planned: number; actual: number; overtime: number; days: number }>();
+    for (const r of dayRows) {
+      const cur = agg.get(r.workerId) ?? { planned: 0, actual: 0, overtime: 0, days: 0 };
+      cur.planned = Math.round((cur.planned + (r.plannedHours ?? 0)) * 100) / 100;
+      cur.actual = Math.round((cur.actual + (r.actualHours ?? 0)) * 100) / 100;
+      cur.overtime = Math.round((cur.overtime + (r.overtimeHours ?? 0)) * 100) / 100;
+      cur.days += 1;
+      agg.set(r.workerId, cur);
+    }
+
+    const summary = Array.from(agg.entries())
+      .map(([workerId, v]) => ({
+        workerId,
+        name: nameById.get(workerId) ?? null,
+        plannedHours: v.planned,
+        actualHours: v.actual,
+        overtimeHours: v.overtime,
+        days: v.days,
+      }))
+      .sort((a, b) => (b.overtimeHours ?? 0) - (a.overtimeHours ?? 0));
+
+    return res.json({ rows: summary, days: dayRows });
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.get("/Api/Workers/Locations", requireAuth, checkRole([1, 3, 4, 5, 6, 7]), async (req, res, next) => {
+  try {
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+    const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
+      where: scopeWhere,
+      select: { Worker_Id: true, Name: true },
+      take: 5000,
+    });
+    const workerIds = (scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean);
+
+    if (roleId !== 1 && !workerIds.length) return res.json({ rows: [] });
+
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.Tbl_Worker_Location','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.Tbl_Worker_Location (" +
+        "workerId VARCHAR(100) NOT NULL PRIMARY KEY," +
+        "lat DECIMAL(10,7) NULL," +
+        "lng DECIMAL(10,7) NULL," +
+        "accuracy DECIMAL(10,2) NULL," +
+        "updatedOn DATETIME NULL" +
+        ") END"
+    );
+
+    const locations = (await prisma.$queryRawUnsafe(
+      roleId === 1
+        ? "SELECT TOP (5000) workerId, lat, lng, accuracy, updatedOn FROM dbo.Tbl_Worker_Location ORDER BY updatedOn DESC"
+        : `SELECT TOP (5000) workerId, lat, lng, accuracy, updatedOn FROM dbo.Tbl_Worker_Location WHERE workerId IN (${workerIds
+            .map(() => "?")
+            .join(",")}) ORDER BY updatedOn DESC`,
+      ...(roleId === 1 ? [] : workerIds)
+    )) as Array<{ workerId: string; lat: any; lng: any; accuracy: any; updatedOn: any }>;
+
+    const nameById = new Map<string, string | null>();
+    for (const w of scopedWorkers ?? []) {
+      nameById.set((w.Worker_Id ?? "").toString(), w.Name ?? null);
+    }
+
+    return res.json({
+      rows: (locations ?? []).map((l) => ({
+        workerId: l.workerId,
+        name: nameById.get(l.workerId) ?? null,
+        lat: l.lat != null ? Number(l.lat as any) : null,
+        lng: l.lng != null ? Number(l.lng as any) : null,
+        accuracy: l.accuracy != null ? Number(l.accuracy as any) : null,
+        updatedAt: l.updatedOn ? new Date(l.updatedOn as any).toISOString() : null,
+      })),
+    });
+  } catch (e) {
+    return next(e);
+  }
 });
 
 app.post("/Api/subscription/checkout", requireAuth, async (req, res, next) => {
   try {
     if (!stripe) return res.status(500).json({ error: "Stripe is not configured" });
+
+    await ensureSubscriptionTableExists();
 
     const user = (req as any).user as { userKey?: string; roleId?: number; emailId?: string };
     const roleId = user?.roleId != null ? Number(user.roleId) : null;
@@ -112,12 +761,20 @@ app.post("/Api/subscription/checkout", requireAuth, async (req, res, next) => {
     }
 
     const session = await stripe.checkout.sessions.create({
-      mode: "payment",
+      mode: "subscription",
       line_items: [{ price: priceId.trim(), quantity: 1 }],
       success_url: successUrl,
       cancel_url: cancelUrl,
       client_reference_id: entityId,
       customer_email: user?.emailId ? String(user.emailId) : undefined,
+      // Make sure subscription carries metadata so webhooks can map back.
+      subscription_data: {
+        metadata: {
+          entityId,
+          planType,
+          roleId: roleId != null ? String(roleId) : "",
+        },
+      },
       metadata: {
         entityId,
         planType,
@@ -152,27 +809,106 @@ app.post(
         const s = event.data.object as Stripe.Checkout.Session;
         const entityId = (s.metadata?.entityId ?? s.client_reference_id ?? "").toString().trim();
         const planType = (s.metadata?.planType ?? "").toString().trim();
+        const subscriptionId = (s.subscription ?? "").toString().trim();
 
-        if (entityId && planType) {
-          const now = new Date();
-          const end = new Date(now);
-          end.setDate(end.getDate() + 30);
+        if (entityId && planType && subscriptionId) {
+          const sub = await stripe.subscriptions.retrieve(subscriptionId);
+          const startMs = (sub.current_period_start ?? 0) * 1000;
+          const endMs = (sub.current_period_end ?? 0) * 1000;
+          const startDate = startMs ? new Date(startMs) : new Date();
+          const endDate = endMs ? new Date(endMs) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-          // deactivate previous active subscriptions for the entity
+          // Idempotency: avoid duplicating the same active period.
+          const existing = await prisma.tbl_Subscription.findFirst({
+            where: {
+              entityId,
+              planType,
+              status: "Active",
+              startDate,
+              endDate,
+            },
+          });
+
+          if (!existing) {
+            await prisma.tbl_Subscription.updateMany({
+              where: { entityId, status: "Active" },
+              data: { status: "Expired" },
+            });
+
+            await prisma.tbl_Subscription.create({
+              data: {
+                entityId,
+                planType,
+                status: "Active",
+                startDate,
+                endDate,
+              },
+            });
+          }
+        }
+      }
+
+      if (event.type === "customer.subscription.deleted") {
+        const s = event.data.object as Stripe.Subscription;
+        const entityId = (s.metadata?.entityId ?? "").toString().trim();
+        if (entityId) {
           await prisma.tbl_Subscription.updateMany({
             where: { entityId, status: "Active" },
             data: { status: "Expired" },
           });
+        }
+      }
 
-          await prisma.tbl_Subscription.create({
-            data: {
-              entityId,
-              planType,
-              status: "Active",
-              startDate: now,
-              endDate: end,
-            },
+      if (event.type === "customer.subscription.updated") {
+        const s = event.data.object as Stripe.Subscription;
+        const entityId = (s.metadata?.entityId ?? "").toString().trim();
+        const planType = (s.metadata?.planType ?? "").toString().trim();
+        if (entityId) {
+          const startMs = (s.current_period_start ?? 0) * 1000;
+          const endMs = (s.current_period_end ?? 0) * 1000;
+          const startDate = startMs ? new Date(startMs) : new Date();
+          const endDate = endMs ? new Date(endMs) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+          const latest = await prisma.tbl_Subscription.findFirst({
+            where: { entityId, status: "Active" },
+            orderBy: [{ endDate: "desc" }],
           });
+
+          if (latest) {
+            await prisma.tbl_Subscription.update({
+              where: { id: latest.id },
+              data: {
+                planType: planType || latest.planType,
+                startDate,
+                endDate,
+              },
+            });
+          } else if (planType) {
+            await prisma.tbl_Subscription.create({
+              data: {
+                entityId,
+                planType,
+                status: "Active",
+                startDate,
+                endDate,
+              },
+            });
+          }
+        }
+      }
+
+      if (event.type === "invoice.payment_failed") {
+        const inv = event.data.object as Stripe.Invoice;
+        const subId = (inv.subscription ?? "").toString().trim();
+        if (subId) {
+          const sub = await stripe.subscriptions.retrieve(subId);
+          const entityId = (sub.metadata?.entityId ?? "").toString().trim();
+          if (entityId) {
+            await prisma.tbl_Subscription.updateMany({
+              where: { entityId, status: "Active" },
+              data: { status: "Expired" },
+            });
+          }
         }
       }
 
@@ -202,21 +938,412 @@ io.on("connection", (socket) => {
 
     const decoded = jwt.verify(bearer, secret) as any;
     const roleId = decoded?.roleId != null ? Number(decoded.roleId) : null;
+    const userKey = (decoded?.userKey ?? "").toString().trim();
+    const countryCode = decoded?.countryCode != null ? Number(decoded.countryCode) : NaN;
+
+    socket.join("broadcast_all");
+
+    if (roleId === 1) {
+      socket.join("admin");
+      console.log("ALERTS: User joined admin room");
+    }
+
+    if (roleId === 3 && userKey) {
+      socket.join("employers");
+      socket.join(`employer:${userKey}`);
+    }
+    if (roleId === 4 && userKey) {
+      socket.join("agencies");
+      socket.join(`agency:${userKey}`);
+    }
+
+    if (roleId === 2 && userKey) {
+      socket.join("workers");
+      socket.join(`worker:${userKey}`);
+      resolveWorkerScopes(userKey)
+        .then((s) => {
+          if (s.employerId) socket.join(`employer:${s.employerId}`);
+          for (const id of s.agencyIds) socket.join(`agency:${id}`);
+          if (s.nationality != null) socket.join(`nationality:${s.nationality}`);
+        })
+        .catch(() => undefined);
+    }
+
+    if (roleId === 7) {
+      socket.join("labour");
+      if (Number.isFinite(countryCode)) socket.join(`nationality:${countryCode}`);
+    }
+
+    const isPanicViewer = roleId === 1 || roleId === 3 || roleId === 4 || roleId === 5 || roleId === 6 || roleId === 7;
+    if (isPanicViewer) {
+      socket.join("panic_viewers");
+    }
 
     const isAuthority = roleId === 1 || roleId === 4 || roleId === 5 || roleId === 6 || roleId === 7;
     if (isAuthority) {
       socket.join("authorities");
-      console.log("ALERTS: User joined authority room");
     }
 
     if (roleId === 5) {
       socket.join("embassy_source");
+      if (Number.isFinite(countryCode)) socket.join(`nationality:${countryCode}`);
     }
     if (roleId === 6) {
       socket.join("embassy_destination");
+      if (Number.isFinite(countryCode)) socket.join(`nationality:${countryCode}`);
     }
-  } catch {
-    // ignore invalid tokens
+  } catch (e) {
+    console.warn("socket auth rejected", e);
+  }
+});
+
+app.post("/Api/Broadcast/Send", requireAuth, async (req, res, next) => {
+  try {
+    await ensureBroadcastTableExists();
+    const ok = await broadcastTableExists();
+    if (!ok) return res.status(501).json({ error: "Broadcast table not installed" });
+
+    const user = (req as any).user as any;
+    const roleId = Number(user?.roleId ?? 0);
+    const senderKey = (user?.userKey ?? "").toString().trim() || null;
+    const senderName = (user?.userName ?? user?.emailId ?? senderKey ?? "").toString().trim() || null;
+    const message = (req.body?.message ?? "").toString();
+
+    if (![1, 3, 4, 5, 6, 7].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
+    if (!message.trim()) return res.status(400).json({ error: "message is required" });
+
+    let target: "workers" | "workers_employers" | "nationality" | "all" = "all";
+    if (roleId === 3) target = "workers";
+    else if (roleId === 4) target = "workers_employers";
+    else if (roleId === 5 || roleId === 6) target = "nationality";
+    else if (roleId === 7 || roleId === 1) target = "all";
+
+    const rows = (await prisma.$queryRawUnsafe(
+      "INSERT INTO dbo.Tbl_Broadcast_Message(senderRoleId,senderKey,senderName,message,target) OUTPUT INSERTED.id, INSERTED.createdOn VALUES(@P1,@P2,@P3,@P4,@P5);",
+      roleId,
+      senderKey,
+      senderName,
+      message.trim().slice(0, 2000),
+      target
+    )) as any[];
+
+    const row = Array.isArray(rows) ? rows[0] : null;
+    const payload = {
+      id: row?.id != null ? Number(row.id) : null,
+      senderRoleId: roleId,
+      senderKey,
+      senderName,
+      message: message.trim().slice(0, 2000),
+      target,
+      createdOn: row?.createdOn ? new Date(row.createdOn).toISOString() : new Date().toISOString(),
+      attachments: [] as Array<{ id: number; url: string; mime: string | null; originalName: string | null; sizeBytes: number | null }>,
+    };
+
+    try {
+      if (target === "all") {
+        io.to("broadcast_all").emit("broadcast_message", payload);
+      } else if (target === "workers") {
+        if (senderKey) io.to(`employer:${senderKey}`).emit("broadcast_message", payload);
+      } else if (target === "workers_employers") {
+        if (senderKey) io.to(`agency:${senderKey}`).emit("broadcast_message", payload);
+
+        // Also explicitly target employers connected to workers under this agency.
+        if (senderKey) {
+          const links = await prisma.tbl_Worker_RecruitAgent.findMany({
+            where: {
+              OR: [{ Malaysian_Reqruitment_Agency: senderKey }, { Source_Country_Requirtment_Agency: senderKey }],
+            },
+            select: { Worker_Id: true },
+            take: 5000,
+          });
+          const wids = Array.from(new Set((links ?? []).map((x) => (x.Worker_Id ?? "").toString()).filter(Boolean)));
+          if (wids.length) {
+            const infos = await prisma.tbl_Worker_PersonalInfo.findMany({
+              where: { Worker_Id: { in: wids } },
+              select: { Employer_Id: true },
+              take: 5000,
+            });
+            const employerIds = Array.from(new Set((infos ?? []).map((x) => (x.Employer_Id ?? "").toString().trim()).filter(Boolean)));
+            for (const eid of employerIds) {
+              io.to(`employer:${eid}`).emit("broadcast_message", payload);
+            }
+          }
+        }
+      } else if (target === "nationality") {
+        const nat = user?.countryCode != null ? Number(user.countryCode) : NaN;
+        if (Number.isFinite(nat)) io.to(`nationality:${nat}`).emit("broadcast_message", payload);
+      }
+    } catch {
+      // ignore emit errors
+    }
+
+    return res.json({ ok: true, payload });
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.post("/Api/Broadcast/SendMultipart", requireAuth, broadcastUpload.array("files", 5), async (req, res, next) => {
+  try {
+    await ensureBroadcastTableExists();
+    const ok = await broadcastTableExists();
+    if (!ok) return res.status(501).json({ error: "Broadcast table not installed" });
+
+    const user = (req as any).user as any;
+    const roleId = Number(user?.roleId ?? 0);
+    const senderKey = (user?.userKey ?? "").toString().trim() || null;
+    const senderName = (user?.userName ?? user?.emailId ?? senderKey ?? "").toString().trim() || null;
+    const message = (req.body?.message ?? "").toString();
+
+    if (![1, 3, 4, 5, 6, 7].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
+
+    const files = ((req as any).files ?? []) as Array<{ filename?: string; mimetype?: string; originalname?: string; size?: number }>;
+    const hasFiles = Array.isArray(files) && files.length > 0;
+    if (!message.trim() && !hasFiles) return res.status(400).json({ error: "message or files are required" });
+
+    let target: "workers" | "workers_employers" | "nationality" | "all" = "all";
+    if (roleId === 3) target = "workers";
+    else if (roleId === 4) target = "workers_employers";
+    else if (roleId === 5 || roleId === 6) target = "nationality";
+    else if (roleId === 7 || roleId === 1) target = "all";
+
+    const inserted = (await prisma.$queryRawUnsafe(
+      "INSERT INTO dbo.Tbl_Broadcast_Message(senderRoleId,senderKey,senderName,message,target) OUTPUT INSERTED.id, INSERTED.createdOn VALUES(@P1,@P2,@P3,@P4,@P5);",
+      roleId,
+      senderKey,
+      senderName,
+      message.trim().slice(0, 2000),
+      target
+    )) as any[];
+
+    const row = Array.isArray(inserted) ? inserted[0] : null;
+    const messageId = row?.id != null ? Number(row.id) : NaN;
+    if (!Number.isFinite(messageId)) return res.status(500).json({ error: "Unable to send" });
+
+    const attachments: Array<{ id: number; url: string; mime: string | null; originalName: string | null; sizeBytes: number | null }> = [];
+    for (const f of files ?? []) {
+      const filename = (f.filename ?? "").toString();
+      if (!filename) continue;
+      const url = `/uploads/${filename}`;
+      const mime = (f.mimetype ?? "").toString() || null;
+      const originalName = (f.originalname ?? filename).toString() || null;
+      const sizeBytes = f.size != null ? Number(f.size) : null;
+
+      const attRows = (await prisma.$queryRawUnsafe(
+        "INSERT INTO dbo.Tbl_Broadcast_Attachment(messageId,url,mime,originalName,sizeBytes) OUTPUT INSERTED.id VALUES(@P1,@P2,@P3,@P4,@P5);",
+        messageId,
+        url,
+        mime,
+        originalName,
+        sizeBytes
+      )) as any[];
+      const att = Array.isArray(attRows) ? attRows[0] : null;
+      attachments.push({
+        id: att?.id != null ? Number(att.id) : 0,
+        url: `${req.protocol}://${req.get("host")}${url}`,
+        mime,
+        originalName,
+        sizeBytes: Number.isFinite(Number(sizeBytes)) ? Number(sizeBytes) : null,
+      });
+    }
+
+    const payload = {
+      id: messageId,
+      senderRoleId: roleId,
+      senderKey,
+      senderName,
+      message: message.trim().slice(0, 2000),
+      target,
+      createdOn: row?.createdOn ? new Date(row.createdOn).toISOString() : new Date().toISOString(),
+      attachments,
+    };
+
+    try {
+      if (target === "all") {
+        io.to("broadcast_all").emit("broadcast_message", payload);
+      } else if (target === "workers") {
+        if (senderKey) io.to(`employer:${senderKey}`).emit("broadcast_message", payload);
+      } else if (target === "workers_employers") {
+        if (senderKey) io.to(`agency:${senderKey}`).emit("broadcast_message", payload);
+
+        if (senderKey) {
+          const links = await prisma.tbl_Worker_RecruitAgent.findMany({
+            where: {
+              OR: [{ Malaysian_Reqruitment_Agency: senderKey }, { Source_Country_Requirtment_Agency: senderKey }],
+            },
+            select: { Worker_Id: true },
+            take: 5000,
+          });
+          const wids = Array.from(new Set((links ?? []).map((x) => (x.Worker_Id ?? "").toString()).filter(Boolean)));
+          if (wids.length) {
+            const infos = await prisma.tbl_Worker_PersonalInfo.findMany({
+              where: { Worker_Id: { in: wids } },
+              select: { Employer_Id: true },
+              take: 5000,
+            });
+            const employerIds = Array.from(new Set((infos ?? []).map((x) => (x.Employer_Id ?? "").toString().trim()).filter(Boolean)));
+            for (const eid of employerIds) {
+              io.to(`employer:${eid}`).emit("broadcast_message", payload);
+            }
+          }
+        }
+      } else if (target === "nationality") {
+        const nat = user?.countryCode != null ? Number(user.countryCode) : NaN;
+        if (Number.isFinite(nat)) io.to(`nationality:${nat}`).emit("broadcast_message", payload);
+      }
+    } catch {
+      // ignore
+    }
+
+    return res.json({ ok: true, payload });
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.get("/Api/Broadcast/Feed", requireAuth, async (req, res, next) => {
+  try {
+    await ensureBroadcastTableExists();
+    const ok = await broadcastTableExists();
+    if (!ok) return res.status(501).json({ error: "Broadcast table not installed" });
+
+    const user = (req as any).user as any;
+    const roleId = Number(user?.roleId ?? 0);
+    const userKey = (user?.userKey ?? "").toString().trim();
+    const countryCode = user?.countryCode != null ? Number(user.countryCode) : NaN;
+
+    const limitRaw = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+    const limit = Math.min(200, Math.max(10, Number(limitRaw ?? 60)));
+    const fetchLimit = Math.min(600, Math.max(60, limit * 6));
+
+    const targets = new Set<string>();
+    // Everyone can see system-wide announcements.
+    targets.add("all");
+
+    if (roleId === 2 && userKey) {
+      targets.add("workers");
+      targets.add("workers_employers");
+      targets.add("nationality");
+    }
+    if (roleId === 3) {
+      targets.add("workers_employers");
+      targets.add("all");
+    }
+    if (roleId === 4) {
+      targets.add("workers_employers");
+      targets.add("all");
+    }
+    if (roleId === 5 || roleId === 6) {
+      targets.add("nationality");
+      targets.add("all");
+    }
+    if (roleId === 7 || roleId === 1) {
+      targets.add("all");
+      targets.add("workers");
+      targets.add("workers_employers");
+      targets.add("nationality");
+    }
+
+    const targetList = Array.from(targets);
+    const placeholders = targetList.map((_, i) => `@P${i + 1}`).join(",");
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT TOP (${fetchLimit}) id, senderRoleId, senderKey, senderName, message, target, createdOn FROM dbo.Tbl_Broadcast_Message WHERE target IN (${placeholders}) ORDER BY createdOn DESC, id DESC`,
+      ...targetList
+    )) as any[];
+
+    // For nationality-targeted messages, filter to the user's nationality if needed.
+    let out = (rows ?? []).map((r) => ({
+      id: Number(r.id),
+      senderRoleId: Number(r.senderRoleId),
+      senderKey: r.senderKey != null ? String(r.senderKey) : null,
+      senderName: r.senderName != null ? String(r.senderName) : null,
+      message: String(r.message ?? ""),
+      target: String(r.target ?? ""),
+      createdOn: r.createdOn ? new Date(r.createdOn).toISOString() : null,
+      attachments: [] as Array<{ id: number; url: string; mime: string | null; originalName: string | null; sizeBytes: number | null }>,
+    }));
+
+    if (roleId === 2) {
+      const scopes = userKey ? await resolveWorkerScopes(userKey) : { employerId: null, nationality: null, agencyIds: [] as string[] };
+      const employerId = scopes.employerId;
+      const agencySet = new Set(scopes.agencyIds);
+      out = out.filter((m) => {
+        if (m.target === "all") return true;
+        if (m.target === "workers") {
+          return employerId != null && String(m.senderKey ?? "").trim() === employerId;
+        }
+        if (m.target === "workers_employers") {
+          return agencySet.has(String(m.senderKey ?? "").trim());
+        }
+        if (m.target === "nationality") {
+          return scopes.nationality != null;
+        }
+        return false;
+      });
+    } else if (roleId === 3) {
+      const myEmployerId = userKey;
+      const agencies = myEmployerId ? await resolveEmployerAgencies(myEmployerId) : [];
+      const agencySet = new Set(agencies);
+      out = out.filter((m) => {
+        if (m.target === "all") return true;
+        if (m.target === "workers_employers") return agencySet.has(String(m.senderKey ?? "").trim());
+        return false;
+      });
+    } else if (roleId === 4) {
+      const myAgencyId = userKey;
+      out = out.filter((m) => {
+        if (m.target === "all") return true;
+        if (m.target === "workers_employers") return String(m.senderKey ?? "").trim() === myAgencyId;
+        return false;
+      });
+    } else if (roleId === 5 || roleId === 6) {
+      if (!Number.isFinite(countryCode)) {
+        out = out.filter((x) => x.target !== "nationality");
+      }
+    }
+
+    out = out.slice(0, limit);
+
+    const ids = Array.from(new Set(out.map((x) => Number(x.id)).filter((x) => Number.isFinite(x) && x > 0)));
+    if (ids.length) {
+      const attPlaceholders = ids.map((_, i) => `@P${i + 1}`).join(",");
+      const attRows = (await prisma.$queryRawUnsafe(
+        `SELECT id, messageId, url, mime, originalName, sizeBytes FROM dbo.Tbl_Broadcast_Attachment WHERE messageId IN (${attPlaceholders}) ORDER BY id ASC`,
+        ...ids
+      )) as any[];
+
+      const byMsg = new Map<number, Array<any>>();
+      for (const a of attRows ?? []) {
+        const mid = Number(a.messageId);
+        if (!Number.isFinite(mid)) continue;
+        const arr = byMsg.get(mid) ?? [];
+        arr.push(a);
+        byMsg.set(mid, arr);
+      }
+
+      out = out.map((m) => {
+        const arr = byMsg.get(Number(m.id)) ?? [];
+        return {
+          ...m,
+          attachments: arr.map((a) => {
+            const p = (a.url ?? "").toString();
+            const isUploads = p.startsWith("/uploads/");
+            const abs = isUploads ? `${req.protocol}://${req.get("host")}${p}` : p;
+            return {
+              id: Number(a.id),
+              url: abs,
+              mime: a.mime != null ? String(a.mime) : null,
+              originalName: a.originalName != null ? String(a.originalName) : null,
+              sizeBytes: a.sizeBytes != null ? Number(a.sizeBytes) : null,
+            };
+          }),
+        };
+      });
+    }
+
+    return res.json({ rows: out });
+  } catch (e) {
+    return next(e);
   }
 });
 
@@ -551,7 +1678,7 @@ app.post("/Api/Incidents", requireAuth, async (req, res, next) => {
         Type: type,
         Title: title,
         Description: description || title,
-        ProbStatus: "New",
+        ProbStatus: "Pending",
         Updated_On: new Date(),
         worker_ID: workerId,
         Current_Location: (workerMeta as any)?.Current_Location ?? undefined,
@@ -561,12 +1688,13 @@ app.post("/Api/Incidents", requireAuth, async (req, res, next) => {
     });
 
     try {
-      io.to("authorities").emit("new_trigger", {
+      io.to("admin").emit("new_trigger", {
         id: created.ID,
         title,
         description: description || title,
         workerId,
         companyName: (employerMeta as any)?.Employer_Name ?? null,
+        status: "Pending",
         createdAt: new Date().toISOString(),
       });
     } catch {
@@ -613,6 +1741,7 @@ app.get("/Api/me", requireAuth, async (req, res, next) => {
 });
 
 async function hasActivePlan(entityId: string): Promise<boolean> {
+  await ensureSubscriptionTableExists();
   const now = new Date();
   const active = await prisma.tbl_Subscription.findFirst({
     where: {
@@ -805,6 +1934,8 @@ app.get("/Api/subscription/me", requireAuth, async (req, res, next) => {
       return res.status(400).json({ error: "Missing entity id" });
     }
 
+    await ensureSubscriptionTableExists();
+
     const now = new Date();
     const active = await prisma.tbl_Subscription.findFirst({
       where: {
@@ -842,6 +1973,8 @@ app.post("/Api/subscription/purchase", requireAuth, async (req, res, next) => {
     if (!planType) {
       return res.status(400).json({ error: "planType is required" });
     }
+
+    await ensureSubscriptionTableExists();
 
     const now = new Date();
     const end = new Date(now);
@@ -1259,9 +2392,10 @@ async function handlePanic(req: express.Request, res: express.Response) {
           latitude || longitude
             ? `${description} (lat=${latitude || ""}, lng=${longitude || ""})`
             : description,
-        ProbStatus: "New",
+        ProbStatus: "Pending",
+        Updated_By: workerIdFromJwt || passportNo || "worker",
         Updated_On: new Date(),
-        worker_ID: workerMeta?.workerId ?? workerIdFromJwt ?? undefined,
+        worker_ID: workerIdFromJwt || null,
         Current_Location: workerMeta?.currentLocation ?? undefined,
         Company_Name: workerMeta?.companyName ?? undefined,
         ...(uploadPath
@@ -1289,7 +2423,7 @@ async function handlePanic(req: express.Request, res: express.Response) {
       createdAt: new Date().toISOString(),
     };
 
-    io.to("authorities").emit("new_trigger", data);
+    io.to("admin").emit("new_trigger", data);
 
     console.log("New alert emitted", {
       id: created.ID,
@@ -1443,6 +2577,216 @@ app.delete("/Api/Worker/Documents", requireAuth, async (req, res, next) => {
   }
 });
 
+app.get("/Api/HRMS/Workers/:workerId/Profile", requireAuth, checkRole([1, 3, 4]), async (req, res, next) => {
+  try {
+    const workerId = (req.params?.workerId ?? "").toString().trim();
+    if (!workerId) return res.status(400).json({ error: "workerId is required" });
+
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    if (roleId !== 1) {
+      const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+      const scopedWorker = await prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
+      if (!scopedWorker) return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const personal = await prisma.tbl_Worker_PersonalInfo.findFirst({
+      where: { Worker_Id: workerId },
+      select: {
+        Worker_Id: true,
+        Name: true,
+        Passport_Number: true,
+        Email_Id: true,
+        Nationality: true,
+        Gender: true,
+        Date_Of_Birth: true,
+        Contact_Number: true,
+        Contact_Number_Country_Code: true,
+        Address: true,
+        Created_On: true,
+        Employer_Id: true,
+      },
+    });
+
+    const employerInfo = await prisma.tbl_Worker_EmployerInfo.findFirst({
+      where: { Worker_Id: workerId },
+      select: {
+        Employer_Name: true,
+        Employer_Address: true,
+        Telephone_No: true,
+        Contract_Expiry_Date: true,
+        Contract_issue_Date: true,
+        Employment_Description: true,
+      },
+    });
+
+    const permit = await prisma.tbl_Worker_PermitInsurance.findFirst({
+      where: { Worker_Id: workerId },
+      select: {
+        Permit_Issue_Date: true,
+        Permit_Expire_Date: true,
+        Insurance_Policy_Number: true,
+        SOSCO_Number: true,
+      },
+    });
+
+    return res.json({ personal, employerInfo, permit });
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.get("/Api/HRMS/Workers/:workerId/Documents", requireAuth, checkRole([1, 3, 4]), async (req, res, next) => {
+  try {
+    const workerId = (req.params?.workerId ?? "").toString().trim();
+    if (!workerId) return res.status(400).json({ error: "workerId is required" });
+
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    if (roleId !== 1) {
+      const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+      const scopedWorker = await prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
+      if (!scopedWorker) return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const row = await prisma.tbl_Worker_Attachments.findFirst({ where: { Worker_Id: workerId } });
+    const docs = [
+      { type: "passport", name: "Passport Copy", path: (row as any)?.Passport_Copy ?? null, filename: (row as any)?.Passport_Copy_Filename ?? null },
+      { type: "permit", name: "Work Permit", path: (row as any)?.Permit_Copy ?? null, filename: (row as any)?.Permit_Copy_Filename ?? null },
+      { type: "insurance", name: "Insurance Policy", path: (row as any)?.Insurance_Policy ?? null, filename: (row as any)?.Insurance_Policy_Filename ?? null },
+      { type: "contract", name: "Employment Contract", path: (row as any)?.Employment_Contract ?? null, filename: (row as any)?.Employment_Contract_Filename ?? null },
+      { type: "demand_letter", name: "Demand Letter", path: (row as any)?.Demand_Letter ?? null, filename: (row as any)?.Demand_Letter_Filename ?? null },
+    ].map((d) => {
+      const p = d.path != null ? String(d.path) : "";
+      const isUrl = p.startsWith("http://") || p.startsWith("https://") || p.startsWith("/uploads/");
+      const url = p ? (isUrl ? (p.startsWith("/uploads/") ? `${req.protocol}://${req.get("host")}${p}` : p) : "") : "";
+      return { ...d, url, hasFile: !!url };
+    });
+
+    return res.json({ workerId, documents: docs });
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.post(
+  "/Api/HRMS/Workers/:workerId/Documents",
+  requireAuth,
+  checkRole([1, 3, 4]),
+  requireActivePlanForWrite,
+  upload.single("file"),
+  async (req, res, next) => {
+    const workerId = (req.params?.workerId ?? "").toString().trim();
+    const docType = (req.body?.docType ?? req.body?.DocType ?? "").toString().trim().toLowerCase();
+    const uploaded = (req as any).file as { filename?: string; originalname?: string } | undefined;
+    if (!workerId) return res.status(400).json({ error: "workerId is required" });
+    if (!uploaded?.filename) return res.status(400).json({ error: "file is required" });
+
+    try {
+      const roleId = Number((req as any).user?.roleId ?? 0);
+      if (roleId !== 1) {
+        const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+        const scopedWorker = await prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
+        if (!scopedWorker) return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const uploadPath = `/uploads/${uploaded.filename}`;
+      const fileName = (uploaded.originalname ?? uploaded.filename).toString();
+
+      const allowed = new Set(["passport", "permit", "insurance", "contract", "demand_letter"]);
+      const t = allowed.has(docType) ? docType : "passport";
+
+      const existing = await prisma.tbl_Worker_Attachments.findFirst({ where: { Worker_Id: workerId } });
+      const data: any = { Worker_Id: workerId };
+      if (t === "passport") {
+        safeUnlinkUpload((existing as any)?.Passport_Copy);
+        data.Passport_Copy = uploadPath;
+        data.Passport_Copy_Filename = fileName;
+      } else if (t === "permit") {
+        safeUnlinkUpload((existing as any)?.Permit_Copy);
+        data.Permit_Copy = uploadPath;
+        data.Permit_Copy_Filename = fileName;
+      } else if (t === "insurance") {
+        safeUnlinkUpload((existing as any)?.Insurance_Policy);
+        data.Insurance_Policy = uploadPath;
+        data.Insurance_Policy_Filename = fileName;
+      } else if (t === "contract") {
+        safeUnlinkUpload((existing as any)?.Employment_Contract);
+        data.Employment_Contract = uploadPath;
+        data.Employment_Contract_Filename = fileName;
+      } else if (t === "demand_letter") {
+        safeUnlinkUpload((existing as any)?.Demand_Letter);
+        data.Demand_Letter = uploadPath;
+        data.Demand_Letter_Filename = fileName;
+      }
+
+      await prisma.tbl_Worker_Attachments.upsert({
+        where: { Worker_Id: workerId },
+        create: data,
+        update: data,
+      });
+
+      return res.json({ ok: true, docType: t, url: `${req.protocol}://${req.get("host")}${uploadPath}` });
+    } catch (e) {
+      return next(e);
+    }
+  }
+);
+
+app.delete("/Api/HRMS/Workers/:workerId/Documents", requireAuth, checkRole([1, 3, 4]), requireActivePlanForWrite, async (req, res, next) => {
+  const workerId = (req.params?.workerId ?? "").toString().trim();
+  const raw = Array.isArray(req.query.docType) ? req.query.docType[0] : req.query.docType;
+  const docType = (raw ?? "").toString().trim().toLowerCase();
+
+  try {
+    if (!workerId) return res.status(400).json({ error: "workerId is required" });
+
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    if (roleId !== 1) {
+      const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+      const scopedWorker = await prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
+      if (!scopedWorker) return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const allowed = new Set(["passport", "permit", "insurance", "contract", "demand_letter"]);
+    const t = allowed.has(docType) ? docType : "";
+    if (!t) return res.status(400).json({ error: "docType is required" });
+
+    const existing = await prisma.tbl_Worker_Attachments.findFirst({ where: { Worker_Id: workerId } });
+    if (!existing) return res.json({ ok: true });
+
+    const data: any = {};
+    if (t === "passport") {
+      safeUnlinkUpload((existing as any)?.Passport_Copy);
+      data.Passport_Copy = null;
+      data.Passport_Copy_Filename = null;
+    } else if (t === "permit") {
+      safeUnlinkUpload((existing as any)?.Permit_Copy);
+      data.Permit_Copy = null;
+      data.Permit_Copy_Filename = null;
+    } else if (t === "insurance") {
+      safeUnlinkUpload((existing as any)?.Insurance_Policy);
+      data.Insurance_Policy = null;
+      data.Insurance_Policy_Filename = null;
+    } else if (t === "contract") {
+      safeUnlinkUpload((existing as any)?.Employment_Contract);
+      data.Employment_Contract = null;
+      data.Employment_Contract_Filename = null;
+    } else if (t === "demand_letter") {
+      safeUnlinkUpload((existing as any)?.Demand_Letter);
+      data.Demand_Letter = null;
+      data.Demand_Letter_Filename = null;
+    }
+
+    await prisma.tbl_Worker_Attachments.update({
+      where: { Worker_Id: workerId },
+      data,
+    });
+
+    return res.json({ ok: true });
+  } catch (e) {
+    return next(e);
+  }
+});
+
 app.get("/Api/Worker/Problems", requireAuth, async (req, res, next) => {
   try {
     const jwtUserId = Number((req as any).user?.userId ?? 0);
@@ -1483,7 +2827,7 @@ app.get("/Api/Worker/Problems", requireAuth, async (req, res, next) => {
   }
 });
 
-app.get("/Api/Panic/Latest", requireAuth, checkRole([1, 4, 5, 6, 7]), async (req, res, next) => {
+app.get("/Api/Panic/Latest", requireAuth, checkRole([1, 3, 4, 5, 6, 7]), async (req, res, next) => {
   const rawSinceId = Array.isArray(req.query.sinceId) ? req.query.sinceId[0] : req.query.sinceId;
   const sinceId = rawSinceId != null ? Number(rawSinceId) : 0;
 
@@ -1507,6 +2851,7 @@ app.get("/Api/Panic/Latest", requireAuth, checkRole([1, 4, 5, 6, 7]), async (req
         ID: {
           gt: Number.isFinite(sinceId) ? sinceId : 0,
         },
+        ...(roleId !== 1 ? { ProbStatus: { not: "Pending" } } : {}),
         ...(roleId !== 1 && allowedWorkerIds.size ? { worker_ID: { in: Array.from(allowedWorkerIds) } } : {}),
       },
       orderBy: {
@@ -1521,9 +2866,50 @@ app.get("/Api/Panic/Latest", requireAuth, checkRole([1, 4, 5, 6, 7]), async (req
 });
 
 const requireAuthority = checkRole([1, 4, 5, 6, 7]);
+const requireAlertViewer = checkRole([1, 3, 4, 5, 6, 7]);
+const requireAdmin = checkRole([1]);
 const requireReportsAccess = checkRole([1, 3, 4, 5, 6, 7]);
 
-app.post("/Api/Panic/Forward", requireAuth, requireAuthority, async (req, res, next) => {
+app.post("/Api/Incidents/Approve", requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.body?.id ?? req.body?.incidentId ?? req.body?.panicId ?? 0);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ error: "id is required" });
+    }
+
+    const row = await prisma.tbl_ProbSol.findFirst({ where: { ID: id } });
+    if (!row) return res.status(404).json({ error: "Not found" });
+
+    const updated = await prisma.tbl_ProbSol.update({
+      where: { ID: id },
+      data: { ProbStatus: "Approved", Updated_On: new Date(), Updated_By: ((req as any).user?.userKey ?? "admin").toString() },
+    });
+
+    const payload = {
+      id: updated.ID,
+      title: (updated.Title ?? updated.Type ?? "Alert").toString(),
+      description: (updated.Description ?? "").toString(),
+      workerId: (updated as any)?.worker_ID ?? null,
+      companyName: (updated as any)?.Company_Name ?? null,
+      currentLocation: (updated as any)?.Current_Location ?? null,
+      status: "Approved",
+      createdAt: updated.Updated_On ? new Date(updated.Updated_On as any).toISOString() : new Date().toISOString(),
+    };
+
+    try {
+      io.to("panic_viewers").emit("new_trigger", payload);
+      io.to("admin").emit("incident_approved", { id: updated.ID, status: "Approved" });
+    } catch {
+      // ignore emit errors
+    }
+
+    return res.json({ ok: true });
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.post("/Api/Panic/Forward", requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const panicId = Number(req.body?.panicId ?? req.body?.id ?? 0);
     const target = (req.body?.target ?? req.body?.embassy ?? "").toString().trim();
@@ -1537,6 +2923,10 @@ app.post("/Api/Panic/Forward", requireAuth, requireAuthority, async (req, res, n
     const row = await prisma.tbl_ProbSol.findFirst({ where: { ID: panicId, Type: "Panic" } });
     if (!row) return res.status(404).json({ error: "Panic not found" });
 
+    if ((row as any)?.ProbStatus?.toString() === "Pending") {
+      await prisma.tbl_ProbSol.update({ where: { ID: panicId }, data: { ProbStatus: "Approved", Updated_On: new Date() } });
+    }
+
     const payload = {
       id: row.ID,
       title: (row as any)?.Title ?? "Panic Alert",
@@ -1544,10 +2934,12 @@ app.post("/Api/Panic/Forward", requireAuth, requireAuthority, async (req, res, n
       workerId: (row as any)?.worker_ID ?? null,
       companyName: (row as any)?.Company_Name ?? null,
       currentLocation: (row as any)?.Current_Location ?? null,
+      status: "Approved",
       createdOn: (row as any)?.Updated_On ?? null,
     };
 
     io.to(target).emit("panic_forwarded", payload);
+    io.to(target).emit("new_trigger", payload);
     return res.json({ ok: true });
   } catch (e) {
     return next(e);
@@ -1956,6 +3348,180 @@ app.get("/api/reports/visa-expire", requireAuth, requireReportsAccess, async (re
   }
 });
 
+app.get("/Api/HRMS/Roster/Shifts", requireAuth, async (req, res, next) => {
+  try {
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    if (![1, 3, 4].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
+
+    await ensureRosterTablesExist();
+
+    const entityId = ((req as any).user?.userKey ?? "").toString().trim();
+    if (!entityId && roleId !== 1) return res.json([]);
+
+    const rows = (await prisma.$queryRawUnsafe(
+      roleId === 1
+        ? "SELECT TOP (500) id, entityId, name, startTime, endTime, breakMinutes FROM dbo.Tbl_Shift_Template ORDER BY id DESC"
+        : "SELECT TOP (500) id, entityId, name, startTime, endTime, breakMinutes FROM dbo.Tbl_Shift_Template WHERE entityId = ? ORDER BY id DESC",
+      ...(roleId === 1 ? [] : [entityId])
+    )) as Array<any>;
+
+    return res.json(
+      (rows ?? []).map((r) => ({
+        id: Number(r.id),
+        name: (r.name ?? "").toString(),
+        startTime: (r.startTime ?? "").toString(),
+        endTime: (r.endTime ?? "").toString(),
+        breakMinutes: Number(r.breakMinutes ?? 0),
+      }))
+    );
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.post("/Api/HRMS/Roster/Shifts", requireAuth, requireActivePlanForWrite, async (req, res, next) => {
+  try {
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    if (![1, 3, 4].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
+
+    await ensureRosterTablesExist();
+
+    const entityId = ((req as any).user?.userKey ?? "").toString().trim();
+    if (!entityId && roleId !== 1) return res.status(400).json({ error: "Missing entity id" });
+
+    const name = (req.body?.name ?? "").toString().trim();
+    const startTime = (req.body?.startTime ?? "").toString().trim();
+    const endTime = (req.body?.endTime ?? "").toString().trim();
+    const breakMinutes = Number(req.body?.breakMinutes ?? 0);
+    if (!name || !startTime || !endTime) return res.status(400).json({ error: "name, startTime, endTime are required" });
+
+    const inserted = (await prisma.$queryRawUnsafe(
+      "INSERT INTO dbo.Tbl_Shift_Template(entityId,name,startTime,endTime,breakMinutes) OUTPUT INSERTED.id VALUES(?,?,?,?,?);",
+      entityId || "admin",
+      name,
+      startTime,
+      endTime,
+      Number.isFinite(breakMinutes) ? breakMinutes : 0
+    )) as any[];
+
+    const id = inserted?.[0]?.id != null ? Number(inserted[0].id) : NaN;
+    return res.status(201).json({ id, name, startTime, endTime, breakMinutes: Number.isFinite(breakMinutes) ? breakMinutes : 0 });
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.post("/Api/HRMS/Roster/Assign", requireAuth, requireActivePlanForWrite, async (req, res, next) => {
+  try {
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    if (![1, 3, 4].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
+
+    await ensureRosterTablesExist();
+
+    const entityId = ((req as any).user?.userKey ?? "").toString().trim();
+    if (!entityId && roleId !== 1) return res.status(400).json({ error: "Missing entity id" });
+
+    const workerId = (req.body?.workerId ?? "").toString().trim();
+    const shiftId = Number(req.body?.shiftId ?? 0);
+    const dateRaw = req.body?.date;
+    const date = dateRaw ? new Date(String(dateRaw)) : null;
+    if (!workerId || !Number.isFinite(shiftId) || shiftId <= 0 || !date || isNaN(date.getTime())) {
+      return res.status(400).json({ error: "workerId, date, shiftId are required" });
+    }
+
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+    const scopedWorker = await prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
+    if (roleId !== 1 && !scopedWorker) return res.status(403).json({ error: "Forbidden" });
+
+    const dStr = date.toISOString().slice(0, 10);
+    await prisma.$executeRawUnsafe(
+      "MERGE dbo.Tbl_Roster_Assignment AS t " +
+        "USING (SELECT ? AS workerId, ? AS entityId, CAST(? AS DATE) AS [date], ? AS shiftId) AS s " +
+        "ON (t.workerId=s.workerId AND t.[date]=s.[date]) " +
+        "WHEN MATCHED THEN UPDATE SET shiftId=s.shiftId, entityId=s.entityId, updatedOn=GETDATE() " +
+        "WHEN NOT MATCHED THEN INSERT(workerId,entityId,[date],shiftId) VALUES(s.workerId,s.entityId,s.[date],s.shiftId);",
+      workerId,
+      entityId || "admin",
+      dStr,
+      shiftId
+    );
+
+    return res.json({ ok: true });
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.get("/Api/HRMS/Roster", requireAuth, async (req, res, next) => {
+  try {
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    if (![1, 3, 4, 5, 6, 7].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
+
+    await ensureRosterTablesExist();
+
+    const rawFrom = Array.isArray(req.query.from) ? req.query.from[0] : req.query.from;
+    const rawTo = Array.isArray(req.query.to) ? req.query.to[0] : req.query.to;
+    const from = rawFrom ? new Date(String(rawFrom)) : null;
+    const to = rawTo ? new Date(String(rawTo)) : null;
+    if (!from || !to || isNaN(from.getTime()) || isNaN(to.getTime())) {
+      return res.status(400).json({ error: "from and to are required" });
+    }
+
+    const fromStr = from.toISOString().slice(0, 10);
+    const toStr = to.toISOString().slice(0, 10);
+
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+    const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
+      where: scopeWhere,
+      select: { Worker_Id: true },
+      take: 5000,
+    });
+    const workerIds = Array.from(new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean)));
+    if (roleId !== 1 && !workerIds.length) return res.json({ rows: [] });
+
+    const rows = (await prisma.$queryRawUnsafe(
+      roleId === 1
+        ? "SELECT TOP (5000) r.id, r.workerId, r.date, r.shiftId, s.name AS shiftName, s.startTime, s.endTime, s.breakMinutes FROM dbo.Tbl_Roster_Assignment r LEFT JOIN dbo.Tbl_Shift_Template s ON s.id=r.shiftId WHERE r.date >= CAST(? AS DATE) AND r.date <= CAST(? AS DATE) ORDER BY r.date DESC, r.id DESC"
+        : `SELECT TOP (5000) r.id, r.workerId, r.date, r.shiftId, s.name AS shiftName, s.startTime, s.endTime, s.breakMinutes FROM dbo.Tbl_Roster_Assignment r LEFT JOIN dbo.Tbl_Shift_Template s ON s.id=r.shiftId WHERE r.date >= CAST(? AS DATE) AND r.date <= CAST(? AS DATE) AND r.workerId IN (${workerIds
+            .map(() => "?")
+            .join(",")}) ORDER BY r.date DESC, r.id DESC`,
+      fromStr,
+      toStr,
+      ...(roleId === 1 ? [] : workerIds)
+    )) as Array<any>;
+
+    const parseTime = (t: string) => {
+      const m = /^\s*(\d{1,2}):(\d{2})\s*$/.exec(String(t ?? ""));
+      if (!m) return null;
+      const hh = Number(m[1]);
+      const mm = Number(m[2]);
+      if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+      return hh * 60 + mm;
+    };
+
+    return res.json({
+      rows: (rows ?? []).map((r) => {
+        const startMin = parseTime(r.startTime);
+        const endMin = parseTime(r.endTime);
+        const breakMin = Number(r.breakMinutes ?? 0);
+        const minutes = startMin != null && endMin != null ? Math.max(0, endMin - startMin - (Number.isFinite(breakMin) ? breakMin : 0)) : 0;
+        const hours = Math.round((minutes / 60) * 100) / 100;
+
+        return {
+          id: Number(r.id),
+          workerId: (r.workerId ?? "").toString(),
+          date: r.date ? new Date(r.date).toISOString() : null,
+          shiftId: Number(r.shiftId),
+          shiftName: (r.shiftName ?? "").toString(),
+          shiftHours: hours,
+        };
+      }),
+    });
+  } catch (e) {
+    return next(e);
+  }
+});
+
 app.get("/api/reports/insurance-expire", requireAuth, requireReportsAccess, async (req, res, next) => {
   const rawDays = Array.isArray(req.query.days) ? req.query.days[0] : req.query.days;
   const days = Math.min(3650, Math.max(1, Number(rawDays ?? 90)));
@@ -2015,8 +3581,9 @@ app.get("/api/reports/insurance-expire", requireAuth, requireReportsAccess, asyn
   }
 });
 
-app.get("/Api/Panic/Active", requireAuth, requireAuthority, async (_req, res, next) => {
+app.get("/Api/Panic/Active", requireAuth, requireAlertViewer, async (_req, res, next) => {
   try {
+    const roleId = Number((_req as any).user?.roleId ?? 0);
     const scopeWhere = await buildWorkerScopeWhere((_req as any).user);
     const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
       where: scopeWhere,
@@ -2029,6 +3596,7 @@ app.get("/Api/Panic/Active", requireAuth, requireAuthority, async (_req, res, ne
       where: {
         Type: "Panic",
         OR: [{ IsResolved: false }, { IsResolved: null }],
+        ...(roleId !== 1 ? { ProbStatus: { not: "Pending" } } : {}),
         ...(allowedWorkerIds.size ? { worker_ID: { in: Array.from(allowedWorkerIds) } } : {}),
       },
       select: {
@@ -2150,7 +3718,7 @@ app.get("/Api/Panic/History", requireAuth, requireAuthority, async (_req, res, n
   }
 });
 
-app.get("/Api/Incidents", requireAuth, requireAuthority, async (_req, res, next) => {
+app.get("/Api/Incidents", requireAuth, requireAlertViewer, async (_req, res, next) => {
   try {
     const scopeWhere = await buildWorkerScopeWhere((_req as any).user);
     const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
@@ -2160,10 +3728,13 @@ app.get("/Api/Incidents", requireAuth, requireAuthority, async (_req, res, next)
     });
     const allowedWorkerIds = new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean));
 
+    const roleId = Number((_req as any).user?.roleId ?? 0);
+
     const rows = await prisma.tbl_ProbSol.findMany({
       where: {
         NOT: { Type: "Panic" },
         ...(allowedWorkerIds.size ? { worker_ID: { in: Array.from(allowedWorkerIds) } } : {}),
+        ...(roleId !== 1 ? { ProbStatus: { not: "Pending" } } : {}),
       },
       select: {
         ID: true,
@@ -2215,7 +3786,7 @@ app.get("/Api/Incidents", requireAuth, requireAuthority, async (_req, res, next)
   }
 });
 
-app.get("/Api/Incidents/:id", requireAuth, requireAuthority, async (req, res, next) => {
+app.get("/Api/Incidents/:id", requireAuth, requireAlertViewer, async (req, res, next) => {
   const id = Number(req.params?.id ?? 0);
   if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: "Invalid id" });
 
@@ -2224,6 +3795,10 @@ app.get("/Api/Incidents/:id", requireAuth, requireAuthority, async (req, res, ne
 
     const row = await prisma.tbl_ProbSol.findFirst({ where: { ID: id } });
     if (!row) return res.status(404).json({ error: "Not found" });
+
+    if (roleId !== 1 && ((row as any)?.ProbStatus ?? "").toString() === "Pending") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
 
     if (roleId !== 1) {
       const scopeWhere = await buildWorkerScopeWhere((req as any).user);
@@ -2243,7 +3818,7 @@ app.get("/Api/Incidents/:id", requireAuth, requireAuthority, async (req, res, ne
   }
 });
 
-app.get("/Api/Alerts/Recent", requireAuth, requireAuthority, async (req, res, next) => {
+app.get("/Api/Alerts/Recent", requireAuth, requireAlertViewer, async (req, res, next) => {
   try {
     const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
     const limit = Math.min(200, Math.max(1, Number(rawLimit ?? 50)));
@@ -2264,12 +3839,14 @@ app.get("/Api/Alerts/Recent", requireAuth, requireAuthority, async (req, res, ne
     const incidents = await prisma.tbl_ProbSol.findMany({
       where: {
         ...(roleId !== 1 && allowedWorkerIds.size ? { worker_ID: { in: Array.from(allowedWorkerIds) } } : {}),
+        ...(roleId !== 1 ? { ProbStatus: { not: "Pending" } } : {}),
       },
       select: {
         ID: true,
         Type: true,
         Title: true,
         Description: true,
+        ProbStatus: true,
         Updated_On: true,
         worker_ID: true,
         Company_Name: true,
@@ -2305,6 +3882,7 @@ app.get("/Api/Alerts/Recent", requireAuth, requireAuthority, async (req, res, ne
         description: (x.Description ?? "").toString(),
         workerId: x.worker_ID != null ? String(x.worker_ID) : null,
         companyName: x.Company_Name != null ? String(x.Company_Name) : null,
+        status: x.ProbStatus != null ? String(x.ProbStatus) : null,
         createdAt: x.Updated_On ? new Date(x.Updated_On as any).toISOString() : null,
       })),
       ...(leave ?? []).map((x) => ({
@@ -2356,6 +3934,8 @@ app.get("/Api/HRMS/Attendance", requireAuth, async (req, res, next) => {
     const roleId = Number((req as any).user?.roleId ?? 0);
     if (![1, 3, 4, 5, 6, 7].includes(roleId)) return res.status(403).json({ error: "Forbidden" });
 
+    await ensureRosterTablesExist();
+
     const scopeWhere = await buildWorkerScopeWhere((req as any).user);
     const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
       where: scopeWhere,
@@ -2370,7 +3950,322 @@ app.get("/Api/HRMS/Attendance", requireAuth, async (req, res, next) => {
       orderBy: [{ id: "desc" }],
       take: 1000,
     });
-    return res.json(rows ?? []);
+
+    const attendanceRows = (rows ?? []) as Array<any>;
+    const keyPairs: Array<{ workerId: string; dateStr: string }> = [];
+    for (const r of attendanceRows) {
+      const workerId = (r?.workerId ?? "").toString();
+      const d = r?.checkIn ? new Date(r.checkIn) : null;
+      if (!workerId || !d || isNaN(d.getTime())) continue;
+      keyPairs.push({ workerId, dateStr: d.toISOString().slice(0, 10) });
+    }
+
+    const uniqueKey = new Set(keyPairs.map((k) => `${k.workerId}__${k.dateStr}`));
+    const pairs = Array.from(uniqueKey).map((x) => {
+      const [workerId, dateStr] = x.split("__");
+      return { workerId, dateStr };
+    });
+
+    const shiftByWorkerDay = new Map<string, { startTime: string | null; endTime: string | null }>();
+    if (pairs.length) {
+      const whereParts: string[] = [];
+      const params: any[] = [];
+      let p = 1;
+      for (const pair of pairs) {
+        whereParts.push(`(r.workerId=@P${p} AND r.[date]=CAST(@P${p + 1} AS DATE))`);
+        params.push(pair.workerId, pair.dateStr);
+        p += 2;
+      }
+
+      const q =
+        "SELECT TOP (50000) r.workerId, r.[date] as d, s.startTime, s.endTime " +
+        "FROM dbo.Tbl_Roster_Assignment r LEFT JOIN dbo.Tbl_Shift_Template s ON s.id=r.shiftId " +
+        (whereParts.length ? `WHERE ${whereParts.join(" OR ")}` : "");
+
+      const roster = (await prisma.$queryRawUnsafe(q, ...params)) as any[];
+      for (const rr of roster ?? []) {
+        const workerId = (rr.workerId ?? "").toString();
+        const d = rr.d ? new Date(rr.d) : null;
+        const dateStr = d && !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : "";
+        if (!workerId || !dateStr) continue;
+        shiftByWorkerDay.set(`${workerId}__${dateStr}`, {
+          startTime: rr.startTime != null ? String(rr.startTime) : null,
+          endTime: rr.endTime != null ? String(rr.endTime) : null,
+        });
+      }
+    }
+
+    const graceMinutes = 5;
+    const parseTime = (t: string | null): { hh: number; mm: number } | null => {
+      if (!t) return null;
+      const m = String(t).trim().match(/^(\d{1,2}):(\d{2})/);
+      if (!m) return null;
+      const hh = Number(m[1]);
+      const mm = Number(m[2]);
+      if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+      return { hh, mm };
+    };
+
+    const withFlags = attendanceRows.map((r) => {
+      const checkIn = r?.checkIn ? new Date(r.checkIn) : null;
+      const checkOut = r?.checkOut ? new Date(r.checkOut) : null;
+      const dateStr = checkIn && !isNaN(checkIn.getTime()) ? checkIn.toISOString().slice(0, 10) : "";
+      const shift = dateStr ? shiftByWorkerDay.get(`${String(r.workerId)}__${dateStr}`) : undefined;
+      const start = parseTime(shift?.startTime ?? null);
+      const end = parseTime(shift?.endTime ?? null);
+
+      let plannedStart: Date | null = null;
+      let plannedEnd: Date | null = null;
+      if (dateStr && start) {
+        plannedStart = new Date(`${dateStr}T00:00:00.000Z`);
+        plannedStart.setUTCHours(start.hh, start.mm, 0, 0);
+      }
+      if (dateStr && end) {
+        plannedEnd = new Date(`${dateStr}T00:00:00.000Z`);
+        plannedEnd.setUTCHours(end.hh, end.mm, 0, 0);
+      }
+
+      const workedHours =
+        checkIn && checkOut && !isNaN(checkIn.getTime()) && !isNaN(checkOut.getTime())
+          ? Math.max(0, (checkOut.getTime() - checkIn.getTime()) / 36e5)
+          : 0;
+
+      const lateMinutes =
+        plannedStart && checkIn
+          ? Math.max(0, Math.round((checkIn.getTime() - plannedStart.getTime()) / 60000) - graceMinutes)
+          : 0;
+
+      const earlyLeaveMinutes =
+        plannedEnd && checkOut
+          ? Math.max(0, Math.round((plannedEnd.getTime() - checkOut.getTime()) / 60000) - graceMinutes)
+          : 0;
+
+      return {
+        ...r,
+        workedHours,
+        plannedStartTime: shift?.startTime ?? null,
+        plannedEndTime: shift?.endTime ?? null,
+        lateMinutes: Number.isFinite(lateMinutes) ? lateMinutes : 0,
+        earlyLeaveMinutes: Number.isFinite(earlyLeaveMinutes) ? earlyLeaveMinutes : 0,
+      };
+    });
+
+    return res.json(withFlags ?? []);
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.get("/Api/HRMS/Reports/Summary", requireAuth, checkRole([1, 3, 4]), async (req, res, next) => {
+  try {
+    await ensureRosterTablesExist();
+    await ensureHrmsRequestTablesExist();
+
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    const rawFrom = Array.isArray(req.query.from) ? req.query.from[0] : req.query.from;
+    const rawTo = Array.isArray(req.query.to) ? req.query.to[0] : req.query.to;
+    const from = rawFrom ? new Date(String(rawFrom)) : null;
+    const to = rawTo ? new Date(String(rawTo)) : null;
+    if (!from || !to || isNaN(from.getTime()) || isNaN(to.getTime())) return res.status(400).json({ error: "from and to are required" });
+
+    const fromStr = from.toISOString().slice(0, 10);
+    const toStr = to.toISOString().slice(0, 10);
+
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+    const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
+      where: roleId === 1 ? {} : scopeWhere,
+      select: { Worker_Id: true, Name: true },
+      take: 5000,
+    });
+    const workerIds = Array.from(new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean)));
+    if (roleId !== 1 && !workerIds.length) return res.json({ from: fromStr, to: toStr, rows: [] });
+
+    const nameById = new Map<string, string | null>();
+    for (const w of scopedWorkers ?? []) {
+      const id = (w.Worker_Id ?? "").toString();
+      if (id) nameById.set(id, w.Name ?? null);
+    }
+
+    const attendance = await prisma.tbl_Attendance.findMany({
+      where: {
+        workerId: { in: workerIds },
+        checkIn: { gte: from, lte: to },
+      },
+      select: { id: true, workerId: true, checkIn: true, checkOut: true },
+      take: 50000,
+    });
+
+    const byWorker = new Map<string, any>();
+    const ensureRow = (workerId: string) => {
+      if (!byWorker.has(workerId)) {
+        byWorker.set(workerId, {
+          workerId,
+          name: nameById.get(workerId) ?? null,
+          daysPresent: 0,
+          workedHours: 0,
+          lateCount: 0,
+          earlyLeaveCount: 0,
+          overtimeRequestedHours: 0,
+          overtimeApprovedHours: 0,
+          expenseClaimed: 0,
+          expenseApproved: 0,
+        });
+      }
+      return byWorker.get(workerId);
+    };
+
+    const dayKeySet = new Set<string>();
+    for (const a of attendance ?? []) {
+      const workerId = (a.workerId ?? "").toString();
+      if (!workerId) continue;
+      const checkIn = a.checkIn ? new Date(a.checkIn) : null;
+      const checkOut = a.checkOut ? new Date(a.checkOut) : null;
+      if (!checkIn || isNaN(checkIn.getTime())) continue;
+      const dayKey = `${workerId}__${checkIn.toISOString().slice(0, 10)}`;
+      const row = ensureRow(workerId);
+      if (!dayKeySet.has(dayKey)) {
+        dayKeySet.add(dayKey);
+        row.daysPresent += 1;
+      }
+      if (checkOut && !isNaN(checkOut.getTime())) {
+        row.workedHours += Math.max(0, (checkOut.getTime() - checkIn.getTime()) / 36e5);
+      }
+    }
+
+    // Late/early count based on roster shifts where available
+    const pairs = Array.from(dayKeySet).map((k) => {
+      const [workerId, dateStr] = k.split("__");
+      return { workerId, dateStr };
+    });
+    const shiftByWorkerDay = new Map<string, { startTime: string | null; endTime: string | null }>();
+    if (pairs.length) {
+      const whereParts: string[] = [];
+      const params: any[] = [];
+      let p = 1;
+      for (const pair of pairs) {
+        whereParts.push(`(r.workerId=@P${p} AND r.[date]=CAST(@P${p + 1} AS DATE))`);
+        params.push(pair.workerId, pair.dateStr);
+        p += 2;
+      }
+      const q =
+        "SELECT TOP (50000) r.workerId, r.[date] as d, s.startTime, s.endTime " +
+        "FROM dbo.Tbl_Roster_Assignment r LEFT JOIN dbo.Tbl_Shift_Template s ON s.id=r.shiftId " +
+        `WHERE ${whereParts.join(" OR ")}`;
+      const roster = (await prisma.$queryRawUnsafe(q, ...params)) as any[];
+      for (const rr of roster ?? []) {
+        const workerId = (rr.workerId ?? "").toString();
+        const d = rr.d ? new Date(rr.d) : null;
+        const dateStr = d && !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : "";
+        if (!workerId || !dateStr) continue;
+        shiftByWorkerDay.set(`${workerId}__${dateStr}`, {
+          startTime: rr.startTime != null ? String(rr.startTime) : null,
+          endTime: rr.endTime != null ? String(rr.endTime) : null,
+        });
+      }
+    }
+
+    const parseTime = (t: string | null): { hh: number; mm: number } | null => {
+      if (!t) return null;
+      const m = String(t).trim().match(/^(\d{1,2}):(\d{2})/);
+      if (!m) return null;
+      const hh = Number(m[1]);
+      const mm = Number(m[2]);
+      if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+      return { hh, mm };
+    };
+    const graceMinutes = 5;
+
+    // Build lookup for attendance by worker/day to compare with shift
+    const attByWorkerDay = new Map<string, { checkIn: Date | null; checkOut: Date | null }>();
+    for (const a of attendance ?? []) {
+      const workerId = (a.workerId ?? "").toString();
+      const checkIn = a.checkIn ? new Date(a.checkIn) : null;
+      if (!workerId || !checkIn || isNaN(checkIn.getTime())) continue;
+      const dateStr = checkIn.toISOString().slice(0, 10);
+      const k = `${workerId}__${dateStr}`;
+      const existing = attByWorkerDay.get(k);
+      const checkOut = a.checkOut ? new Date(a.checkOut) : null;
+      if (!existing) {
+        attByWorkerDay.set(k, { checkIn, checkOut: checkOut && !isNaN(checkOut.getTime()) ? checkOut : null });
+      } else {
+        // keep earliest checkIn and latest checkOut for the day
+        if (checkIn && (!existing.checkIn || checkIn.getTime() < existing.checkIn.getTime())) existing.checkIn = checkIn;
+        if (checkOut && !isNaN(checkOut.getTime())) {
+          if (!existing.checkOut || checkOut.getTime() > existing.checkOut.getTime()) existing.checkOut = checkOut;
+        }
+      }
+    }
+
+    for (const [k, att] of attByWorkerDay.entries()) {
+      const [workerId, dateStr] = k.split("__");
+      const shift = shiftByWorkerDay.get(k);
+      if (!shift) continue;
+      const start = parseTime(shift.startTime);
+      const end = parseTime(shift.endTime);
+      if (!start || !end) continue;
+      const plannedStart = new Date(`${dateStr}T00:00:00.000Z`);
+      plannedStart.setUTCHours(start.hh, start.mm, 0, 0);
+      const plannedEnd = new Date(`${dateStr}T00:00:00.000Z`);
+      plannedEnd.setUTCHours(end.hh, end.mm, 0, 0);
+      const row = ensureRow(workerId);
+      if (att.checkIn) {
+        const lateMinutes = Math.max(0, Math.round((att.checkIn.getTime() - plannedStart.getTime()) / 60000) - graceMinutes);
+        if (lateMinutes > 0) row.lateCount += 1;
+      }
+      if (att.checkOut) {
+        const earlyMinutes = Math.max(0, Math.round((plannedEnd.getTime() - att.checkOut.getTime()) / 60000) - graceMinutes);
+        if (earlyMinutes > 0) row.earlyLeaveCount += 1;
+      }
+    }
+
+    // Overtime aggregates
+    const otRows = (await prisma.$queryRawUnsafe(
+      roleId === 1
+        ? "SELECT workerId, SUM(hours) as totalHours, SUM(CASE WHEN status='Approved' THEN hours ELSE 0 END) as approvedHours FROM dbo.Tbl_HRMS_Overtime_Request WHERE workDate >= CAST(@P1 AS DATE) AND workDate <= CAST(@P2 AS DATE) GROUP BY workerId"
+        : `SELECT workerId, SUM(hours) as totalHours, SUM(CASE WHEN status='Approved' THEN hours ELSE 0 END) as approvedHours FROM dbo.Tbl_HRMS_Overtime_Request WHERE workDate >= CAST(@P1 AS DATE) AND workDate <= CAST(@P2 AS DATE) AND workerId IN (${workerIds
+            .map((_, i) => `@P${i + 3}`)
+            .join(",")}) GROUP BY workerId`,
+      fromStr,
+      toStr,
+      ...(roleId === 1 ? [] : workerIds)
+    )) as any[];
+    for (const r of otRows ?? []) {
+      const workerId = (r.workerId ?? "").toString();
+      if (!workerId) continue;
+      const row = ensureRow(workerId);
+      row.overtimeRequestedHours += Number(r.totalHours ?? 0) || 0;
+      row.overtimeApprovedHours += Number(r.approvedHours ?? 0) || 0;
+    }
+
+    // Expense aggregates
+    const expRows = (await prisma.$queryRawUnsafe(
+      roleId === 1
+        ? "SELECT workerId, SUM(amount) as totalAmount, SUM(CASE WHEN status='Approved' THEN amount ELSE 0 END) as approvedAmount FROM dbo.Tbl_HRMS_Expense_Claim WHERE claimDate >= CAST(@P1 AS DATE) AND claimDate <= CAST(@P2 AS DATE) GROUP BY workerId"
+        : `SELECT workerId, SUM(amount) as totalAmount, SUM(CASE WHEN status='Approved' THEN amount ELSE 0 END) as approvedAmount FROM dbo.Tbl_HRMS_Expense_Claim WHERE claimDate >= CAST(@P1 AS DATE) AND claimDate <= CAST(@P2 AS DATE) AND workerId IN (${workerIds
+            .map((_, i) => `@P${i + 3}`)
+            .join(",")}) GROUP BY workerId`,
+      fromStr,
+      toStr,
+      ...(roleId === 1 ? [] : workerIds)
+    )) as any[];
+    for (const r of expRows ?? []) {
+      const workerId = (r.workerId ?? "").toString();
+      if (!workerId) continue;
+      const row = ensureRow(workerId);
+      row.expenseClaimed += Number(r.totalAmount ?? 0) || 0;
+      row.expenseApproved += Number(r.approvedAmount ?? 0) || 0;
+    }
+
+    const out = Array.from(byWorker.values()).map((r) => ({
+      ...r,
+      workedHours: Math.round(Number(r.workedHours ?? 0) * 100) / 100,
+      overtimeRequestedHours: Math.round(Number(r.overtimeRequestedHours ?? 0) * 100) / 100,
+      overtimeApprovedHours: Math.round(Number(r.overtimeApprovedHours ?? 0) * 100) / 100,
+      expenseClaimed: Math.round(Number(r.expenseClaimed ?? 0) * 100) / 100,
+      expenseApproved: Math.round(Number(r.expenseApproved ?? 0) * 100) / 100,
+    }));
+
+    return res.json({ from: fromStr, to: toStr, rows: out });
   } catch (e) {
     return next(e);
   }
@@ -2435,6 +4330,345 @@ app.post("/Api/HRMS/Attendance/ClockOut", requireAuth, checkRole([2]), async (re
       data: { checkOut: new Date() },
     });
     return res.json(updated);
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.post("/Api/HRMS/Overtime/Request", requireAuth, checkRole([2]), async (req, res, next) => {
+  try {
+    await ensureHrmsRequestTablesExist();
+
+    const userKey = ((req as any).user?.userKey ?? "").toString().trim();
+    if (!userKey) return res.status(400).json({ error: "Missing worker id" });
+
+    const rawDate = (req.body?.workDate ?? req.body?.date ?? "").toString();
+    const workDate = rawDate ? new Date(String(rawDate)) : null;
+    const hours = Number(req.body?.hours ?? 0);
+    const reason = (req.body?.reason ?? "").toString();
+    if (!workDate || isNaN(workDate.getTime())) return res.status(400).json({ error: "workDate is required" });
+    if (!Number.isFinite(hours) || hours <= 0) return res.status(400).json({ error: "hours is required" });
+
+    const dStr = workDate.toISOString().slice(0, 10);
+    const rows = (await prisma.$queryRawUnsafe(
+      "INSERT INTO dbo.Tbl_HRMS_Overtime_Request(workerId, workDate, hours, reason) OUTPUT INSERTED.id, INSERTED.workerId, INSERTED.workDate, INSERTED.hours, INSERTED.reason, INSERTED.status, INSERTED.createdOn VALUES (@P1, CAST(@P2 AS DATE), @P3, @P4)",
+      userKey,
+      dStr,
+      hours,
+      reason
+    )) as any[];
+
+    return res.json((rows ?? [])[0] ?? null);
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.get("/Api/HRMS/Overtime", requireAuth, checkRole([1, 3, 4]), async (req, res, next) => {
+  try {
+    await ensureHrmsRequestTablesExist();
+
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+    const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
+      where: roleId === 1 ? {} : scopeWhere,
+      select: { Worker_Id: true, Name: true },
+      take: 5000,
+    });
+    const workerIds = Array.from(new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean)));
+    if (roleId !== 1 && !workerIds.length) return res.json([]);
+
+    const limit = Math.min(500, Math.max(1, Number((Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit) ?? 200)));
+
+    const rows = (await prisma.$queryRawUnsafe(
+      roleId === 1
+        ? "SELECT TOP (@P1) id, workerId, workDate, hours, reason, status, createdOn, decisionBy, decisionOn FROM dbo.Tbl_HRMS_Overtime_Request ORDER BY id DESC"
+        : `SELECT TOP (@P1) id, workerId, workDate, hours, reason, status, createdOn, decisionBy, decisionOn FROM dbo.Tbl_HRMS_Overtime_Request WHERE workerId IN (${workerIds
+            .map((_, i) => `@P${i + 2}`)
+            .join(",")}) ORDER BY id DESC`,
+      limit,
+      ...(roleId === 1 ? [] : workerIds)
+    )) as any[];
+
+    const nameById = new Map<string, string | null>();
+    for (const w of scopedWorkers ?? []) {
+      const id = (w.Worker_Id ?? "").toString();
+      if (id) nameById.set(id, w.Name ?? null);
+    }
+
+    const ids = Array.from(new Set((rows ?? []).map((r) => Number(r?.id ?? 0)).filter((x) => Number.isFinite(x) && x > 0)));
+    let attByClaim = new Map<number, any[]>();
+    if (ids.length) {
+      const attRows = (await prisma.$queryRawUnsafe(
+        `SELECT id, claimId, filePath, originalName, mimeType, fileSize, createdOn FROM dbo.Tbl_HRMS_Expense_Attachment WHERE claimId IN (${ids
+          .map((_, i) => `@P${i + 1}`)
+          .join(",")}) ORDER BY id DESC`,
+        ...ids
+      )) as any[];
+      attByClaim = new Map<number, any[]>();
+      for (const a of attRows ?? []) {
+        const claimId = Number(a?.claimId ?? 0);
+        if (!attByClaim.has(claimId)) attByClaim.set(claimId, []);
+        attByClaim.get(claimId)!.push({
+          id: a.id,
+          claimId: a.claimId,
+          url: a.filePath,
+          filePath: a.filePath,
+          originalName: a.originalName ?? null,
+          mimeType: a.mimeType ?? null,
+          fileSize: a.fileSize ?? null,
+          createdOn: a.createdOn,
+        });
+      }
+    }
+
+    return res.json(
+      (rows ?? []).map((r) => ({
+        ...r,
+        workerName: nameById.get((r.workerId ?? "").toString()) ?? null,
+        attachments: attByClaim.get(Number(r?.id ?? 0)) ?? [],
+      }))
+    );
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.post("/Api/HRMS/Overtime/Decision", requireAuth, checkRole([1, 3, 4]), requireActivePlanForWrite, async (req, res, next) => {
+  try {
+    await ensureHrmsRequestTablesExist();
+
+    const id = Number(req.body?.id ?? 0);
+    const status = (req.body?.status ?? "").toString();
+    if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: "id is required" });
+    if (status !== "Approved" && status !== "Rejected") return res.status(400).json({ error: "Invalid status" });
+
+    const row = (await prisma.$queryRawUnsafe(
+      "SELECT TOP (1) id, workerId FROM dbo.Tbl_HRMS_Overtime_Request WHERE id=@P1",
+      id
+    )) as any[];
+    const workerId = (row?.[0]?.workerId ?? "").toString();
+    if (!workerId) return res.status(404).json({ error: "Not found" });
+
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    if (roleId !== 1) {
+      const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+      const scopedWorker = await prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
+      if (!scopedWorker) return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const decisionBy = ((req as any).user?.userKey ?? "").toString().trim() || "approver";
+    await prisma.$executeRawUnsafe(
+      "UPDATE dbo.Tbl_HRMS_Overtime_Request SET status=@P1, decisionBy=@P2, decisionOn=GETDATE() WHERE id=@P3",
+      status,
+      decisionBy,
+      id
+    );
+
+    return res.json({ ok: true });
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.post("/Api/HRMS/Expenses/Claim", requireAuth, checkRole([2]), async (req, res, next) => {
+  try {
+    await ensureHrmsRequestTablesExist();
+
+    const userKey = ((req as any).user?.userKey ?? "").toString().trim();
+    if (!userKey) return res.status(400).json({ error: "Missing worker id" });
+
+    const rawDate = (req.body?.claimDate ?? req.body?.date ?? "").toString();
+    const claimDate = rawDate ? new Date(String(rawDate)) : null;
+    const amount = Number(req.body?.amount ?? 0);
+    const category = (req.body?.category ?? "").toString();
+    const description = (req.body?.description ?? "").toString();
+    if (!claimDate || isNaN(claimDate.getTime())) return res.status(400).json({ error: "claimDate is required" });
+    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: "amount is required" });
+
+    const dStr = claimDate.toISOString().slice(0, 10);
+    const rows = (await prisma.$queryRawUnsafe(
+      "INSERT INTO dbo.Tbl_HRMS_Expense_Claim(workerId, claimDate, amount, category, description) OUTPUT INSERTED.id, INSERTED.workerId, INSERTED.claimDate, INSERTED.amount, INSERTED.category, INSERTED.description, INSERTED.status, INSERTED.createdOn VALUES (@P1, CAST(@P2 AS DATE), @P3, @P4, @P5)",
+      userKey,
+      dStr,
+      amount,
+      category,
+      description
+    )) as any[];
+
+    return res.json((rows ?? [])[0] ?? null);
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.post(
+  "/Api/HRMS/Expenses/:id/Attachments",
+  requireAuth,
+  checkRole([2]),
+  upload.array("files", 5),
+  async (req, res, next) => {
+    try {
+      await ensureHrmsRequestTablesExist();
+
+      const id = Number(req.params?.id ?? 0);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: "Invalid claim id" });
+
+      const userKey = ((req as any).user?.userKey ?? "").toString().trim();
+      if (!userKey) return res.status(400).json({ error: "Missing worker id" });
+
+      const claim = (await prisma.$queryRawUnsafe(
+        "SELECT TOP (1) id, workerId FROM dbo.Tbl_HRMS_Expense_Claim WHERE id=@P1",
+        id
+      )) as any[];
+      const claimWorkerId = (claim?.[0]?.workerId ?? "").toString();
+      if (!claimWorkerId) return res.status(404).json({ error: "Claim not found" });
+      if (claimWorkerId !== userKey) return res.status(403).json({ error: "Forbidden" });
+
+      const files = ((req as any).files ?? []) as Array<{ filename?: string; originalname?: string; mimetype?: string; size?: number }>;
+      if (!files.length) return res.status(400).json({ error: "No files uploaded" });
+
+      const inserted: any[] = [];
+      for (const f of files) {
+        if (!f?.filename) continue;
+        const filePath = `/uploads/${f.filename}`;
+        const rows = (await prisma.$queryRawUnsafe(
+          "INSERT INTO dbo.Tbl_HRMS_Expense_Attachment(claimId, filePath, originalName, mimeType, fileSize) OUTPUT INSERTED.id, INSERTED.claimId, INSERTED.filePath, INSERTED.originalName, INSERTED.mimeType, INSERTED.fileSize, INSERTED.createdOn VALUES (@P1, @P2, @P3, @P4, @P5)",
+          id,
+          filePath,
+          (f.originalname ?? "").toString(),
+          (f.mimetype ?? "").toString(),
+          Number(f.size ?? 0)
+        )) as any[];
+        if (rows?.[0]) inserted.push(rows[0]);
+      }
+
+      return res.json({ ok: true, attachments: inserted });
+    } catch (e) {
+      return next(e);
+    }
+  }
+);
+
+app.get("/Api/HRMS/Expenses/me", requireAuth, checkRole([2]), async (req, res, next) => {
+  try {
+    await ensureHrmsRequestTablesExist();
+
+    const userKey = ((req as any).user?.userKey ?? "").toString().trim();
+    if (!userKey) return res.status(400).json({ error: "Missing worker id" });
+
+    const rows = (await prisma.$queryRawUnsafe(
+      "SELECT TOP (1000) id, workerId, claimDate, amount, category, description, status, createdOn, decisionBy, decisionOn FROM dbo.Tbl_HRMS_Expense_Claim WHERE workerId=@P1 ORDER BY id DESC",
+      userKey
+    )) as any[];
+
+    const ids = Array.from(new Set((rows ?? []).map((r) => Number(r?.id ?? 0)).filter((x) => Number.isFinite(x) && x > 0)));
+    let attByClaim = new Map<number, any[]>();
+    if (ids.length) {
+      const attRows = (await prisma.$queryRawUnsafe(
+        `SELECT id, claimId, filePath, originalName, mimeType, fileSize, createdOn FROM dbo.Tbl_HRMS_Expense_Attachment WHERE claimId IN (${ids
+          .map((_, i) => `@P${i + 1}`)
+          .join(",")}) ORDER BY id DESC`,
+        ...ids
+      )) as any[];
+      attByClaim = new Map<number, any[]>();
+      for (const a of attRows ?? []) {
+        const claimId = Number(a?.claimId ?? 0);
+        if (!attByClaim.has(claimId)) attByClaim.set(claimId, []);
+        attByClaim.get(claimId)!.push({
+          id: a.id,
+          claimId: a.claimId,
+          url: a.filePath,
+          filePath: a.filePath,
+          originalName: a.originalName ?? null,
+          mimeType: a.mimeType ?? null,
+          fileSize: a.fileSize ?? null,
+          createdOn: a.createdOn,
+        });
+      }
+    }
+
+    return res.json((rows ?? []).map((r) => ({ ...r, attachments: attByClaim.get(Number(r?.id ?? 0)) ?? [] })));
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.get("/Api/HRMS/Expenses", requireAuth, checkRole([1, 3, 4]), async (req, res, next) => {
+  try {
+    await ensureHrmsRequestTablesExist();
+
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+    const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
+      where: roleId === 1 ? {} : scopeWhere,
+      select: { Worker_Id: true, Name: true },
+      take: 5000,
+    });
+    const workerIds = Array.from(new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean)));
+    if (roleId !== 1 && !workerIds.length) return res.json([]);
+
+    const limit = Math.min(500, Math.max(1, Number((Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit) ?? 200)));
+
+    const rows = (await prisma.$queryRawUnsafe(
+      roleId === 1
+        ? "SELECT TOP (@P1) id, workerId, claimDate, amount, category, description, status, createdOn, decisionBy, decisionOn FROM dbo.Tbl_HRMS_Expense_Claim ORDER BY id DESC"
+        : `SELECT TOP (@P1) id, workerId, claimDate, amount, category, description, status, createdOn, decisionBy, decisionOn FROM dbo.Tbl_HRMS_Expense_Claim WHERE workerId IN (${workerIds
+            .map((_, i) => `@P${i + 2}`)
+            .join(",")}) ORDER BY id DESC`,
+      limit,
+      ...(roleId === 1 ? [] : workerIds)
+    )) as any[];
+
+    const nameById = new Map<string, string | null>();
+    for (const w of scopedWorkers ?? []) {
+      const id = (w.Worker_Id ?? "").toString();
+      if (id) nameById.set(id, w.Name ?? null);
+    }
+
+    return res.json(
+      (rows ?? []).map((r) => ({
+        ...r,
+        workerName: nameById.get((r.workerId ?? "").toString()) ?? null,
+      }))
+    );
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.post("/Api/HRMS/Expenses/Decision", requireAuth, checkRole([1, 3, 4]), requireActivePlanForWrite, async (req, res, next) => {
+  try {
+    await ensureHrmsRequestTablesExist();
+
+    const id = Number(req.body?.id ?? 0);
+    const status = (req.body?.status ?? "").toString();
+    if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: "id is required" });
+    if (status !== "Approved" && status !== "Rejected") return res.status(400).json({ error: "Invalid status" });
+
+    const row = (await prisma.$queryRawUnsafe(
+      "SELECT TOP (1) id, workerId FROM dbo.Tbl_HRMS_Expense_Claim WHERE id=@P1",
+      id
+    )) as any[];
+    const workerId = (row?.[0]?.workerId ?? "").toString();
+    if (!workerId) return res.status(404).json({ error: "Not found" });
+
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    if (roleId !== 1) {
+      const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+      const scopedWorker = await prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
+      if (!scopedWorker) return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const decisionBy = ((req as any).user?.userKey ?? "").toString().trim() || "approver";
+    await prisma.$executeRawUnsafe(
+      "UPDATE dbo.Tbl_HRMS_Expense_Claim SET status=@P1, decisionBy=@P2, decisionOn=GETDATE() WHERE id=@P3",
+      status,
+      decisionBy,
+      id
+    );
+
+    return res.json({ ok: true });
   } catch (e) {
     return next(e);
   }
@@ -2875,12 +5109,11 @@ app.get("/Api/ProblemList", requireAuth, requireAuthority, async (req, res, next
 });
 
 app.post("/Api/Chat/Sessions", requireAuth, async (req, res, next) => {
-  const workerId = Number(req.body?.WorkerId ?? req.body?.workerId ?? 0);
-  if (!Number.isFinite(workerId) || workerId <= 0) {
-    return res.status(400).json({ error: "WorkerId is required" });
-  }
+  const workerId = Number((req as any).user?.userId ?? 0);
+  if (!Number.isFinite(workerId) || workerId <= 0) return res.status(401).json({ error: "Unauthorized" });
 
   try {
+    await ensureChatTablesExist();
     const rows = (await prisma.$queryRawUnsafe(
       "INSERT INTO [dbo].[ChatSessions]([WorkerId]) OUTPUT INSERTED.[ChatSessionId] as ChatSessionId VALUES(@p1);",
       workerId
@@ -2911,6 +5144,13 @@ app.post("/Api/Chat/Messages", requireAuth, async (req, res, next) => {
   }
 
   try {
+    await ensureChatTablesExist();
+
+    const workerId = Number((req as any).user?.userId ?? 0);
+    if (!Number.isFinite(workerId) || workerId <= 0) return res.status(401).json({ error: "Unauthorized" });
+    const ok = await assertChatSessionOwner(chatSessionId, workerId);
+    if (!ok) return res.status(403).json({ error: "Forbidden" });
+
     const rows = (await prisma.$queryRawUnsafe(
       "INSERT INTO [dbo].[ChatMessages]([ChatSessionId],[SenderType],[Message]) OUTPUT INSERTED.[ChatMessageId] as ChatMessageId, INSERTED.[CreatedOn] as CreatedOn VALUES(@p1,@p2,@p3);",
       chatSessionId,
@@ -2937,6 +5177,13 @@ app.get("/Api/Chat/Messages", requireAuth, async (req, res, next) => {
   }
 
   try {
+    await ensureChatTablesExist();
+
+    const workerId = Number((req as any).user?.userId ?? 0);
+    if (!Number.isFinite(workerId) || workerId <= 0) return res.status(401).json({ error: "Unauthorized" });
+    const ok = await assertChatSessionOwner(chatSessionId, workerId);
+    if (!ok) return res.status(403).json({ error: "Forbidden" });
+
     const rows = (await prisma.$queryRawUnsafe(
       "SELECT [ChatMessageId],[ChatSessionId],[SenderType],[Message],[CreatedOn] FROM [dbo].[ChatMessages] WHERE [ChatSessionId] = @p1 ORDER BY [CreatedOn] ASC;",
       chatSessionId
@@ -2954,17 +5201,19 @@ app.get("/Api/Chat/Messages", requireAuth, async (req, res, next) => {
 
 app.post("/Api/Chat/SupportRequests", requireAuth, async (req, res, next) => {
   const chatSessionId = Number(req.body?.ChatSessionId ?? req.body?.chatSessionId ?? 0);
-  const workerId = Number(req.body?.WorkerId ?? req.body?.workerId ?? 0);
+  const workerId = Number((req as any).user?.userId ?? 0);
   const reason = (req.body?.Reason ?? req.body?.reason ?? "").toString();
 
   if (!Number.isFinite(chatSessionId) || chatSessionId <= 0) {
     return res.status(400).json({ error: "ChatSessionId is required" });
   }
-  if (!Number.isFinite(workerId) || workerId <= 0) {
-    return res.status(400).json({ error: "WorkerId is required" });
-  }
+  if (!Number.isFinite(workerId) || workerId <= 0) return res.status(401).json({ error: "Unauthorized" });
 
   try {
+    await ensureChatTablesExist();
+    const ok = await assertChatSessionOwner(chatSessionId, workerId);
+    if (!ok) return res.status(403).json({ error: "Forbidden" });
+
     const rows = (await prisma.$queryRawUnsafe(
       "INSERT INTO [dbo].[SupportRequests]([ChatSessionId],[WorkerId],[Reason]) OUTPUT INSERTED.[SupportRequestId] as SupportRequestId VALUES(@p1,@p2,@p3);",
       chatSessionId,
@@ -2985,6 +5234,7 @@ app.post("/Api/Chat/SupportRequests", requireAuth, async (req, res, next) => {
 
 app.get("/Api/Chat/DbStatus", requireAuth, async (_req, res, next) => {
   try {
+    await ensureChatTablesExist();
     const sessions = (await prisma.$queryRawUnsafe("SELECT TOP (1) [ChatSessionId] FROM [dbo].[ChatSessions] ORDER BY [ChatSessionId] DESC;")) as any[];
     const messages = (await prisma.$queryRawUnsafe("SELECT TOP (1) [ChatMessageId] FROM [dbo].[ChatMessages] ORDER BY [ChatMessageId] DESC;")) as any[];
     return res.json({ ok: true, chatSessionsVisible: Array.isArray(sessions), chatMessagesVisible: Array.isArray(messages) });
@@ -2999,15 +5249,13 @@ app.get("/Api/Chat/DbStatus", requireAuth, async (_req, res, next) => {
 
 app.post("/Api/Chat/AIReply", requireAuth, async (req, res, next) => {
   const chatSessionId = Number(req.body?.ChatSessionId ?? req.body?.chatSessionId ?? 0);
-  const workerId = Number(req.body?.WorkerId ?? req.body?.workerId ?? 0);
+  const workerId = Number((req as any).user?.userId ?? 0);
   const userText = (req.body?.Message ?? req.body?.message ?? "").toString();
 
   if (!Number.isFinite(chatSessionId) || chatSessionId <= 0) {
     return res.status(400).json({ error: "ChatSessionId is required" });
   }
-  if (!Number.isFinite(workerId) || workerId <= 0) {
-    return res.status(400).json({ error: "WorkerId is required" });
-  }
+  if (!Number.isFinite(workerId) || workerId <= 0) return res.status(401).json({ error: "Unauthorized" });
   if (!userText.trim()) {
     return res.status(400).json({ error: "Message is required" });
   }
@@ -3020,12 +5268,23 @@ app.post("/Api/Chat/AIReply", requireAuth, async (req, res, next) => {
   const model = process.env.OPENAI_MODEL ?? "gpt-4o";
 
   try {
+    await ensureChatTablesExist();
+    const ok = await assertChatSessionOwner(chatSessionId, workerId);
+    if (!ok) return res.status(403).json({ error: "Forbidden" });
+
     await prisma.$queryRawUnsafe(
       "INSERT INTO [dbo].[ChatMessages]([ChatSessionId],[SenderType],[Message]) VALUES(@p1,@p2,@p3);",
       chatSessionId,
       "User",
       userText
     );
+
+    const history = (await prisma.$queryRawUnsafe(
+      "SELECT TOP (16) [SenderType],[Message] FROM [dbo].[ChatMessages] WHERE [ChatSessionId]=@p1 ORDER BY [ChatMessageId] DESC;",
+      chatSessionId
+    )) as any[];
+
+    const ordered = (history ?? []).slice().reverse();
 
     const systemPrompt =
       "You are a Supportive Safety Liaison for International Workers using the MWMSYS app. " +
@@ -3040,7 +5299,15 @@ app.post("/Api/Chat/AIReply", requireAuth, async (req, res, next) => {
       model,
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: userText },
+        ...ordered
+          .map((m) => {
+            const t = (m?.SenderType ?? "").toString();
+            const content = (m?.Message ?? "").toString();
+            if (t === "User") return { role: "user" as const, content };
+            if (t === "AI" || t === "Agent") return { role: "assistant" as const, content };
+            return null;
+          })
+          .filter(Boolean) as any,
       ],
       temperature: 0.4,
       max_tokens: 350,
@@ -3067,6 +5334,18 @@ app.post("/Api/Chat/AIReply", requireAuth, async (req, res, next) => {
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const errStr = (err?.message ?? "").toString();
+  if (err?.code === "P2021") {
+    const message = "Database schema is missing required tables";
+    console.error(message, err);
+    return res.status(500).json({ error: message, code: "DB_SCHEMA_MISSING" });
+  }
+
+  if (/invalid object name/i.test(errStr)) {
+    const message = "Database schema is missing required tables";
+    console.error(message, err);
+    return res.status(500).json({ error: message, code: "DB_SCHEMA_MISSING" });
+  }
+
   if (/prisma|econnrefused|failed to connect|timeout|sql|database/i.test(errStr) || err?.code === "P1001" || err?.code === "P1002") {
     console.error("Database Connection Error", err);
     return res.status(503).json({ error: "Database Connection Error", code: "DB_CONNECTION_ERROR" });

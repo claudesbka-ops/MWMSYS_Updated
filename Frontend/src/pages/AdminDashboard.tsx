@@ -1,5 +1,6 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { usePanicAlerts } from "@/contexts/PanicAlertsContext";
+import { apiClient } from "@/services/apiClient";
 
 type TriggerPayload = {
   id?: number;
@@ -129,6 +130,17 @@ export default function AdminDashboard() {
                         >
                           Resolve
                         </button>
+
+                        {String((a as any).ProbStatus ?? "").toLowerCase() === "pending" ? (
+                          <button
+                            className="ml-3 text-xs underline"
+                            onClick={async () => {
+                              await apiClient.post("/Api/Incidents/Approve", { id: Number(a.ID) });
+                            }}
+                          >
+                            Verify & Approve
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                     <div className="text-xs text-muted-foreground whitespace-nowrap">

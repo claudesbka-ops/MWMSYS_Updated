@@ -30,7 +30,17 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow MWMSYS to access your location even when the app is closed so authorities can see your live location in emergencies.",
+          "locationAlwaysPermission": "Allow MWMSYS to access your location in the background so authorities can see your live location in emergencies.",
+          "locationWhenInUsePermission": "Allow MWMSYS to access your location to send panic alerts and share live location.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ]
     ],
     "extra": {
       "API_BASE_URL": "http://localhost:3000"

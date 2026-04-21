@@ -35,23 +35,17 @@ function getJwtUserId(): number | null {
   return Number.isFinite(userId) && userId > 0 ? userId : null;
 }
 
-async function mockAIReply(userText: string): Promise<string> {
-  const t = userText.trim().toLowerCase();
-  if (t.includes("salary")) return "I understand. Can you share how many months are unpaid and your employer name?";
-  if (t.includes("permit") || t.includes("visa")) return "I can help. When does your permit expire?";
-  if (t.includes("help") || t.includes("panic")) return "If you are in immediate danger, use the Panic Button. Otherwise, tell me what happened.";
-  return "Thanks. Please describe the issue and your location (if safe).";
-}
-
 export default function Chatbot() {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [sessionId, setSessionId] = useState<number | null>(null);
-  const [workerId] = useState<number>(() => getJwtUserId() ?? 1);
+  const [workerId] = useState<number>(() => getJwtUserId() ?? 0);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  const sessionStorageKey = useMemo(() => `mwmsys_chat_session_${workerId}`, [workerId]);
+  const sessionStorageKey = useMemo(() => `mwmsys_chat_session_${workerId || "anon"}`,
+  [workerId]);
 
   const isAuthed = useMemo(() => !!getAccessToken(), []);
   const canSend = useMemo(() => text.trim().length > 0 && sessionId != null && sessionId > 0 && isAuthed, [text, sessionId, isAuthed]);
@@ -98,7 +92,7 @@ export default function Chatbot() {
       }
 
       if (!id) {
-        const res = await apiClient.post("/Api/Chat/Sessions", { WorkerId: workerId });
+        const res = await apiClient.post("/Api/Chat/Sessions", {});
         id = Number(res.data?.ChatSessionId ?? 0);
         setSessionId(id);
         localStorage.setItem(sessionStorageKey, String(id));
@@ -175,6 +169,9 @@ export default function Chatbot() {
   const send = async () => {
     if (!canSend || sessionId == null) return;
 
+    if (sending) return;
+    setSending(true);
+
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       senderType: "User",
@@ -199,12 +196,18 @@ export default function Chatbot() {
     try {
       const aiRes = await apiClient.post("/Api/Chat/AIReply", {
         ChatSessionId: sessionId,
-        WorkerId: workerId,
         Message: userMsg.message,
       });
       aiText = (aiRes.data?.reply ?? "").toString();
-    } catch {
-      aiText = await mockAIReply(userMsg.message);
+    } catch (e: any) {
+      const status = Number(e?.response?.status ?? 0);
+      const errMsg = e?.response?.data?.error?.toString?.() ?? "";
+      if (status === 403) aiText = "**Access denied**\n\nPlease reopen the chat and try again.";
+      else if (status === 500 && /openai_api_key/i.test(errMsg)) aiText = "**AI is not configured**\n\nOPENAI_API_KEY is missing on the server.";
+      else if (status === 503) aiText = "**Service unavailable**\n\nPlease try again later.";
+      else aiText = "**Unable to respond right now**\n\nPlease try again.";
+    } finally {
+      setSending(false);
     }
 
     const aiMsg: ChatMessage = {
@@ -224,7 +227,6 @@ export default function Chatbot() {
     try {
       await apiClient.post("/Api/Chat/SupportRequests", {
         ChatSessionId: sessionId,
-        WorkerId: workerId,
         Reason: "Human handover requested",
       });
     } catch {
@@ -287,6 +289,7 @@ export default function Chatbot() {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="Type a message..."
+                disabled={sending}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -294,8 +297,8 @@ export default function Chatbot() {
                   }
                 }}
               />
-              <Button onClick={send} disabled={!canSend}>
-                Send
+              <Button onClick={send} disabled={!canSend || sending}>
+                {sending ? "Sending..." : "Send"}
               </Button>
             </div>
           </div>

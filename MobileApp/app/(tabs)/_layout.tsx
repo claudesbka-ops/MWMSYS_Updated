@@ -26,6 +26,7 @@ export default function TabLayout() {
   const isAgency = appRole === 'agency';
   const isAdmin = appRole === 'admin';
   const isAuthority = isAdmin || isAgency || appRole === 'embassy_source' || appRole === 'embassy_destination' || appRole === 'labour';
+  const canSeeLiveMap = isAuthority || isEmployer || isAgency || isAdmin;
 
   return (
     <Tabs
@@ -159,6 +160,15 @@ export default function TabLayout() {
           href: isAuthority ? undefined : null,
           title: 'Alerts',
           tabBarIcon: ({ color }) => <TabBarIcon name="bell" color={color} />,
+        }}
+      />
+
+      <Tabs.Screen
+        name="live-map"
+        options={{
+          href: canSeeLiveMap ? undefined : null,
+          title: 'Live Map',
+          tabBarIcon: ({ color }) => <TabBarIcon name="map-marker" color={color} />,
         }}
       />
 

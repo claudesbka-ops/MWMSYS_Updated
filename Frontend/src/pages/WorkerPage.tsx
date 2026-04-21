@@ -281,7 +281,11 @@ export default function WorkerPage() {
             </thead>
             <tbody className="divide-y divide-border/40">
               {filtered.map((w) => (
-                <tr key={w.id} className="hover:bg-muted/20 transition-colors">
+                <tr
+                  key={w.id}
+                  className="hover:bg-muted/20 transition-colors cursor-pointer"
+                  onClick={() => navigate(`/worker/${encodeURIComponent(w.name)}`)}
+                >
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -306,7 +310,11 @@ export default function WorkerPage() {
                     <div className="flex items-center gap-1.5">
                       {currentRole !== "worker" && (
                         <button
-                          onClick={() => { setEditWorker(w); setShowModal(true); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditWorker(w);
+                            setShowModal(true);
+                          }}
                           className="p-2 rounded-lg hover:bg-muted/60 transition-colors text-muted-foreground hover:text-foreground"
                           title="Edit"
                         >
@@ -315,7 +323,10 @@ export default function WorkerPage() {
                       )}
                       {currentRole !== "worker" && (
                         <button
-                          onClick={() => navigate(`/incident/new?worker=${w.id}`)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/incident/new?worker=${w.id}`);
+                          }}
                           className="p-2 rounded-lg hover:bg-warning/10 transition-colors text-muted-foreground hover:text-warning"
                           title="New Issue"
                         >

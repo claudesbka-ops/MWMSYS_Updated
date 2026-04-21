@@ -411,3 +411,11 @@ model Tbl_Attestation {
   Created_On      DateTime? @default(now(), map: "DF__Tbl_Attes__Creat__2B0A656D") @db.DateTime
   Updated_On      DateTime? @db.DateTime
 }
+
+model Tbl_Worker_Location {
+  workerId   String    @id(map: "PK_Tbl_Worker_Location") @db.VarChar(100)
+  lat        Decimal?  @db.Decimal(10, 7)
+  lng        Decimal?  @db.Decimal(10, 7)
+  accuracy   Decimal?  @db.Decimal(10, 2)
+  updatedOn  DateTime? @db.DateTime
+}

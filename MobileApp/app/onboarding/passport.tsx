@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 
 import { Text, View } from "@/components/Themed";
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import { useSignupService } from "@/services/signupService";
+import Colors from "@/constants/Colors";
+import { ThemedTextInput } from "@/components/ThemedTextInput";
 
 export default function OnboardingPassportScreen() {
   const router = useRouter();
@@ -62,7 +64,7 @@ export default function OnboardingPassportScreen() {
 
       <View style={styles.card}>
         <Text style={styles.label}>Passport number</Text>
-        <TextInput value={passportNo} onChangeText={setPassportNo} style={styles.input} autoCapitalize="none" editable={!busy} />
+        <ThemedTextInput value={passportNo} onChangeText={setPassportNo} style={styles.input} autoCapitalize="none" editable={!busy} />
 
         <TouchableOpacity style={[styles.primaryBtn, busy && styles.disabled]} onPress={finish} disabled={busy}>
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Create account</Text>}
@@ -78,10 +80,10 @@ const styles = StyleSheet.create({
   backText: { fontWeight: "800", opacity: 0.8 },
   title: { marginTop: 6, fontSize: 22, fontWeight: "900" },
   subtitle: { marginTop: 6, fontSize: 13, opacity: 0.7 },
-  card: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
+  card: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: Colors.light.border },
   label: { fontSize: 12, opacity: 0.7, fontWeight: "700" },
-  input: { marginTop: 6, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", borderRadius: 12, padding: 10 },
-  primaryBtn: { marginTop: 16, paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: "#111" },
+  input: { marginTop: 6, borderWidth: 1, borderColor: Colors.light.border, borderRadius: 12, padding: 10 },
+  primaryBtn: { marginTop: 16, paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: Colors.light.tint },
   primaryText: { color: "#fff", fontWeight: "900" },
   disabled: { opacity: 0.6 },
 });

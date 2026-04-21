@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { Alert, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import { Alert, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 
 import { Text, View } from "@/components/Themed";
+import { ThemedTextInput } from "@/components/ThemedTextInput";
 import { useAuthService } from "@/services/authService";
 import { useSession } from "@/contexts/SessionContext";
 
@@ -87,16 +88,16 @@ export default function LoginScreen() {
           })}
         </View>
 
-        <Text style={styles.label}>Username / Email</Text>
-        <TextInput value={userName} onChangeText={setUserName} style={styles.input} autoCapitalize="none" />
+        <Text style={styles.label}>User name or email</Text>
+        <ThemedTextInput value={userName} onChangeText={setUserName} style={styles.input} autoCapitalize="none" editable={!busy} />
 
         <Text style={[styles.label, { marginTop: 12 }]}>Password</Text>
-        <TextInput value={password} onChangeText={setPassword} style={styles.input} secureTextEntry autoCapitalize="none" />
+        <ThemedTextInput value={password} onChangeText={setPassword} style={styles.input} secureTextEntry autoCapitalize="none" editable={!busy} />
 
         {role === "worker" && (
           <>
-            <Text style={[styles.label, { marginTop: 12 }]}>Passport No</Text>
-            <TextInput value={passportNo} onChangeText={setPassportNo} style={styles.input} autoCapitalize="characters" />
+            <Text style={[styles.label, { marginTop: 12 }]}>Passport no (Workers only)</Text>
+            <ThemedTextInput value={passportNo} onChangeText={setPassportNo} style={styles.input} autoCapitalize="none" editable={!busy} />
           </>
         )}
 
@@ -163,11 +164,8 @@ const styles = StyleSheet.create({
   input: {
     height: 44,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(120,120,120,0.25)",
     paddingHorizontal: 12,
     marginTop: 8,
-    color: "inherit" as any,
   },
   primaryBtn: {
     marginTop: 16,

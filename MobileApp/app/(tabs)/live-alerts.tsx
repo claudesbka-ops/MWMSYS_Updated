@@ -13,6 +13,7 @@ type AlertRow = {
   description: string;
   workerId?: string | null;
   companyName?: string | null;
+  status?: string | null;
   createdAt?: string | null;
 };
 
@@ -21,6 +22,8 @@ export default function LiveAlertsScreen() {
   const api = useApiClient();
   const [rows, setRows] = useState<AlertRow[]>([]);
   const socketRef = useRef<Socket | null>(null);
+
+  const roleId = useMemo(() => Number((session.claims as any)?.roleId ?? 0), [session.claims]);
 
   const socketUrl = useMemo(() => {
     return session.apiBaseUrl.replace(/\/+$/, "");
@@ -62,6 +65,7 @@ export default function LiveAlertsScreen() {
           description: String(payload?.description ?? payload?.Description ?? ""),
           workerId: payload?.workerId ?? payload?.worker_ID ?? null,
           companyName: payload?.companyName ?? payload?.Company_Name ?? null,
+          status: (payload?.status ?? payload?.ProbStatus ?? null) as any,
           createdAt: payload?.createdAt ?? null,
         },
         ...prev,
@@ -78,10 +82,17 @@ export default function LiveAlertsScreen() {
           description: String(payload?.description ?? payload?.Description ?? ""),
           workerId: payload?.workerId ?? payload?.worker_ID ?? null,
           companyName: payload?.companyName ?? payload?.Company_Name ?? null,
+          status: (payload?.status ?? payload?.ProbStatus ?? null) as any,
           createdAt: payload?.createdOn ?? payload?.Updated_On ?? null,
         },
         ...prev,
       ]);
+    };
+
+    const onApproved = (payload: any) => {
+      const id = Number(payload?.id ?? payload?.ID ?? 0);
+      if (!id) return;
+      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: "Approved" } : r)));
     };
 
     s.on("connect_error", () => {
@@ -90,11 +101,13 @@ export default function LiveAlertsScreen() {
 
     s.on("new_trigger", onNewTrigger);
     s.on("panic_forwarded", onForwarded);
+    s.on("incident_approved", onApproved);
 
     return () => {
       try {
         s.off("new_trigger", onNewTrigger);
         s.off("panic_forwarded", onForwarded);
+        s.off("incident_approved", onApproved);
         s.disconnect();
       } catch {
         // ignore
@@ -130,6 +143,23 @@ export default function LiveAlertsScreen() {
             <Text style={styles.cardDesc}>{item.description || "—"}</Text>
             {item.workerId ? <Text style={styles.meta}>Worker: {String(item.workerId)}</Text> : null}
             {item.companyName ? <Text style={styles.meta}>Company: {String(item.companyName)}</Text> : null}
+            {item.status ? <Text style={styles.meta}>Status: {String(item.status)}</Text> : null}
+
+            {roleId === 1 && String(item.status ?? "").toLowerCase() === "pending" ? (
+              <TouchableOpacity
+                style={styles.approveBtn}
+                onPress={async () => {
+                  try {
+                    await api.post("/Api/Incidents/Approve", { id: item.id });
+                    setRows((prev) => prev.map((r) => (r.id === item.id ? { ...r, status: "Approved" } : r)));
+                  } catch (e: any) {
+                    Alert.alert("Error", e?.error ?? "Unable to approve");
+                  }
+                }}
+              >
+                <Text style={styles.approveText}>Approve</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         )}
         ListEmptyComponent={
@@ -161,6 +191,8 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 13, fontWeight: "800" },
   cardDesc: { marginTop: 6, fontSize: 12, opacity: 0.8 },
   meta: { marginTop: 6, fontSize: 11, opacity: 0.65 },
+  approveBtn: { marginTop: 10, alignSelf: "flex-start", paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
+  approveText: { fontWeight: "800", opacity: 0.85 },
   emptyWrap: { paddingVertical: 30, alignItems: "center" },
   emptyText: { opacity: 0.7 },
 });
