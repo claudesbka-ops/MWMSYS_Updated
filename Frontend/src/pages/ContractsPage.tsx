@@ -3,6 +3,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { useQuery } from "@tanstack/react-query";
 import { getContractsExpiring } from "@/services/hrmsService";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function ContractsPage() {
   const [days, setDays] = useState(90);
@@ -19,6 +20,15 @@ export default function ContractsPage() {
       return { ...r, expFmt: exp, issFmt: iss };
     });
   }, [data]);
+
+  const uniqueEmployers = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rows) {
+      const n = (r as any).Employer_Name;
+      if (n != null && String(n).trim()) s.add(String(n));
+    }
+    return s.size;
+  }, [rows]);
 
   return (
     <DashboardLayout>
@@ -37,6 +47,30 @@ export default function ContractsPage() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Expiring contracts</CardDescription>
+            <CardTitle className="text-2xl">{rows.length}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">Within the selected window</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Window</CardDescription>
+            <CardTitle className="text-2xl">{days}d</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">Days until expiry cutoff</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Employers impacted</CardDescription>
+            <CardTitle className="text-2xl">{uniqueEmployers}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">Unique employer names in results</CardContent>
+        </Card>
+      </div>
+
       <div className="bg-card rounded-2xl border border-border/60 overflow-hidden">
         <div className="overflow-x-auto">
           {isLoading ? (
@@ -46,7 +80,7 @@ export default function ContractsPage() {
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
             </div>
-          ) : (
+          ) : rows.length ? (
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted/30 border-b border-border/40">
@@ -67,6 +101,15 @@ export default function ContractsPage() {
                 ))}
               </tbody>
             </table>
+          ) : (
+            <div className="p-10">
+              <div className="max-w-xl">
+                <div className="text-base font-semibold text-foreground">No contracts expiring in this window</div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  Increase the days filter to widen the window, or check again later.
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>

@@ -10,6 +10,10 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { downloadCsv, downloadPdfSimpleTable } from "@/lib/exporters";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function PayrollPage() {
   const { currentRole } = useRole();
@@ -31,6 +35,11 @@ export default function PayrollPage() {
     isPaid: true,
   });
 
+  const [q, setQ] = useState("");
+  const [paidFilter, setPaidFilter] = useState<string>("__all__");
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailRow, setDetailRow] = useState<any | null>(null);
+
   const canUpload = currentRole === "admin" || currentRole === "employer" || currentRole === "agency";
   const isWriteLocked = (currentRole === "agency" || currentRole === "employer") && !subscription.hasActivePlan;
 
@@ -49,6 +58,28 @@ export default function PayrollPage() {
     }));
   }, [data]);
 
+  const filteredRows = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    let base = rows;
+    if (paidFilter !== "__all__") {
+      const wantPaid = paidFilter === "paid";
+      base = base.filter((r: any) => (!!r.isPaid) === wantPaid);
+    }
+    if (!s) return base;
+    return base.filter((r: any) => {
+      const hay = `${r.id} ${(r.workerId ?? "").toString()} ${(r.period ?? "").toString()} ${(r.voucherUrl ?? "").toString()}`.toLowerCase();
+      return hay.includes(s);
+    });
+  }, [rows, q, paidFilter]);
+
+  const kpis = useMemo(() => {
+    const total = rows.length;
+    const paidCount = rows.filter((r: any) => !!r.isPaid).length;
+    const unpaidCount = rows.filter((r: any) => !r.isPaid).length;
+    const totalAmount = rows.reduce((acc: number, r: any) => acc + Number(r.amount ?? 0), 0);
+    return { total, paidCount, unpaidCount, totalAmount };
+  }, [rows]);
+
   const years = useMemo(() => {
     const y = new Date().getFullYear();
     return [y - 1, y, y + 1];
@@ -61,7 +92,6 @@ export default function PayrollPage() {
           <h2 className="text-xl font-bold text-foreground">Payroll</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Vouchers and payment tracking</p>
         </div>
-
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -105,6 +135,29 @@ export default function PayrollPage() {
         </div>
       </div>
 
+      <div className="bg-card rounded-2xl border border-border/60 p-4 mb-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="text-sm font-semibold text-foreground">Filters</div>
+          <div className="w-full sm:flex sm:items-center sm:justify-end sm:gap-3">
+            <div className="w-full sm:w-[320px]">
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search worker / period / voucher" disabled={isLoading} />
+            </div>
+            <div className="w-full sm:w-56 mt-3 sm:mt-0">
+              <Select value={paidFilter} onValueChange={setPaidFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Paid" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="unpaid">Unpaid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {canUpload && isWriteLocked && (
         <div className="bg-warning/10 border border-warning/30 rounded-2xl p-4 mb-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -121,6 +174,73 @@ export default function PayrollPage() {
           </div>
         </div>
       )}
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Records</CardDescription>
+            <CardTitle className="text-2xl">{kpis.total}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">Total payroll rows</CardContent>
+          <div className="px-6 pb-5">
+            <Button
+              variant={paidFilter === "__all__" ? "default" : "outline"}
+              className="w-full"
+              onClick={() => {
+                setPaidFilter("__all__");
+                setQ("");
+              }}
+            >
+              Show All
+            </Button>
+          </div>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Paid</CardDescription>
+            <CardTitle className="text-2xl">{kpis.paidCount}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">Marked as paid</CardContent>
+          <div className="px-6 pb-5">
+            <Button
+              variant={paidFilter === "paid" ? "default" : "outline"}
+              className="w-full"
+              onClick={() => {
+                setPaidFilter("paid");
+                setQ("");
+              }}
+            >
+              Filter Paid
+            </Button>
+          </div>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Unpaid</CardDescription>
+            <CardTitle className="text-2xl">{kpis.unpaidCount}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">Needs follow-up</CardContent>
+          <div className="px-6 pb-5">
+            <Button
+              variant={paidFilter === "unpaid" ? "default" : "outline"}
+              className="w-full"
+              onClick={() => {
+                setPaidFilter("unpaid");
+                setQ("");
+              }}
+            >
+              Filter Unpaid
+            </Button>
+          </div>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Total amount</CardDescription>
+            <CardTitle className="text-2xl">{kpis.totalAmount.toFixed(2)}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">Sum of amounts</CardContent>
+        </Card>
+      </div>
 
       {canUpload && (
         <div className="bg-card rounded-2xl border border-border/60 p-5 mb-4">
@@ -197,7 +317,7 @@ export default function PayrollPage() {
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
             </div>
-          ) : (
+          ) : filteredRows.length ? (
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted/30 border-b border-border/40">
@@ -206,10 +326,11 @@ export default function PayrollPage() {
                   <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Amount</th>
                   <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Paid</th>
                   <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Voucher</th>
+                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
-                {rows.map((r) => (
+                {filteredRows.map((r) => (
                   <tr key={r.id} className="hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-3.5 text-muted-foreground font-mono text-xs">{r.workerId}</td>
                     <td className="px-4 py-3.5 text-muted-foreground text-xs">{(r as any).period}</td>
@@ -224,13 +345,76 @@ export default function PayrollPage() {
                         "—"
                       )}
                     </td>
+                    <td className="px-4 py-3.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setDetailRow(r);
+                          setDetailOpen(true);
+                        }}
+                      >
+                        View
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          ) : (
+            <div className="p-10">
+              <div className="max-w-xl">
+                <div className="text-base font-semibold text-foreground">No payroll records yet</div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  Upload payroll vouchers to start tracking payments.
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Payroll #{(detailRow as any)?.id}</DialogTitle>
+            <DialogDescription>Voucher and payment details.</DialogDescription>
+          </DialogHeader>
+
+          {detailRow ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div className="rounded-xl border border-border/60 p-3">
+                <div className="text-xs text-muted-foreground">Worker</div>
+                <div className="font-semibold text-foreground">{(detailRow as any).workerId}</div>
+              </div>
+              <div className="rounded-xl border border-border/60 p-3">
+                <div className="text-xs text-muted-foreground">Period</div>
+                <div className="font-semibold text-foreground">{(detailRow as any).period}</div>
+              </div>
+              <div className="rounded-xl border border-border/60 p-3">
+                <div className="text-xs text-muted-foreground">Amount</div>
+                <div className="font-semibold text-foreground">{Number((detailRow as any).amount ?? 0).toFixed(2)}</div>
+              </div>
+              <div className="rounded-xl border border-border/60 p-3">
+                <div className="text-xs text-muted-foreground">Paid</div>
+                <div className="font-semibold text-foreground">{(detailRow as any).isPaid ? "Yes" : "No"}</div>
+              </div>
+              <div className="rounded-xl border border-border/60 p-3 sm:col-span-2">
+                <div className="text-xs text-muted-foreground">Voucher</div>
+                {(detailRow as any).voucherUrl ? (
+                  <a href={(detailRow as any).voucherUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                    Open voucher
+                  </a>
+                ) : (
+                  <div className="text-sm text-muted-foreground mt-1">No voucher URL</div>
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter />
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

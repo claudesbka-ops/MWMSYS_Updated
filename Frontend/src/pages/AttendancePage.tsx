@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { downloadCsv, downloadPdfSimpleTable } from "@/lib/exporters";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function AttendancePage() {
   const { data = [], isLoading } = useQuery({
@@ -24,6 +25,18 @@ export default function AttendancePage() {
       };
     });
   }, [data]);
+
+  const totalWorkedHours = useMemo(() => {
+    return rows.reduce((acc: number, r: any) => acc + Number(r.workedHours ?? 0), 0);
+  }, [rows]);
+
+  const lateCount = useMemo(() => {
+    return rows.filter((r: any) => Number(r.lateMinutes ?? 0) > 0).length;
+  }, [rows]);
+
+  const earlyCount = useMemo(() => {
+    return rows.filter((r: any) => Number(r.earlyLeaveMinutes ?? 0) > 0).length;
+  }, [rows]);
 
   return (
     <DashboardLayout>
@@ -82,6 +95,37 @@ export default function AttendancePage() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Records</CardDescription>
+            <CardTitle className="text-2xl">{rows.length}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">Total clock-in/out rows</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Total worked</CardDescription>
+            <CardTitle className="text-2xl">{totalWorkedHours.toFixed(1)}h</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">Sum of worked hours</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Late arrivals</CardDescription>
+            <CardTitle className="text-2xl">{lateCount}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">Rows with late minutes</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Early leaves</CardDescription>
+            <CardTitle className="text-2xl">{earlyCount}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">Rows with early leave minutes</CardContent>
+        </Card>
+      </div>
+
       <div className="bg-card rounded-2xl border border-border/60 overflow-hidden">
         <div className="overflow-x-auto">
           {isLoading ? (
@@ -91,7 +135,7 @@ export default function AttendancePage() {
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
             </div>
-          ) : (
+          ) : rows.length ? (
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted/30 border-b border-border/40">
@@ -120,6 +164,15 @@ export default function AttendancePage() {
                 ))}
               </tbody>
             </table>
+          ) : (
+            <div className="p-10">
+              <div className="max-w-xl">
+                <div className="text-base font-semibold text-foreground">No attendance records yet</div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  Once workers clock in/out, you’ll see time and GPS records here.
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>

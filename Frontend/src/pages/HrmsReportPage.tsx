@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { downloadCsv, downloadPdfSimpleTable } from "@/lib/exporters";
@@ -33,6 +34,15 @@ export default function HrmsReportPage() {
     if (!s) return base;
     return base.filter((r) => (r.workerId ?? "").toLowerCase().includes(s) || (r.name ?? "").toLowerCase().includes(s));
   }, [q, query.data]);
+
+  const kpis = useMemo(() => {
+    const workerCount = rows.length;
+    const totalDays = rows.reduce((acc, r) => acc + Number(r.daysPresent ?? 0), 0);
+    const totalHours = rows.reduce((acc, r) => acc + Number(r.workedHours ?? 0), 0);
+    const totalOtApproved = rows.reduce((acc, r) => acc + Number(r.overtimeApprovedHours ?? 0), 0);
+    const totalExpApproved = rows.reduce((acc, r) => acc + Number(r.expenseApproved ?? 0), 0);
+    return { workerCount, totalDays, totalHours, totalOtApproved, totalExpApproved };
+  }, [rows]);
 
   const exportRows = () => {
     const headers = [
@@ -133,40 +143,91 @@ export default function HrmsReportPage() {
           </div>
         </div>
 
-        <div className="bg-card rounded-2xl border border-border/60 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-muted/30 border-b border-border/40">
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Worker</th>
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Name</th>
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Days</th>
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Worked</th>
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Late</th>
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Early</th>
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">OT Req</th>
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">OT App</th>
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Exp</th>
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Exp App</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/40">
-                {(rows ?? []).map((r) => (
-                  <tr key={r.workerId} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3.5 text-muted-foreground font-mono text-xs">{r.workerId}</td>
-                    <td className="px-4 py-3.5 text-muted-foreground text-xs">{r.name ?? "—"}</td>
-                    <td className="px-4 py-3.5 text-muted-foreground text-xs">{r.daysPresent}</td>
-                    <td className="px-4 py-3.5 text-muted-foreground text-xs">{Number(r.workedHours ?? 0).toFixed(2)}</td>
-                    <td className="px-4 py-3.5 text-muted-foreground text-xs">{r.lateCount}</td>
-                    <td className="px-4 py-3.5 text-muted-foreground text-xs">{r.earlyLeaveCount}</td>
-                    <td className="px-4 py-3.5 text-muted-foreground text-xs">{Number(r.overtimeRequestedHours ?? 0).toFixed(2)}</td>
-                    <td className="px-4 py-3.5 text-muted-foreground text-xs">{Number(r.overtimeApprovedHours ?? 0).toFixed(2)}</td>
-                    <td className="px-4 py-3.5 text-muted-foreground text-xs">{Number(r.expenseClaimed ?? 0).toFixed(2)}</td>
-                    <td className="px-4 py-3.5 text-muted-foreground text-xs">{Number(r.expenseApproved ?? 0).toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Workers</CardDescription>
+                <CardTitle className="text-2xl">{kpis.workerCount}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">Matched by filters</CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Days present</CardDescription>
+                <CardTitle className="text-2xl">{kpis.totalDays}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">Sum across workers</CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Worked hours</CardDescription>
+                <CardTitle className="text-2xl">{kpis.totalHours.toFixed(1)}h</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">Sum across workers</CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>OT approved</CardDescription>
+                <CardTitle className="text-2xl">{kpis.totalOtApproved.toFixed(1)}h</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">Approved overtime hours</CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Expenses approved</CardDescription>
+                <CardTitle className="text-2xl">{kpis.totalExpApproved.toFixed(2)}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">Approved expense amount</CardContent>
+            </Card>
+          </div>
+
+          <div className="bg-card rounded-2xl border border-border/60 overflow-hidden">
+            <div className="overflow-x-auto">
+              {rows.length ? (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/30 border-b border-border/40">
+                      <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Worker</th>
+                      <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Name</th>
+                      <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Days</th>
+                      <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Worked</th>
+                      <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Late</th>
+                      <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Early</th>
+                      <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">OT Req</th>
+                      <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">OT App</th>
+                      <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Exp</th>
+                      <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Exp App</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {(rows ?? []).map((r) => (
+                      <tr key={r.workerId} className="hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-3.5 text-muted-foreground font-mono text-xs">{r.workerId}</td>
+                        <td className="px-4 py-3.5 text-muted-foreground text-xs">{r.name ?? "—"}</td>
+                        <td className="px-4 py-3.5 text-muted-foreground text-xs">{r.daysPresent}</td>
+                        <td className="px-4 py-3.5 text-muted-foreground text-xs">{Number(r.workedHours ?? 0).toFixed(2)}</td>
+                        <td className="px-4 py-3.5 text-muted-foreground text-xs">{r.lateCount}</td>
+                        <td className="px-4 py-3.5 text-muted-foreground text-xs">{r.earlyLeaveCount}</td>
+                        <td className="px-4 py-3.5 text-muted-foreground text-xs">{Number(r.overtimeRequestedHours ?? 0).toFixed(2)}</td>
+                        <td className="px-4 py-3.5 text-muted-foreground text-xs">{Number(r.overtimeApprovedHours ?? 0).toFixed(2)}</td>
+                        <td className="px-4 py-3.5 text-muted-foreground text-xs">{Number(r.expenseClaimed ?? 0).toFixed(2)}</td>
+                        <td className="px-4 py-3.5 text-muted-foreground text-xs">{Number(r.expenseApproved ?? 0).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="p-10">
+                  <div className="max-w-xl">
+                    <div className="text-base font-semibold text-foreground">No results for this range</div>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      Try expanding the date range or clearing the search filter.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

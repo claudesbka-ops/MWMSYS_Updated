@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar as CalendarIcon, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
@@ -107,6 +108,14 @@ export default function WorkerHrmsRequestsPage() {
   const overtime = (otQuery.data ?? []) as OvertimeRequestRow[];
   const expenses = (exQuery.data ?? []) as ExpenseClaimRow[];
 
+  const kpis = useMemo(() => {
+    const pendingOt = overtime.filter((r) => String(r.status) === "Pending").length;
+    const approvedOt = overtime.filter((r) => String(r.status) === "Approved").reduce((acc, r) => acc + Number(r.hours ?? 0), 0);
+    const pendingExp = expenses.filter((r) => String(r.status) === "Pending").length;
+    const approvedExp = expenses.filter((r) => String(r.status) === "Approved").reduce((acc, r) => acc + Number(r.amount ?? 0), 0);
+    return { pendingOt, approvedOt, pendingExp, approvedExp };
+  }, [overtime, expenses]);
+
   const exportRows = () => {
     if (tab === "overtime") {
       const headers = ["ID", "Date", "Hours", "Status", "Reason"]; 
@@ -147,6 +156,37 @@ export default function WorkerHrmsRequestsPage() {
             Expenses
           </Button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Pending overtime</CardDescription>
+            <CardTitle className="text-2xl">{kpis.pendingOt}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">Awaiting approval</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Approved overtime</CardDescription>
+            <CardTitle className="text-2xl">{kpis.approvedOt.toFixed(1)}h</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">Total approved hours</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Pending expenses</CardDescription>
+            <CardTitle className="text-2xl">{kpis.pendingExp}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">Awaiting approval</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Approved expenses</CardDescription>
+            <CardTitle className="text-2xl">{kpis.approvedExp.toFixed(2)}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">Total approved amount</CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -295,7 +335,7 @@ function HistoryOvertime({ rows, loading }: { rows: OvertimeRequestRow[]; loadin
         ) : (
           <tr>
             <td className="px-4 py-4 text-muted-foreground text-xs" colSpan={4}>
-              No overtime requests yet
+              No overtime requests yet. Submit one from the form to start tracking approvals.
             </td>
           </tr>
         )}
@@ -353,7 +393,7 @@ function HistoryExpenses({ rows, loading }: { rows: ExpenseClaimRow[]; loading: 
         ) : (
           <tr>
             <td className="px-4 py-4 text-muted-foreground text-xs" colSpan={5}>
-              No expense claims yet
+              No expense claims yet. Add an expense and attach receipts (optional).
             </td>
           </tr>
         )}

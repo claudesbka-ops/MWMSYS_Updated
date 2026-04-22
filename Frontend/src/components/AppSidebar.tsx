@@ -29,6 +29,7 @@ const navItems: NavItem[] = [
     path: "/hrms",
     roles: ["admin", "agency", "employer", "worker"],
     children: [
+      { label: "Overview", icon: FileText, path: "/hrms" },
       { label: "Attendance", icon: Clock, path: "/hrms/attendance" },
       { label: "Leave", icon: FileText, path: "/hrms/leave" },
       { label: "My Requests", icon: FileText, path: "/hrms/my-requests" },
@@ -72,7 +73,7 @@ export default function AppSidebar() {
   const allowedChildPath = (path: string): boolean => {
     // Worker should only see worker-relevant HRMS pages
     if (currentRole === "worker") {
-      return new Set(["/hrms/leave", "/hrms/my-requests"]).has(path);
+      return new Set(["/hrms", "/hrms/leave", "/hrms/my-requests"]).has(path);
     }
     // Non-worker should not see worker-only entry
     if (path === "/hrms/my-requests") return false;

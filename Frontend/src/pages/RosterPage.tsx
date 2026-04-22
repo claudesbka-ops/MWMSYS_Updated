@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { Calendar as CalendarIcon, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { downloadCsv, downloadPdfSimpleTable } from "@/lib/exporters";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   createShiftTemplate,
   getShiftTemplates,
@@ -85,6 +86,14 @@ export default function RosterPage() {
   const rows = useMemo(() => {
     return ((rosterQuery.data?.rows ?? []) as RosterRow[]) ?? [];
   }, [rosterQuery.data]);
+
+  const kpis = useMemo(() => {
+    const assignments = rows.length;
+    const uniqueWorkers = new Set(rows.map((r) => String(r.workerId ?? "")).filter(Boolean)).size;
+    const totalHours = rows.reduce((acc, r) => acc + Number((r as any).shiftHours ?? 0), 0);
+    const templates = (templateOptions ?? []).length;
+    return { assignments, uniqueWorkers, totalHours, templates };
+  }, [rows, templateOptions]);
 
   return (
     <DashboardLayout>
@@ -185,6 +194,37 @@ export default function RosterPage() {
         <div className="bg-card rounded-2xl border border-border/60 p-5 lg:col-span-2">
           <h3 className="text-sm font-bold text-foreground mb-3">Assignments</h3>
 
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Assignments</CardDescription>
+                <CardTitle className="text-2xl">{kpis.assignments}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">In selected range</CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Workers scheduled</CardDescription>
+                <CardTitle className="text-2xl">{kpis.uniqueWorkers}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">Unique workers</CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Total hours</CardDescription>
+                <CardTitle className="text-2xl">{kpis.totalHours.toFixed(1)}h</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">Sum of shift hours</CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Templates</CardDescription>
+                <CardTitle className="text-2xl">{kpis.templates}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">Available shift presets</CardContent>
+            </Card>
+          </div>
+
           {canWrite && (
             <div className="rounded-2xl border border-border/60 bg-muted/20 p-4 mb-4">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -267,7 +307,7 @@ export default function RosterPage() {
                 {rows.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-4 py-6 text-sm text-muted-foreground">
-                      No roster assignments in this range.
+                      No roster assignments in this range. Select a wider date range or assign shifts above.
                     </td>
                   </tr>
                 ) : null}

@@ -30,6 +30,7 @@ import BroadcastPage from "./pages/BroadcastPage";
 import HrmsRequestsPage from "./pages/HrmsRequestsPage";
 import HrmsReportPage from "./pages/HrmsReportPage";
 import WorkerHrmsRequestsPage from "./pages/WorkerHrmsRequestsPage";
+import HrmsHomePage from "./pages/HrmsHomePage";
 import Login from "./pages/Login.tsx";
 import Signup from "./pages/Signup.tsx";
 import WorkerLogin from "./pages/WorkerLogin.tsx";
@@ -140,6 +141,14 @@ function AnimatedRoutes() {
             element={
               <ProtectedRoute allow={["agency", "employer"]}>
                 <PricingPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hrms"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer", "worker"]}>
+                <HrmsHomePage />
               </ProtectedRoute>
             }
           />

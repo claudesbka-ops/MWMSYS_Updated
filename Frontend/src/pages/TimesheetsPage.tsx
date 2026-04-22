@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { downloadCsv, downloadPdfSimpleTable } from "@/lib/exporters";
@@ -35,6 +36,15 @@ export default function TimesheetsPage() {
       return (r.workerId ?? "").toLowerCase().includes(s) || (r.name ?? "").toLowerCase().includes(s);
     });
   }, [q, query.data]);
+
+  const kpis = useMemo(() => {
+    const workerCount = rows.length;
+    const planned = rows.reduce((acc, r) => acc + Number(r.plannedHours ?? 0), 0);
+    const actual = rows.reduce((acc, r) => acc + Number(r.actualHours ?? 0), 0);
+    const overtime = rows.reduce((acc, r) => acc + Number(r.overtimeHours ?? 0), 0);
+    const days = rows.reduce((acc, r) => acc + Number(r.days ?? 0), 0);
+    return { workerCount, planned, actual, overtime, days };
+  }, [rows]);
 
   const exportRows = () => {
     const headers = ["Worker", "Name", "Planned", "Actual", "Overtime", "Days"]; 
@@ -122,54 +132,96 @@ export default function TimesheetsPage() {
           </div>
         </div>
 
-        <div className="bg-card rounded-2xl border border-border/60 overflow-hidden">
-          {query.isLoading ? (
-            <div className="p-6 text-sm text-muted-foreground">Loading…</div>
-          ) : query.isError ? (
-            <div className="p-6 text-sm text-muted-foreground">Unable to load timesheets</div>
-          ) : (
-            <div className="overflow-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/30 border-b border-border/40">
-                    <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Worker</th>
-                    <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Planned</th>
-                    <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Actual</th>
-                    <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Overtime</th>
-                    <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Days</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {rows.map((r) => (
-                    <tr key={r.workerId} className="hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3.5">
-                        <div className="text-sm font-semibold text-foreground">{r.name ?? r.workerId}</div>
-                        <div className="text-[11px] text-muted-foreground font-mono">{r.workerId}</div>
-                      </td>
-                      <td className="px-4 py-3.5 text-muted-foreground text-xs">{Number(r.plannedHours ?? 0).toFixed(2)}</td>
-                      <td className="px-4 py-3.5 text-muted-foreground text-xs">{Number(r.actualHours ?? 0).toFixed(2)}</td>
-                      <td className="px-4 py-3.5">
-                        <span
-                          className={cn(
-                            "px-2.5 py-1 rounded-lg text-[11px] font-semibold",
-                            (r.overtimeHours ?? 0) > 0 ? "bg-warning/10 text-warning" : "bg-success/10 text-success"
-                          )}
-                        >
-                          {Number(r.overtimeHours ?? 0).toFixed(2)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 text-muted-foreground text-xs">{r.days}</td>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Workers</CardDescription>
+                <CardTitle className="text-2xl">{kpis.workerCount}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">Matched by filters</CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Planned hours</CardDescription>
+                <CardTitle className="text-2xl">{kpis.planned.toFixed(1)}h</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">Sum of planned hours</CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Actual hours</CardDescription>
+                <CardTitle className="text-2xl">{kpis.actual.toFixed(1)}h</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">Sum of actual hours</CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Overtime hours</CardDescription>
+                <CardTitle className="text-2xl">{kpis.overtime.toFixed(1)}h</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">Sum of overtime hours</CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Worker-days</CardDescription>
+                <CardTitle className="text-2xl">{kpis.days}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">Total days counted</CardContent>
+            </Card>
+          </div>
+
+          <div className="bg-card rounded-2xl border border-border/60 overflow-hidden">
+            {query.isLoading ? (
+              <div className="p-6 text-sm text-muted-foreground">Loading…</div>
+            ) : query.isError ? (
+              <div className="p-6 text-sm text-muted-foreground">Unable to load timesheets</div>
+            ) : rows.length ? (
+              <div className="overflow-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/30 border-b border-border/40">
+                      <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Worker</th>
+                      <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Planned</th>
+                      <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Actual</th>
+                      <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Overtime</th>
+                      <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Days</th>
                     </tr>
-                  ))}
-                  {rows.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-8 text-sm text-muted-foreground">No data in this range.</td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {rows.map((r) => (
+                      <tr key={r.workerId} className="hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-3.5">
+                          <div className="text-sm font-semibold text-foreground">{r.name ?? r.workerId}</div>
+                          <div className="text-[11px] text-muted-foreground font-mono">{r.workerId}</div>
+                        </td>
+                        <td className="px-4 py-3.5 text-muted-foreground text-xs">{Number(r.plannedHours ?? 0).toFixed(2)}</td>
+                        <td className="px-4 py-3.5 text-muted-foreground text-xs">{Number(r.actualHours ?? 0).toFixed(2)}</td>
+                        <td className="px-4 py-3.5">
+                          <span
+                            className={cn(
+                              "px-2.5 py-1 rounded-lg text-[11px] font-semibold",
+                              (r.overtimeHours ?? 0) > 0 ? "bg-warning/10 text-warning" : "bg-success/10 text-success"
+                            )}
+                          >
+                            {Number(r.overtimeHours ?? 0).toFixed(2)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-muted-foreground text-xs">{r.days}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-10">
+                <div className="max-w-xl">
+                  <div className="text-base font-semibold text-foreground">No timesheet data in this range</div>
+                  <div className="text-sm text-muted-foreground mt-1">Try expanding the date range or clearing the search filter.</div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </DashboardLayout>
