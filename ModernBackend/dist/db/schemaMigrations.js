@@ -1,0 +1,248 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ensureRosterTablesExist = ensureRosterTablesExist;
+exports.ensureHrmsRequestTablesExist = ensureHrmsRequestTablesExist;
+exports.ensureAttestationTableExists = ensureAttestationTableExists;
+exports.ensureChatTablesExist = ensureChatTablesExist;
+exports.ensureBroadcastTableExists = ensureBroadcastTableExists;
+exports.broadcastTableExists = broadcastTableExists;
+exports.runSchemaMigrations = runSchemaMigrations;
+const db_1 = require("../db");
+const subscription_1 = require("../middleware/subscription");
+/**
+ * Idempotent `IF OBJECT_ID(...) IS NULL CREATE TABLE` bootstrappers.
+ * Each helper silently swallows errors so a partially-present schema or
+ * an already-running cluster does not fail server start.
+ *
+ * `runSchemaMigrations()` awaits every bootstrapper in parallel — call it
+ * once from the server bootstrap before `server.listen(...)`. Individual
+ * helpers can still be awaited lazily from route handlers for legacy
+ * behavior (e.g. hosts with read-only credentials where table creation
+ * must be explicitly opt-in).
+ */
+async function ensureRosterTablesExist() {
+    try {
+        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Shift_Template','U') IS NULL BEGIN " +
+            "CREATE TABLE dbo.Tbl_Shift_Template (" +
+            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+            "entityId VARCHAR(100) NOT NULL," +
+            "name VARCHAR(80) NOT NULL," +
+            "startTime VARCHAR(5) NOT NULL," +
+            "endTime VARCHAR(5) NOT NULL," +
+            "breakMinutes INT NOT NULL DEFAULT(0)," +
+            "createdOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+            ");" +
+            "END");
+    }
+    catch {
+        // ignore
+    }
+    try {
+        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Roster_Assignment','U') IS NULL BEGIN " +
+            "CREATE TABLE dbo.Tbl_Roster_Assignment (" +
+            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+            "workerId VARCHAR(100) NOT NULL," +
+            "entityId VARCHAR(100) NOT NULL," +
+            "date DATE NOT NULL," +
+            "shiftId INT NOT NULL," +
+            "updatedOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+            ");" +
+            "CREATE UNIQUE INDEX UX_Roster_Worker_Date ON dbo.Tbl_Roster_Assignment(workerId,date);" +
+            "END");
+    }
+    catch {
+        // ignore
+    }
+}
+async function ensureHrmsRequestTablesExist() {
+    try {
+        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_HRMS_Overtime_Request','U') IS NULL BEGIN " +
+            "CREATE TABLE dbo.Tbl_HRMS_Overtime_Request (" +
+            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+            "workerId VARCHAR(100) NOT NULL," +
+            "workDate DATE NOT NULL," +
+            "hours DECIMAL(10,2) NOT NULL DEFAULT(0)," +
+            "reason NVARCHAR(500) NULL," +
+            "status VARCHAR(20) NOT NULL DEFAULT('Pending')," +
+            "createdOn DATETIME NOT NULL DEFAULT(GETDATE())," +
+            "decisionBy VARCHAR(100) NULL," +
+            "decisionOn DATETIME NULL" +
+            ");" +
+            "CREATE INDEX IX_HRMS_OT_workerId ON dbo.Tbl_HRMS_Overtime_Request(workerId);" +
+            "CREATE INDEX IX_HRMS_OT_status ON dbo.Tbl_HRMS_Overtime_Request(status);" +
+            "END");
+    }
+    catch {
+        // ignore
+    }
+    try {
+        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_HRMS_Expense_Claim','U') IS NULL BEGIN " +
+            "CREATE TABLE dbo.Tbl_HRMS_Expense_Claim (" +
+            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+            "workerId VARCHAR(100) NOT NULL," +
+            "claimDate DATE NOT NULL," +
+            "amount DECIMAL(18,2) NOT NULL DEFAULT(0)," +
+            "category VARCHAR(50) NULL," +
+            "description NVARCHAR(500) NULL," +
+            "status VARCHAR(20) NOT NULL DEFAULT('Pending')," +
+            "createdOn DATETIME NOT NULL DEFAULT(GETDATE())," +
+            "decisionBy VARCHAR(100) NULL," +
+            "decisionOn DATETIME NULL" +
+            ");" +
+            "CREATE INDEX IX_HRMS_EXP_workerId ON dbo.Tbl_HRMS_Expense_Claim(workerId);" +
+            "CREATE INDEX IX_HRMS_EXP_status ON dbo.Tbl_HRMS_Expense_Claim(status);" +
+            "END");
+    }
+    catch {
+        // ignore
+    }
+    try {
+        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_HRMS_Expense_Attachment','U') IS NULL BEGIN " +
+            "CREATE TABLE dbo.Tbl_HRMS_Expense_Attachment (" +
+            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+            "claimId INT NOT NULL," +
+            "filePath VARCHAR(500) NOT NULL," +
+            "originalName NVARCHAR(255) NULL," +
+            "mimeType VARCHAR(120) NULL," +
+            "fileSize INT NULL," +
+            "createdOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+            ");" +
+            "CREATE INDEX IX_HRMS_EXP_ATT_claimId ON dbo.Tbl_HRMS_Expense_Attachment(claimId);" +
+            "END");
+    }
+    catch {
+        // ignore
+    }
+}
+async function ensureAttestationTableExists() {
+    try {
+        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Attestation', 'U') IS NULL BEGIN " +
+            "CREATE TABLE dbo.Tbl_Attestation (" +
+            "AttestationId INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+            "Worker_Id VARCHAR(100) NOT NULL," +
+            "Passport_Number VARCHAR(20) NULL," +
+            "DocumentType VARCHAR(50) NULL," +
+            "DocumentPath VARCHAR(500) NULL," +
+            "Status VARCHAR(20) NOT NULL DEFAULT('Submitted')," +
+            "AdminRemarks VARCHAR(500) NULL," +
+            "Created_On DATETIME NULL DEFAULT(GETDATE())," +
+            "Updated_On DATETIME NULL" +
+            ");" +
+            "END");
+    }
+    catch {
+        // ignore
+    }
+}
+async function ensureChatTablesExist() {
+    try {
+        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.ChatSessions','U') IS NULL BEGIN " +
+            "CREATE TABLE dbo.ChatSessions (" +
+            "ChatSessionId INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+            "WorkerId INT NOT NULL," +
+            "CreatedOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+            ");" +
+            "CREATE INDEX IX_ChatSessions_WorkerId ON dbo.ChatSessions(WorkerId);" +
+            "END");
+    }
+    catch {
+        // ignore
+    }
+    try {
+        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.ChatMessages','U') IS NULL BEGIN " +
+            "CREATE TABLE dbo.ChatMessages (" +
+            "ChatMessageId INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+            "ChatSessionId INT NOT NULL," +
+            "SenderType VARCHAR(20) NOT NULL," +
+            "Message NVARCHAR(2000) NOT NULL," +
+            "CreatedOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+            ");" +
+            "CREATE INDEX IX_ChatMessages_SessionId ON dbo.ChatMessages(ChatSessionId);" +
+            "END");
+    }
+    catch {
+        // ignore
+    }
+    try {
+        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.SupportRequests','U') IS NULL BEGIN " +
+            "CREATE TABLE dbo.SupportRequests (" +
+            "SupportRequestId INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+            "ChatSessionId INT NOT NULL," +
+            "WorkerId INT NOT NULL," +
+            "Reason NVARCHAR(500) NULL," +
+            "CreatedOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+            ");" +
+            "CREATE INDEX IX_SupportRequests_SessionId ON dbo.SupportRequests(ChatSessionId);" +
+            "END");
+    }
+    catch {
+        // ignore
+    }
+}
+async function ensureBroadcastTableExists() {
+    try {
+        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Broadcast_Message','U') IS NULL BEGIN " +
+            "CREATE TABLE dbo.Tbl_Broadcast_Message (" +
+            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+            "senderRoleId INT NOT NULL," +
+            "senderKey VARCHAR(120) NULL," +
+            "senderName VARCHAR(120) NULL," +
+            "message NVARCHAR(2000) NOT NULL," +
+            "target VARCHAR(30) NOT NULL," +
+            "createdOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+            ");" +
+            "END");
+    }
+    catch {
+        // ignore
+    }
+    try {
+        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Broadcast_Attachment','U') IS NULL BEGIN " +
+            "CREATE TABLE dbo.Tbl_Broadcast_Attachment (" +
+            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+            "messageId INT NOT NULL," +
+            "url VARCHAR(500) NOT NULL," +
+            "mime VARCHAR(120) NULL," +
+            "originalName VARCHAR(260) NULL," +
+            "sizeBytes BIGINT NULL," +
+            "createdOn DATETIME NOT NULL DEFAULT(GETDATE())" +
+            ");" +
+            "CREATE INDEX IX_Broadcast_Att_MessageId ON dbo.Tbl_Broadcast_Attachment(messageId);" +
+            "END");
+    }
+    catch {
+        // ignore
+    }
+}
+/**
+ * Non-mutating probe used when a host denies `CREATE TABLE` (e.g. read-only
+ * DB users). Returns true if `dbo.Tbl_Broadcast_Message` currently exists.
+ */
+async function broadcastTableExists() {
+    try {
+        const rows = (await db_1.prisma.$queryRawUnsafe("SELECT OBJECT_ID('dbo.Tbl_Broadcast_Message','U') AS oid;"));
+        const oid = rows?.[0]?.oid;
+        return oid != null;
+    }
+    catch {
+        return false;
+    }
+}
+/**
+ * Runs every schema bootstrapper in parallel. Intended to be awaited once
+ * during server startup before listening for connections. Individual
+ * bootstrappers are idempotent and swallow their own errors, so this call
+ * itself never rejects.
+ */
+async function runSchemaMigrations() {
+    // Note: ensureSubscriptionTableExists lives in middleware/subscription.ts
+    // because it is also invoked by the subscription middleware at request time.
+    await Promise.all([
+        ensureRosterTablesExist(),
+        ensureHrmsRequestTablesExist(),
+        ensureAttestationTableExists(),
+        ensureChatTablesExist(),
+        ensureBroadcastTableExists(),
+        (0, subscription_1.ensureSubscriptionTableExists)(),
+    ]);
+}

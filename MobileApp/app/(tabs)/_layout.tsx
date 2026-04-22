@@ -7,6 +7,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { useSession } from '@/contexts/SessionContext';
+import { useEmergencyBadge } from '@/services/syncBus';
 
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
@@ -20,6 +21,8 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const session = useSession();
   const appRole = (session.claims?.appRole ?? session.claims?.role ?? 'worker').toString();
+
+  const { count: emergencyCount } = useEmergencyBadge();
 
   const isWorker = appRole === 'worker';
   const isEmployer = appRole === 'employer';
@@ -107,6 +110,9 @@ export default function TabLayout() {
           href: isWorker ? undefined : null,
           title: 'Panic',
           tabBarIcon: ({ color }) => <TabBarIcon name="exclamation-triangle" color={color} />,
+          // Red dot badge while emergency alerts are queued offline
+          tabBarBadge: emergencyCount > 0 ? emergencyCount : undefined,
+          tabBarBadgeStyle: { backgroundColor: '#dc2626', color: 'white' },
         }}
       />
 

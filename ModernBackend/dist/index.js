@@ -3,264 +3,38 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-require("dotenv/config");
+require("dotenv").config();
 const express_1 = __importDefault(require("express"));
-const cors_1 = __importDefault(require("cors"));
 const http_1 = __importDefault(require("http"));
-const socket_io_1 = require("socket.io");
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const fs_1 = __importDefault(require("fs"));
-const path_1 = __importDefault(require("path"));
-const multer_1 = __importDefault(require("multer"));
-const openai_1 = __importDefault(require("openai"));
-const stripe_1 = __importDefault(require("stripe"));
 const db_1 = require("./db");
 const cryptoLegacy_1 = require("./cryptoLegacy");
-const auth_1 = require("./auth");
+const auth_1 = require("./middleware/auth");
+const cors_1 = require("./middleware/cors");
+const bodyParsers_1 = require("./middleware/bodyParsers");
+const upload_1 = require("./middleware/upload");
+const errorHandler_1 = require("./middleware/errorHandler");
+const subscription_1 = require("./middleware/subscription");
+const schemaMigrations_1 = require("./db/schemaMigrations");
 const queryGuard_1 = require("./services/queryGuard");
-async function ensureAttestationTableExists() {
-    try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Attestation', 'U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_Attestation (" +
-            "AttestationId INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "Worker_Id VARCHAR(100) NOT NULL," +
-            "Passport_Number VARCHAR(20) NULL," +
-            "DocumentType VARCHAR(50) NULL," +
-            "DocumentPath VARCHAR(500) NULL," +
-            "Status VARCHAR(20) NOT NULL DEFAULT('Submitted')," +
-            "AdminRemarks VARCHAR(500) NULL," +
-            "Created_On DATETIME NULL DEFAULT(GETDATE())," +
-            "Updated_On DATETIME NULL" +
-            ");" +
-            "END");
-    }
-    catch {
-        // ignore
-    }
-}
-async function broadcastTableExists() {
-    try {
-        const rows = (await db_1.prisma.$queryRawUnsafe("SELECT OBJECT_ID('dbo.Tbl_Broadcast_Message','U') AS oid;"));
-        const oid = rows?.[0]?.oid;
-        return oid != null;
-    }
-    catch {
-        return false;
-    }
-}
-async function ensureBroadcastTableExists() {
-    try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Broadcast_Message','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_Broadcast_Message (" +
-            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "senderRoleId INT NOT NULL," +
-            "senderKey VARCHAR(120) NULL," +
-            "senderName VARCHAR(120) NULL," +
-            "message NVARCHAR(2000) NOT NULL," +
-            "target VARCHAR(30) NOT NULL," +
-            "createdOn DATETIME NOT NULL DEFAULT(GETDATE())" +
-            ");" +
-            "END");
-    }
-    catch {
-        // ignore
-    }
-    try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Broadcast_Attachment','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_Broadcast_Attachment (" +
-            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "messageId INT NOT NULL," +
-            "url VARCHAR(500) NOT NULL," +
-            "mime VARCHAR(120) NULL," +
-            "originalName VARCHAR(260) NULL," +
-            "sizeBytes BIGINT NULL," +
-            "createdOn DATETIME NOT NULL DEFAULT(GETDATE())" +
-            ");" +
-            "CREATE INDEX IX_Broadcast_Att_MessageId ON dbo.Tbl_Broadcast_Attachment(messageId);" +
-            "END");
-    }
-    catch {
-        // ignore
-    }
-}
-const broadcastUpload = (0, multer_1.default)({
-    storage: multer_1.default.diskStorage({
-        destination: (_req, _file, cb) => cb(null, uploadsDir),
-        filename: (_req, file, cb) => {
-            const safeOriginal = (file.originalname || "file").replace(/[^a-zA-Z0-9._-]/g, "_");
-            const ext = path_1.default.extname(safeOriginal);
-            const base = path_1.default.basename(safeOriginal, ext);
-            cb(null, `${Date.now()}_${Math.round(Math.random() * 1e9)}_${base}${ext}`);
-        },
-    }),
-    limits: {
-        fileSize: 50 * 1024 * 1024,
-        files: 5,
-    },
-});
-async function resolveWorkerScopes(workerId) {
-    const wid = (workerId ?? "").toString().trim();
-    if (!wid)
-        return { employerId: null, nationality: null, agencyIds: [] };
-    const info = await db_1.prisma.tbl_Worker_PersonalInfo.findFirst({
-        where: { Worker_Id: wid },
-        select: { Employer_Id: true, Nationality: true },
-    });
-    const links = await db_1.prisma.tbl_Worker_RecruitAgent.findMany({
-        where: { Worker_Id: wid },
-        select: { Malaysian_Reqruitment_Agency: true, Source_Country_Requirtment_Agency: true },
-        take: 10,
-    });
-    const agencyIds = new Set();
-    for (const l of links ?? []) {
-        const a = (l.Malaysian_Reqruitment_Agency ?? "").toString().trim();
-        const b = (l.Source_Country_Requirtment_Agency ?? "").toString().trim();
-        if (a)
-            agencyIds.add(a);
-        if (b)
-            agencyIds.add(b);
-    }
-    const employerId = (info?.Employer_Id ?? "").toString().trim() || null;
-    const nationality = info?.Nationality != null ? Number(info.Nationality) : NaN;
-    return {
-        employerId,
-        nationality: Number.isFinite(nationality) ? nationality : null,
-        agencyIds: Array.from(agencyIds),
-    };
-}
-async function resolveEmployerAgencies(employerId) {
-    const eid = (employerId ?? "").toString().trim();
-    if (!eid)
-        return [];
-    const workers = await db_1.prisma.tbl_Worker_PersonalInfo.findMany({
-        where: { Employer_Id: eid },
-        select: { Worker_Id: true },
-        take: 5000,
-    });
-    const wids = Array.from(new Set((workers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean)));
-    if (!wids.length)
-        return [];
-    const links = await db_1.prisma.tbl_Worker_RecruitAgent.findMany({
-        where: { Worker_Id: { in: wids } },
-        select: { Malaysian_Reqruitment_Agency: true, Source_Country_Requirtment_Agency: true },
-        take: 5000,
-    });
-    const agencyIds = new Set();
-    for (const l of links ?? []) {
-        const a = (l.Malaysian_Reqruitment_Agency ?? "").toString().trim();
-        const b = (l.Source_Country_Requirtment_Agency ?? "").toString().trim();
-        if (a)
-            agencyIds.add(a);
-        if (b)
-            agencyIds.add(b);
-    }
-    return Array.from(agencyIds);
-}
-async function ensureRosterTablesExist() {
-    try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Shift_Template','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_Shift_Template (" +
-            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "entityId VARCHAR(100) NOT NULL," +
-            "name VARCHAR(80) NOT NULL," +
-            "startTime VARCHAR(5) NOT NULL," +
-            "endTime VARCHAR(5) NOT NULL," +
-            "breakMinutes INT NOT NULL DEFAULT(0)," +
-            "createdOn DATETIME NOT NULL DEFAULT(GETDATE())" +
-            ");" +
-            "END");
-    }
-    catch {
-        // ignore
-    }
-    try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Roster_Assignment','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_Roster_Assignment (" +
-            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "workerId VARCHAR(100) NOT NULL," +
-            "entityId VARCHAR(100) NOT NULL," +
-            "date DATE NOT NULL," +
-            "shiftId INT NOT NULL," +
-            "updatedOn DATETIME NOT NULL DEFAULT(GETDATE())" +
-            ");" +
-            "CREATE UNIQUE INDEX UX_Roster_Worker_Date ON dbo.Tbl_Roster_Assignment(workerId,date);" +
-            "END");
-    }
-    catch {
-        // ignore
-    }
-}
-async function ensureSubscriptionTableExists() {
-    try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Subscription','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_Subscription (" +
-            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "entityId VARCHAR(100) NOT NULL," +
-            "planType VARCHAR(20) NOT NULL," +
-            "status VARCHAR(20) NOT NULL," +
-            "startDate DATETIME NOT NULL," +
-            "endDate DATETIME NOT NULL" +
-            ");" +
-            "END");
-    }
-    catch {
-        // ignore
-    }
-}
+const socketService_1 = require("./services/socketService");
+const workerLookup_1 = require("./services/workerLookup");
+const authRoutes_1 = require("./routes/authRoutes");
+const broadcastRoutes_1 = require("./routes/broadcastRoutes");
+const chatRoutes_1 = require("./routes/chatRoutes");
+const hrmsRoutes_1 = require("./routes/hrmsRoutes");
+const panicRoutes_1 = require("./routes/panicRoutes");
+const subscriptionRoutes_1 = require("./routes/subscriptionRoutes");
 const app = (0, express_1.default)();
-app.use((0, cors_1.default)());
-// Stripe webhooks need the raw body; capture it via verify for signature verification.
-app.use(express_1.default.json({
-    verify: (req, _res, buf) => {
-        req.rawBody = buf;
-    },
-}));
-app.use(express_1.default.urlencoded({ extended: true }));
-const stripeSecretKey = (process.env.STRIPE_SECRET_KEY ?? "").toString().trim();
-const stripe = stripeSecretKey ? new stripe_1.default(stripeSecretKey, { apiVersion: "2023-10-16" }) : null;
-const uploadsDir = path_1.default.join(process.cwd(), "uploads");
-fs_1.default.mkdirSync(uploadsDir, { recursive: true });
-app.get("/stripe/return", (req, res) => {
-    const raw = Array.isArray(req.query?.redirect) ? req.query.redirect[0] : req.query?.redirect;
-    const redirect = (raw ?? "").toString().trim();
-    if (!redirect) {
-        return res.status(400).send("Missing redirect");
-    }
-    if (/^(javascript|data):/i.test(redirect)) {
-        return res.status(400).send("Invalid redirect");
-    }
-    // Prevent open redirects: allow only configured schemes/hosts.
-    // - Allowed schemes default: http, https, exp (Expo).
-    // - Allowed hosts can be set via STRIPE_RETURN_ALLOWED_HOSTS (comma-separated).
-    const allowedSchemes = new Set(["http", "https", "exp"]);
-    const allowedHostsEnv = (process.env.STRIPE_RETURN_ALLOWED_HOSTS ?? "").toString();
-    const allowedHosts = new Set(allowedHostsEnv
-        .split(",")
-        .map((s) => s.trim().toLowerCase())
-        .filter(Boolean));
-    try {
-        const u = new URL(redirect);
-        const scheme = (u.protocol ?? "").replace(":", "").toLowerCase();
-        const host = (u.hostname ?? "").toLowerCase();
-        if (!allowedSchemes.has(scheme)) {
-            return res.status(400).send("Invalid redirect scheme");
-        }
-        if ((scheme === "http" || scheme === "https") && allowedHosts.size > 0 && !allowedHosts.has(host)) {
-            return res.status(400).send("Invalid redirect host");
-        }
-        return res.redirect(302, redirect);
-    }
-    catch {
-        return res.status(400).send("Invalid redirect");
-    }
-});
+app.use(cors_1.corsMiddleware);
+app.use(bodyParsers_1.jsonParser);
+app.use(bodyParsers_1.urlencodedParser);
 app.post("/Api/Worker/Location", auth_1.requireAuth, async (req, res, next) => {
     try {
         const roleId = Number(req.user?.roleId ?? 0);
         if (roleId !== 2)
             return res.status(403).json({ error: "Forbidden" });
         const jwtUserId = Number(req.user?.userId ?? 0);
-        const workerId = await findWorkerIdByJwtUserId(jwtUserId);
+        const workerId = await (0, workerLookup_1.findWorkerIdByJwtUserId)(jwtUserId);
         if (!workerId)
             return res.status(400).json({ error: "Worker not found" });
         const lat = req.body?.lat ?? req.body?.Lat ?? req.body?.latitude ?? req.body?.Latitude;
@@ -339,7 +113,7 @@ app.get("/Api/HRMS/Timesheets", auth_1.requireAuth, async (req, res, next) => {
         const roleId = Number(req.user?.roleId ?? 0);
         if (![1, 3, 4, 5, 6, 7].includes(roleId))
             return res.status(403).json({ error: "Forbidden" });
-        await ensureRosterTablesExist();
+        await (0, schemaMigrations_1.ensureRosterTablesExist)();
         const rawFrom = Array.isArray(req.query.from) ? req.query.from[0] : req.query.from;
         const rawTo = Array.isArray(req.query.to) ? req.query.to[0] : req.query.to;
         const from = rawFrom ? new Date(String(rawFrom)) : null;
@@ -501,593 +275,16 @@ app.get("/Api/Workers/Locations", auth_1.requireAuth, (0, auth_1.checkRole)([1, 
         return next(e);
     }
 });
-app.post("/Api/subscription/checkout", auth_1.requireAuth, async (req, res, next) => {
-    try {
-        if (!stripe)
-            return res.status(500).json({ error: "Stripe is not configured" });
-        await ensureSubscriptionTableExists();
-        const user = req.user;
-        const roleId = user?.roleId != null ? Number(user.roleId) : null;
-        if (roleId !== 3 && roleId !== 4) {
-            return res.status(403).json({ error: "Forbidden" });
-        }
-        const entityId = (user?.userKey ?? "").toString().trim();
-        if (!entityId)
-            return res.status(400).json({ error: "Missing entity id" });
-        const planType = (req.body?.planType ?? "").toString().trim();
-        if (!planType)
-            return res.status(400).json({ error: "planType is required" });
-        const planKey = planType.toLowerCase();
-        if (planKey === "free")
-            return res.status(400).json({ error: "Free plan does not require checkout" });
-        const priceIdEnvKey = planKey === "pro" ? "STRIPE_PRICE_PRO" : planKey === "enterprise" ? "STRIPE_PRICE_ENTERPRISE" : "";
-        const priceId = priceIdEnvKey ? process.env[priceIdEnvKey] : null;
-        if (!priceId || typeof priceId !== "string" || !priceId.trim()) {
-            return res.status(500).json({ error: "Stripe price is not configured" });
-        }
-        const origin = (req.header("origin") ?? "").toString().trim();
-        const bodySuccess = (req.body?.successUrl ?? "").toString().trim();
-        const bodyCancel = (req.body?.cancelUrl ?? "").toString().trim();
-        const envSuccess = (process.env.STRIPE_SUCCESS_URL ?? "").toString().trim();
-        const envCancel = (process.env.STRIPE_CANCEL_URL ?? "").toString().trim();
-        const isAbsoluteUrl = (u) => /^[a-z][a-z0-9+.-]*:\/\//i.test(u) && !/^(javascript|data):/i.test(u);
-        const successUrl = bodySuccess && isAbsoluteUrl(bodySuccess) ? bodySuccess : envSuccess ? envSuccess : origin ? `${origin}/pricing?checkout=success` : "";
-        const cancelUrl = bodyCancel && isAbsoluteUrl(bodyCancel) ? bodyCancel : envCancel ? envCancel : origin ? `${origin}/pricing?checkout=cancel` : "";
-        if (!successUrl || !cancelUrl) {
-            return res.status(500).json({ error: "Missing success/cancel URL (set STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL or pass successUrl/cancelUrl)" });
-        }
-        const session = await stripe.checkout.sessions.create({
-            mode: "subscription",
-            line_items: [{ price: priceId.trim(), quantity: 1 }],
-            success_url: successUrl,
-            cancel_url: cancelUrl,
-            client_reference_id: entityId,
-            customer_email: user?.emailId ? String(user.emailId) : undefined,
-            // Make sure subscription carries metadata so webhooks can map back.
-            subscription_data: {
-                metadata: {
-                    entityId,
-                    planType,
-                    roleId: roleId != null ? String(roleId) : "",
-                },
-            },
-            metadata: {
-                entityId,
-                planType,
-                roleId: roleId != null ? String(roleId) : "",
-            },
-        });
-        return res.status(201).json({ ok: true, url: session.url, id: session.id });
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-app.post("/webhooks/stripe", async (req, res) => {
-    try {
-        if (!stripe)
-            return res.status(500).send("Stripe not configured");
-        const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET ?? "").toString().trim();
-        if (!webhookSecret)
-            return res.status(500).send("Missing webhook secret");
-        const sig = req.header("stripe-signature");
-        if (!sig)
-            return res.status(400).send("Missing stripe-signature");
-        const payload = req.rawBody;
-        if (!payload)
-            return res.status(400).send("Missing raw body");
-        const event = stripe.webhooks.constructEvent(payload, sig, webhookSecret);
-        if (event.type === "checkout.session.completed") {
-            const s = event.data.object;
-            const entityId = (s.metadata?.entityId ?? s.client_reference_id ?? "").toString().trim();
-            const planType = (s.metadata?.planType ?? "").toString().trim();
-            const subscriptionId = (s.subscription ?? "").toString().trim();
-            if (entityId && planType && subscriptionId) {
-                const sub = await stripe.subscriptions.retrieve(subscriptionId);
-                const startMs = (sub.current_period_start ?? 0) * 1000;
-                const endMs = (sub.current_period_end ?? 0) * 1000;
-                const startDate = startMs ? new Date(startMs) : new Date();
-                const endDate = endMs ? new Date(endMs) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-                // Idempotency: avoid duplicating the same active period.
-                const existing = await db_1.prisma.tbl_Subscription.findFirst({
-                    where: {
-                        entityId,
-                        planType,
-                        status: "Active",
-                        startDate,
-                        endDate,
-                    },
-                });
-                if (!existing) {
-                    await db_1.prisma.tbl_Subscription.updateMany({
-                        where: { entityId, status: "Active" },
-                        data: { status: "Expired" },
-                    });
-                    await db_1.prisma.tbl_Subscription.create({
-                        data: {
-                            entityId,
-                            planType,
-                            status: "Active",
-                            startDate,
-                            endDate,
-                        },
-                    });
-                }
-            }
-        }
-        if (event.type === "customer.subscription.deleted") {
-            const s = event.data.object;
-            const entityId = (s.metadata?.entityId ?? "").toString().trim();
-            if (entityId) {
-                await db_1.prisma.tbl_Subscription.updateMany({
-                    where: { entityId, status: "Active" },
-                    data: { status: "Expired" },
-                });
-            }
-        }
-        if (event.type === "customer.subscription.updated") {
-            const s = event.data.object;
-            const entityId = (s.metadata?.entityId ?? "").toString().trim();
-            const planType = (s.metadata?.planType ?? "").toString().trim();
-            if (entityId) {
-                const startMs = (s.current_period_start ?? 0) * 1000;
-                const endMs = (s.current_period_end ?? 0) * 1000;
-                const startDate = startMs ? new Date(startMs) : new Date();
-                const endDate = endMs ? new Date(endMs) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-                const latest = await db_1.prisma.tbl_Subscription.findFirst({
-                    where: { entityId, status: "Active" },
-                    orderBy: [{ endDate: "desc" }],
-                });
-                if (latest) {
-                    await db_1.prisma.tbl_Subscription.update({
-                        where: { id: latest.id },
-                        data: {
-                            planType: planType || latest.planType,
-                            startDate,
-                            endDate,
-                        },
-                    });
-                }
-                else if (planType) {
-                    await db_1.prisma.tbl_Subscription.create({
-                        data: {
-                            entityId,
-                            planType,
-                            status: "Active",
-                            startDate,
-                            endDate,
-                        },
-                    });
-                }
-            }
-        }
-        if (event.type === "invoice.payment_failed") {
-            const inv = event.data.object;
-            const subId = (inv.subscription ?? "").toString().trim();
-            if (subId) {
-                const sub = await stripe.subscriptions.retrieve(subId);
-                const entityId = (sub.metadata?.entityId ?? "").toString().trim();
-                if (entityId) {
-                    await db_1.prisma.tbl_Subscription.updateMany({
-                        where: { entityId, status: "Active" },
-                        data: { status: "Expired" },
-                    });
-                }
-            }
-        }
-        return res.json({ received: true });
-    }
-    catch (err) {
-        return res.status(400).send(err?.message ?? "Webhook Error");
-    }
-});
-app.use("/uploads", express_1.default.static(uploadsDir));
+app.use("/uploads", express_1.default.static(upload_1.uploadsDir));
 const server = http_1.default.createServer(app);
-const io = new socket_io_1.Server(server, {
-    cors: {
-        origin: process.env.FRONTEND_ORIGIN ?? "http://localhost:8081",
-    },
-});
-io.on("connection", (socket) => {
-    try {
-        const token = socket.handshake.auth?.token;
-        if (!token)
-            return;
-        const raw = typeof token === "string" ? token : "";
-        const bearer = raw.toLowerCase().startsWith("bearer ") ? raw.slice("bearer ".length).trim() : raw;
-        const secret = process.env.JWT_SECRET;
-        if (!secret || !bearer)
-            return;
-        const decoded = jsonwebtoken_1.default.verify(bearer, secret);
-        const roleId = decoded?.roleId != null ? Number(decoded.roleId) : null;
-        const userKey = (decoded?.userKey ?? "").toString().trim();
-        const countryCode = decoded?.countryCode != null ? Number(decoded.countryCode) : NaN;
-        socket.join("broadcast_all");
-        if (roleId === 1) {
-            socket.join("admin");
-            console.log("ALERTS: User joined admin room");
-        }
-        if (roleId === 3 && userKey) {
-            socket.join("employers");
-            socket.join(`employer:${userKey}`);
-        }
-        if (roleId === 4 && userKey) {
-            socket.join("agencies");
-            socket.join(`agency:${userKey}`);
-        }
-        if (roleId === 2 && userKey) {
-            socket.join("workers");
-            socket.join(`worker:${userKey}`);
-            resolveWorkerScopes(userKey)
-                .then((s) => {
-                if (s.employerId)
-                    socket.join(`employer:${s.employerId}`);
-                for (const id of s.agencyIds)
-                    socket.join(`agency:${id}`);
-                if (s.nationality != null)
-                    socket.join(`nationality:${s.nationality}`);
-            })
-                .catch(() => undefined);
-        }
-        if (roleId === 7) {
-            socket.join("labour");
-            if (Number.isFinite(countryCode))
-                socket.join(`nationality:${countryCode}`);
-        }
-        const isPanicViewer = roleId === 1 || roleId === 3 || roleId === 4 || roleId === 5 || roleId === 6 || roleId === 7;
-        if (isPanicViewer) {
-            socket.join("panic_viewers");
-        }
-        const isAuthority = roleId === 1 || roleId === 4 || roleId === 5 || roleId === 6 || roleId === 7;
-        if (isAuthority) {
-            socket.join("authorities");
-        }
-        if (roleId === 5) {
-            socket.join("embassy_source");
-            if (Number.isFinite(countryCode))
-                socket.join(`nationality:${countryCode}`);
-        }
-        if (roleId === 6) {
-            socket.join("embassy_destination");
-            if (Number.isFinite(countryCode))
-                socket.join(`nationality:${countryCode}`);
-        }
-    }
-    catch (e) {
-        console.warn("socket auth rejected", e);
-    }
-});
-app.post("/Api/Broadcast/Send", auth_1.requireAuth, async (req, res, next) => {
-    try {
-        await ensureBroadcastTableExists();
-        const ok = await broadcastTableExists();
-        if (!ok)
-            return res.status(501).json({ error: "Broadcast table not installed" });
-        const user = req.user;
-        const roleId = Number(user?.roleId ?? 0);
-        const senderKey = (user?.userKey ?? "").toString().trim() || null;
-        const senderName = (user?.userName ?? user?.emailId ?? senderKey ?? "").toString().trim() || null;
-        const message = (req.body?.message ?? "").toString();
-        if (![1, 3, 4, 5, 6, 7].includes(roleId))
-            return res.status(403).json({ error: "Forbidden" });
-        if (!message.trim())
-            return res.status(400).json({ error: "message is required" });
-        let target = "all";
-        if (roleId === 3)
-            target = "workers";
-        else if (roleId === 4)
-            target = "workers_employers";
-        else if (roleId === 5 || roleId === 6)
-            target = "nationality";
-        else if (roleId === 7 || roleId === 1)
-            target = "all";
-        const rows = (await db_1.prisma.$queryRawUnsafe("INSERT INTO dbo.Tbl_Broadcast_Message(senderRoleId,senderKey,senderName,message,target) OUTPUT INSERTED.id, INSERTED.createdOn VALUES(@P1,@P2,@P3,@P4,@P5);", roleId, senderKey, senderName, message.trim().slice(0, 2000), target));
-        const row = Array.isArray(rows) ? rows[0] : null;
-        const payload = {
-            id: row?.id != null ? Number(row.id) : null,
-            senderRoleId: roleId,
-            senderKey,
-            senderName,
-            message: message.trim().slice(0, 2000),
-            target,
-            createdOn: row?.createdOn ? new Date(row.createdOn).toISOString() : new Date().toISOString(),
-            attachments: [],
-        };
-        try {
-            if (target === "all") {
-                io.to("broadcast_all").emit("broadcast_message", payload);
-            }
-            else if (target === "workers") {
-                if (senderKey)
-                    io.to(`employer:${senderKey}`).emit("broadcast_message", payload);
-            }
-            else if (target === "workers_employers") {
-                if (senderKey)
-                    io.to(`agency:${senderKey}`).emit("broadcast_message", payload);
-                // Also explicitly target employers connected to workers under this agency.
-                if (senderKey) {
-                    const links = await db_1.prisma.tbl_Worker_RecruitAgent.findMany({
-                        where: {
-                            OR: [{ Malaysian_Reqruitment_Agency: senderKey }, { Source_Country_Requirtment_Agency: senderKey }],
-                        },
-                        select: { Worker_Id: true },
-                        take: 5000,
-                    });
-                    const wids = Array.from(new Set((links ?? []).map((x) => (x.Worker_Id ?? "").toString()).filter(Boolean)));
-                    if (wids.length) {
-                        const infos = await db_1.prisma.tbl_Worker_PersonalInfo.findMany({
-                            where: { Worker_Id: { in: wids } },
-                            select: { Employer_Id: true },
-                            take: 5000,
-                        });
-                        const employerIds = Array.from(new Set((infos ?? []).map((x) => (x.Employer_Id ?? "").toString().trim()).filter(Boolean)));
-                        for (const eid of employerIds) {
-                            io.to(`employer:${eid}`).emit("broadcast_message", payload);
-                        }
-                    }
-                }
-            }
-            else if (target === "nationality") {
-                const nat = user?.countryCode != null ? Number(user.countryCode) : NaN;
-                if (Number.isFinite(nat))
-                    io.to(`nationality:${nat}`).emit("broadcast_message", payload);
-            }
-        }
-        catch {
-            // ignore emit errors
-        }
-        return res.json({ ok: true, payload });
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-app.post("/Api/Broadcast/SendMultipart", auth_1.requireAuth, broadcastUpload.array("files", 5), async (req, res, next) => {
-    try {
-        await ensureBroadcastTableExists();
-        const ok = await broadcastTableExists();
-        if (!ok)
-            return res.status(501).json({ error: "Broadcast table not installed" });
-        const user = req.user;
-        const roleId = Number(user?.roleId ?? 0);
-        const senderKey = (user?.userKey ?? "").toString().trim() || null;
-        const senderName = (user?.userName ?? user?.emailId ?? senderKey ?? "").toString().trim() || null;
-        const message = (req.body?.message ?? "").toString();
-        if (![1, 3, 4, 5, 6, 7].includes(roleId))
-            return res.status(403).json({ error: "Forbidden" });
-        const files = (req.files ?? []);
-        const hasFiles = Array.isArray(files) && files.length > 0;
-        if (!message.trim() && !hasFiles)
-            return res.status(400).json({ error: "message or files are required" });
-        let target = "all";
-        if (roleId === 3)
-            target = "workers";
-        else if (roleId === 4)
-            target = "workers_employers";
-        else if (roleId === 5 || roleId === 6)
-            target = "nationality";
-        else if (roleId === 7 || roleId === 1)
-            target = "all";
-        const inserted = (await db_1.prisma.$queryRawUnsafe("INSERT INTO dbo.Tbl_Broadcast_Message(senderRoleId,senderKey,senderName,message,target) OUTPUT INSERTED.id, INSERTED.createdOn VALUES(@P1,@P2,@P3,@P4,@P5);", roleId, senderKey, senderName, message.trim().slice(0, 2000), target));
-        const row = Array.isArray(inserted) ? inserted[0] : null;
-        const messageId = row?.id != null ? Number(row.id) : NaN;
-        if (!Number.isFinite(messageId))
-            return res.status(500).json({ error: "Unable to send" });
-        const attachments = [];
-        for (const f of files ?? []) {
-            const filename = (f.filename ?? "").toString();
-            if (!filename)
-                continue;
-            const url = `/uploads/${filename}`;
-            const mime = (f.mimetype ?? "").toString() || null;
-            const originalName = (f.originalname ?? filename).toString() || null;
-            const sizeBytes = f.size != null ? Number(f.size) : null;
-            const attRows = (await db_1.prisma.$queryRawUnsafe("INSERT INTO dbo.Tbl_Broadcast_Attachment(messageId,url,mime,originalName,sizeBytes) OUTPUT INSERTED.id VALUES(@P1,@P2,@P3,@P4,@P5);", messageId, url, mime, originalName, sizeBytes));
-            const att = Array.isArray(attRows) ? attRows[0] : null;
-            attachments.push({
-                id: att?.id != null ? Number(att.id) : 0,
-                url: `${req.protocol}://${req.get("host")}${url}`,
-                mime,
-                originalName,
-                sizeBytes: Number.isFinite(Number(sizeBytes)) ? Number(sizeBytes) : null,
-            });
-        }
-        const payload = {
-            id: messageId,
-            senderRoleId: roleId,
-            senderKey,
-            senderName,
-            message: message.trim().slice(0, 2000),
-            target,
-            createdOn: row?.createdOn ? new Date(row.createdOn).toISOString() : new Date().toISOString(),
-            attachments,
-        };
-        try {
-            if (target === "all") {
-                io.to("broadcast_all").emit("broadcast_message", payload);
-            }
-            else if (target === "workers") {
-                if (senderKey)
-                    io.to(`employer:${senderKey}`).emit("broadcast_message", payload);
-            }
-            else if (target === "workers_employers") {
-                if (senderKey)
-                    io.to(`agency:${senderKey}`).emit("broadcast_message", payload);
-                if (senderKey) {
-                    const links = await db_1.prisma.tbl_Worker_RecruitAgent.findMany({
-                        where: {
-                            OR: [{ Malaysian_Reqruitment_Agency: senderKey }, { Source_Country_Requirtment_Agency: senderKey }],
-                        },
-                        select: { Worker_Id: true },
-                        take: 5000,
-                    });
-                    const wids = Array.from(new Set((links ?? []).map((x) => (x.Worker_Id ?? "").toString()).filter(Boolean)));
-                    if (wids.length) {
-                        const infos = await db_1.prisma.tbl_Worker_PersonalInfo.findMany({
-                            where: { Worker_Id: { in: wids } },
-                            select: { Employer_Id: true },
-                            take: 5000,
-                        });
-                        const employerIds = Array.from(new Set((infos ?? []).map((x) => (x.Employer_Id ?? "").toString().trim()).filter(Boolean)));
-                        for (const eid of employerIds) {
-                            io.to(`employer:${eid}`).emit("broadcast_message", payload);
-                        }
-                    }
-                }
-            }
-            else if (target === "nationality") {
-                const nat = user?.countryCode != null ? Number(user.countryCode) : NaN;
-                if (Number.isFinite(nat))
-                    io.to(`nationality:${nat}`).emit("broadcast_message", payload);
-            }
-        }
-        catch {
-            // ignore
-        }
-        return res.json({ ok: true, payload });
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-app.get("/Api/Broadcast/Feed", auth_1.requireAuth, async (req, res, next) => {
-    try {
-        await ensureBroadcastTableExists();
-        const ok = await broadcastTableExists();
-        if (!ok)
-            return res.status(501).json({ error: "Broadcast table not installed" });
-        const user = req.user;
-        const roleId = Number(user?.roleId ?? 0);
-        const userKey = (user?.userKey ?? "").toString().trim();
-        const countryCode = user?.countryCode != null ? Number(user.countryCode) : NaN;
-        const limitRaw = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
-        const limit = Math.min(200, Math.max(10, Number(limitRaw ?? 60)));
-        const fetchLimit = Math.min(600, Math.max(60, limit * 6));
-        const targets = new Set();
-        // Everyone can see system-wide announcements.
-        targets.add("all");
-        if (roleId === 2 && userKey) {
-            targets.add("workers");
-            targets.add("workers_employers");
-            targets.add("nationality");
-        }
-        if (roleId === 3) {
-            targets.add("workers_employers");
-            targets.add("all");
-        }
-        if (roleId === 4) {
-            targets.add("workers_employers");
-            targets.add("all");
-        }
-        if (roleId === 5 || roleId === 6) {
-            targets.add("nationality");
-            targets.add("all");
-        }
-        if (roleId === 7 || roleId === 1) {
-            targets.add("all");
-            targets.add("workers");
-            targets.add("workers_employers");
-            targets.add("nationality");
-        }
-        const targetList = Array.from(targets);
-        const placeholders = targetList.map((_, i) => `@P${i + 1}`).join(",");
-        const rows = (await db_1.prisma.$queryRawUnsafe(`SELECT TOP (${fetchLimit}) id, senderRoleId, senderKey, senderName, message, target, createdOn FROM dbo.Tbl_Broadcast_Message WHERE target IN (${placeholders}) ORDER BY createdOn DESC, id DESC`, ...targetList));
-        // For nationality-targeted messages, filter to the user's nationality if needed.
-        let out = (rows ?? []).map((r) => ({
-            id: Number(r.id),
-            senderRoleId: Number(r.senderRoleId),
-            senderKey: r.senderKey != null ? String(r.senderKey) : null,
-            senderName: r.senderName != null ? String(r.senderName) : null,
-            message: String(r.message ?? ""),
-            target: String(r.target ?? ""),
-            createdOn: r.createdOn ? new Date(r.createdOn).toISOString() : null,
-            attachments: [],
-        }));
-        if (roleId === 2) {
-            const scopes = userKey ? await resolveWorkerScopes(userKey) : { employerId: null, nationality: null, agencyIds: [] };
-            const employerId = scopes.employerId;
-            const agencySet = new Set(scopes.agencyIds);
-            out = out.filter((m) => {
-                if (m.target === "all")
-                    return true;
-                if (m.target === "workers") {
-                    return employerId != null && String(m.senderKey ?? "").trim() === employerId;
-                }
-                if (m.target === "workers_employers") {
-                    return agencySet.has(String(m.senderKey ?? "").trim());
-                }
-                if (m.target === "nationality") {
-                    return scopes.nationality != null;
-                }
-                return false;
-            });
-        }
-        else if (roleId === 3) {
-            const myEmployerId = userKey;
-            const agencies = myEmployerId ? await resolveEmployerAgencies(myEmployerId) : [];
-            const agencySet = new Set(agencies);
-            out = out.filter((m) => {
-                if (m.target === "all")
-                    return true;
-                if (m.target === "workers_employers")
-                    return agencySet.has(String(m.senderKey ?? "").trim());
-                return false;
-            });
-        }
-        else if (roleId === 4) {
-            const myAgencyId = userKey;
-            out = out.filter((m) => {
-                if (m.target === "all")
-                    return true;
-                if (m.target === "workers_employers")
-                    return String(m.senderKey ?? "").trim() === myAgencyId;
-                return false;
-            });
-        }
-        else if (roleId === 5 || roleId === 6) {
-            if (!Number.isFinite(countryCode)) {
-                out = out.filter((x) => x.target !== "nationality");
-            }
-        }
-        out = out.slice(0, limit);
-        const ids = Array.from(new Set(out.map((x) => Number(x.id)).filter((x) => Number.isFinite(x) && x > 0)));
-        if (ids.length) {
-            const attPlaceholders = ids.map((_, i) => `@P${i + 1}`).join(",");
-            const attRows = (await db_1.prisma.$queryRawUnsafe(`SELECT id, messageId, url, mime, originalName, sizeBytes FROM dbo.Tbl_Broadcast_Attachment WHERE messageId IN (${attPlaceholders}) ORDER BY id ASC`, ...ids));
-            const byMsg = new Map();
-            for (const a of attRows ?? []) {
-                const mid = Number(a.messageId);
-                if (!Number.isFinite(mid))
-                    continue;
-                const arr = byMsg.get(mid) ?? [];
-                arr.push(a);
-                byMsg.set(mid, arr);
-            }
-            out = out.map((m) => {
-                const arr = byMsg.get(Number(m.id)) ?? [];
-                return {
-                    ...m,
-                    attachments: arr.map((a) => {
-                        const p = (a.url ?? "").toString();
-                        const isUploads = p.startsWith("/uploads/");
-                        const abs = isUploads ? `${req.protocol}://${req.get("host")}${p}` : p;
-                        return {
-                            id: Number(a.id),
-                            url: abs,
-                            mime: a.mime != null ? String(a.mime) : null,
-                            originalName: a.originalName != null ? String(a.originalName) : null,
-                            sizeBytes: a.sizeBytes != null ? Number(a.sizeBytes) : null,
-                        };
-                    }),
-                };
-            });
-        }
-        return res.json({ rows: out });
-    }
-    catch (e) {
-        return next(e);
-    }
-});
+const io = (0, socketService_1.initSocket)(server);
+// ---- Domain routers (mounted after socket init so `getIO()` works at request time) ----
+app.use(authRoutes_1.authRouter);
+app.use(broadcastRoutes_1.broadcastRouter);
+app.use(chatRoutes_1.chatRouter);
+app.use(hrmsRoutes_1.hrmsRouter);
+app.use(panicRoutes_1.panicRouter);
+app.use(subscriptionRoutes_1.subscriptionRouter);
 app.get("/Api/Workers/:workerId", auth_1.requireAuth, async (req, res, next) => {
     try {
         const user = req.user;
@@ -1371,7 +568,7 @@ app.post("/Api/Incidents", auth_1.requireAuth, async (req, res, next) => {
             const entityId = (req.user?.userKey ?? "").toString().trim();
             if (!entityId)
                 return res.status(400).json({ error: "Missing entity id" });
-            const ok = await hasActivePlan(entityId);
+            const ok = await (0, subscription_1.hasActivePlan)(entityId);
             if (!ok)
                 return res.status(402).json({ error: "Subscription required" });
         }
@@ -1424,66 +621,6 @@ app.post("/Api/Incidents", auth_1.requireAuth, async (req, res, next) => {
         return next(e);
     }
 });
-app.get("/Api/me", auth_1.requireAuth, async (req, res, next) => {
-    try {
-        const user = req.user;
-        const roleId = user?.roleId != null ? Number(user.roleId) : null;
-        const jwtUserId = user?.userId != null ? Number(user.userId) : 0;
-        let workerId = null;
-        let passportNo = null;
-        if (roleId === 2) {
-            workerId = (user?.userKey ?? "").toString().trim() || null;
-            if (!workerId && Number.isFinite(jwtUserId) && jwtUserId > 0) {
-                workerId = await findWorkerIdByJwtUserId(jwtUserId);
-            }
-            if (Number.isFinite(jwtUserId) && jwtUserId > 0) {
-                passportNo = await findWorkerPassportByJwtUserId(jwtUserId);
-            }
-        }
-        return res.json({
-            claims: user,
-            roleId,
-            appRole: user?.appRole,
-            userId: user?.userId,
-            userKey: user?.userKey,
-            workerId,
-            passportNo,
-        });
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-async function hasActivePlan(entityId) {
-    await ensureSubscriptionTableExists();
-    const now = new Date();
-    const active = await db_1.prisma.tbl_Subscription.findFirst({
-        where: {
-            entityId,
-            status: "Active",
-            endDate: { gte: now },
-        },
-        orderBy: [{ endDate: "desc" }, { id: "desc" }],
-    });
-    const plan = (active?.planType ?? "").toString().trim().toLowerCase();
-    return !!active && plan !== "free";
-}
-function requireActivePlanForWrite(req, res, next) {
-    const user = req.user;
-    const roleId = user?.roleId != null ? Number(user.roleId) : null;
-    if (roleId !== 3 && roleId !== 4)
-        return next();
-    const entityId = (user?.userKey ?? "").toString().trim();
-    if (!entityId)
-        return res.status(400).json({ error: "Missing entity id" });
-    hasActivePlan(entityId)
-        .then((ok) => {
-        if (!ok)
-            return res.status(402).json({ error: "Subscription required" });
-        return next();
-    })
-        .catch(() => res.status(500).json({ error: "Unable to verify subscription" }));
-}
 app.get("/Api/Employer/IncidentCounts", auth_1.requireAuth, (0, auth_1.checkRole)([1, 4, 5, 6, 7]), async (_req, res, next) => {
     try {
         const groups = await db_1.prisma.tbl_ProbSol.groupBy({
@@ -1551,7 +688,7 @@ app.get("/Api/Employer/Incidents", auth_1.requireAuth, (0, auth_1.checkRole)([1,
 });
 app.get("/Api/Attestation/List", auth_1.requireAuth, (0, auth_1.checkRole)([1, 4, 5, 6, 7]), async (_req, res, next) => {
     try {
-        await ensureAttestationTableExists();
+        await (0, schemaMigrations_1.ensureAttestationTableExists)();
         const rows = (await db_1.prisma.$queryRawUnsafe("SELECT TOP (500) AttestationId, Worker_Id, Passport_Number, DocumentType, DocumentPath, Status, AdminRemarks, Created_On, Updated_On FROM Tbl_Attestation ORDER BY AttestationId DESC"));
         return res.json(rows ?? []);
     }
@@ -1565,7 +702,7 @@ app.post("/Api/Attestation/Approve", auth_1.requireAuth, (0, auth_1.checkRole)([
     if (!Number.isFinite(id) || id <= 0)
         return res.status(400).json({ error: "id is required" });
     try {
-        await ensureAttestationTableExists();
+        await (0, schemaMigrations_1.ensureAttestationTableExists)();
         await db_1.prisma.$executeRawUnsafe("UPDATE Tbl_Attestation SET Status = 'Approved', AdminRemarks = @p1, Updated_On = GETDATE() WHERE AttestationId = @p2", remarks, id);
         return res.json({ ok: true });
     }
@@ -1579,7 +716,7 @@ app.post("/Api/Attestation/Reject", auth_1.requireAuth, (0, auth_1.checkRole)([1
     if (!Number.isFinite(id) || id <= 0)
         return res.status(400).json({ error: "id is required" });
     try {
-        await ensureAttestationTableExists();
+        await (0, schemaMigrations_1.ensureAttestationTableExists)();
         await db_1.prisma.$executeRawUnsafe("UPDATE Tbl_Attestation SET Status = 'Rejected', AdminRemarks = @p1, Updated_On = GETDATE() WHERE AttestationId = @p2", remarks, id);
         return res.json({ ok: true });
     }
@@ -1587,512 +724,13 @@ app.post("/Api/Attestation/Reject", auth_1.requireAuth, (0, auth_1.checkRole)([1
         return next(e);
     }
 });
-function safeUnlinkUpload(uploadPath) {
-    try {
-        const p = (uploadPath ?? "").toString();
-        if (!p.startsWith("/uploads/"))
-            return;
-        const filename = path_1.default.basename(p);
-        if (!filename)
-            return;
-        const full = path_1.default.join(uploadsDir, filename);
-        if (fs_1.default.existsSync(full)) {
-            fs_1.default.unlinkSync(full);
-        }
-    }
-    catch {
-        // ignore
-    }
-}
-const upload = (0, multer_1.default)({
-    storage: multer_1.default.diskStorage({
-        destination: (_req, _file, cb) => cb(null, uploadsDir),
-        filename: (_req, file, cb) => {
-            const safeOriginal = (file.originalname || "file").replace(/[^a-zA-Z0-9._-]/g, "_");
-            const ext = path_1.default.extname(safeOriginal);
-            const base = path_1.default.basename(safeOriginal, ext);
-            cb(null, `${Date.now()}_${Math.round(Math.random() * 1e9)}_${base}${ext}`);
-        },
-    }),
-    limits: {
-        fileSize: 15 * 1024 * 1024,
-    },
-});
 app.get("/health", (_req, res) => {
     res.json({ ok: true });
 });
-app.get("/Api/subscription/me", auth_1.requireAuth, async (req, res, next) => {
-    try {
-        const user = req.user;
-        const roleId = user?.roleId != null ? Number(user.roleId) : null;
-        if (roleId !== 3 && roleId !== 4) {
-            return res.status(403).json({ error: "Forbidden" });
-        }
-        const entityId = (user?.userKey ?? "").toString().trim();
-        if (!entityId) {
-            return res.status(400).json({ error: "Missing entity id" });
-        }
-        await ensureSubscriptionTableExists();
-        const now = new Date();
-        const active = await db_1.prisma.tbl_Subscription.findFirst({
-            where: {
-                entityId,
-                status: "Active",
-                endDate: { gte: now },
-            },
-            orderBy: [{ endDate: "desc" }, { id: "desc" }],
-        });
-        if (!active) {
-            return res.json({ planType: "Free", status: "Active", endDate: null });
-        }
-        return res.json({ planType: active.planType, status: active.status, endDate: active.endDate });
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-app.post("/Api/subscription/purchase", auth_1.requireAuth, async (req, res, next) => {
-    try {
-        const user = req.user;
-        const roleId = user?.roleId != null ? Number(user.roleId) : null;
-        if (roleId !== 3 && roleId !== 4) {
-            return res.status(403).json({ error: "Forbidden" });
-        }
-        const entityId = (user?.userKey ?? "").toString().trim();
-        if (!entityId) {
-            return res.status(400).json({ error: "Missing entity id" });
-        }
-        const planType = (req.body?.planType ?? "").toString().trim();
-        if (!planType) {
-            return res.status(400).json({ error: "planType is required" });
-        }
-        await ensureSubscriptionTableExists();
-        const now = new Date();
-        const end = new Date(now);
-        end.setDate(end.getDate() + 30);
-        const created = await db_1.prisma.tbl_Subscription.create({
-            data: {
-                entityId,
-                planType,
-                status: "Active",
-                startDate: now,
-                endDate: end,
-            },
-        });
-        return res.status(201).json({ ok: true, id: created.id, planType: created.planType, endDate: created.endDate });
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-function mapAppRole(userRole) {
-    const r = userRole == null ? null : Number(userRole);
-    if (r === 1)
-        return "admin";
-    if (r === 2)
-        return "worker";
-    if (r === 3)
-        return "employer";
-    if (r === 4)
-        return "agency";
-    if (r === 5)
-        return "embassy_source";
-    if (r === 6)
-        return "embassy_destination";
-    if (r === 7)
-        return "labour";
-    return "worker";
-}
-function roleNameToRoleId(role) {
-    const r = (role ?? "").toString().toLowerCase();
-    if (r === "admin")
-        return 1;
-    if (r === "worker")
-        return 2;
-    if (r === "employer")
-        return 3;
-    if (r === "agency" || r === "agent")
-        return 4;
-    if (r === "embassy_source")
-        return 5;
-    if (r === "embassy_destination")
-        return 6;
-    if (r === "labour" || r === "labor")
-        return 7;
-    return 2;
-}
-app.post("/signup", async (req, res) => {
-    const userId = (req.body.userId ?? req.body.userName ?? req.body.username ?? "").toString().trim();
-    const emailId = (req.body.emailId ?? req.body.email ?? "").toString().trim();
-    const password = (req.body.password ?? "").toString();
-    const role = (req.body.role ?? "worker").toString().toLowerCase();
-    const passportNo = (req.body.passportNo ?? req.body.PassportNo ?? "").toString().trim();
-    const employerName = (req.body.employerName ?? req.body.companyName ?? "").toString().trim();
-    const employerAddress = (req.body.address ?? "").toString().trim();
-    const companyPhone = (req.body.companyPhone ?? req.body.company_phone ?? req.body.phoneNo ?? "").toString().trim();
-    const contactPersonName = (req.body.contactPersonName ?? req.body.contactPerson ?? "").toString().trim();
-    const contactPersonPosition = (req.body.contactPersonPosition ?? req.body.position ?? "").toString().trim();
-    const contactPersonIc = (req.body.contactPersonIc ?? req.body.contactPersonIcNo ?? "").toString().trim();
-    const contactPersonEmail = (req.body.contactPersonEmail ?? emailId ?? "").toString().trim();
-    const contactPersonPhone = (req.body.contactPersonPhone ?? req.body.hpNumber ?? req.body.contactNo ?? "").toString().trim();
-    const ssmNumber = (req.body.ssmNumber ?? req.body.ssmRocRobNo ?? userId ?? "").toString().trim();
-    const sectorRaw = req.body.sector;
-    const sector = sectorRaw != null && sectorRaw !== "" ? Number(sectorRaw) : null;
-    if (!userId || !emailId || !password) {
-        return res.status(400).json({ error: "userId, emailId and password are required" });
-    }
-    const userRole = roleNameToRoleId(role);
-    if (userRole === 2 && !passportNo) {
-        return res.status(400).json({ error: "passportNo is required for worker signup" });
-    }
-    try {
-        const existing = await db_1.prisma.tbl_User.findFirst({
-            where: {
-                OR: [{ User_Id: userId }, { Email_Id: emailId }],
-            },
-        });
-        if (existing) {
-            return res.status(409).json({ error: "User already exists" });
-        }
-        const loginPwd = (0, cryptoLegacy_1.encryptLegacyPassword)(password, userId);
-        const created = await db_1.prisma.tbl_User.create({
-            data: {
-                User_Id: userId,
-                Email_Id: emailId,
-                Login_Pwd: loginPwd,
-                User_Status: 1,
-                User_Role: userRole,
-                Created_On: new Date(),
-            },
-        });
-        if (userRole === 2) {
-            await db_1.prisma.tbl_Worker_PersonalInfo.create({
-                data: {
-                    Worker_Id: userId,
-                    Passport_Number: passportNo,
-                    Email_Id: emailId,
-                    Created_On: new Date(),
-                },
-            });
-        }
-        if (userRole === 3) {
-            try {
-                await db_1.prisma.tbl_Employer.create({
-                    data: {
-                        User_Id: userId,
-                        Employer_EmailID: emailId,
-                        Employer_Name: employerName || userId,
-                        Employer_Address: employerAddress || "-",
-                        Employer_CompanyPhone: companyPhone || null,
-                        Employer_OfficeNumber: companyPhone || null,
-                        Employer_SSM_Number: ssmNumber || null,
-                        Employer_SSM_ROC_ROB_Number: ssmNumber || null,
-                        Employer_Sector: sector != null && Number.isFinite(sector) ? sector : null,
-                        Employer_ContactPerson: contactPersonName || "-",
-                        Employer_ContactPerson_IC: contactPersonIc || null,
-                        Employer_ContactPerson_Email: contactPersonEmail || null,
-                        Employer_ContactPerson_Phone: contactPersonPhone || null,
-                        Employer_Position: contactPersonPosition || "-",
-                        Employer_PIC_MobileNumber: contactPersonPhone || companyPhone || "-",
-                        Created_On: new Date(),
-                    },
-                });
-            }
-            catch {
-                // ignore employer profile insert errors
-            }
-        }
-        if (userRole === 4) {
-            try {
-                await db_1.prisma.tbl_Agent.create({
-                    data: {
-                        User_Id: userId,
-                        Agent_EmailID: emailId,
-                        Agent_Name: (req.body.fullName ?? contactPersonName ?? userId).toString().trim() || userId,
-                        Agent_Organization_Name: (req.body.organization ?? employerName ?? "-").toString().trim() || "-",
-                        Agent_IC_Passport: (req.body.icOrPassport ?? contactPersonIc ?? userId).toString().trim() || userId,
-                        Agent_Department: Number(req.body.departmentId ?? 1),
-                        Agent_Country: Number(req.body.countryId ?? 1),
-                        Agent_ContactNumber: contactPersonPhone || (req.body.contactNo ?? "-").toString().trim() || "-",
-                        Created_On: new Date(),
-                    },
-                });
-            }
-            catch {
-                // ignore agent profile insert errors
-            }
-        }
-        return res.status(201).json({
-            id: created.ID,
-            userId: created.User_Id,
-            emailId: created.Email_Id,
-            role: mapAppRole(created.User_Role),
-        });
-    }
-    catch (e) {
-        console.error(e);
-        return res.status(500).json({ error: "Signup failed" });
-    }
-});
-app.post("/auth/login", async (req, res) => {
-    const userName = (req.body.userName ?? req.body.username ?? "").toString().trim();
-    const password = (req.body.password ?? "").toString();
-    if (!userName || !password) {
-        return res.status(400).json({ error: "userName and password are required" });
-    }
-    // Reuse the same logic as /Api/token by calling it internally.
-    // Keep behavior aligned for now.
-    req.body = { username: userName, password };
-    return app._router.handle({ ...req, url: "/Api/token", originalUrl: "/Api/token", method: "POST" }, res);
-});
-// OAuth-like token endpoint to match existing frontend call
-// Accepts application/x-www-form-urlencoded with username/password
-app.post("/Api/token", async (req, res) => {
-    const userName = (req.body.username ?? req.body.userName ?? "").toString().trim();
-    const password = (req.body.password ?? "").toString();
-    const passportNo = (req.body.passportNo ?? req.body.PassportNo ?? "").toString().trim();
-    if (!userName || !password) {
-        return res.status(400).json({ error: "username and password are required" });
-    }
-    try {
-        const user = await db_1.prisma.tbl_User.findFirst({
-            where: {
-                OR: [{ Email_Id: userName }, { User_Id: userName }],
-            },
-        });
-        if (!user) {
-            return res.status(401).json({ error: "Invalid credentials" });
-        }
-        const userRoleId = user.User_Role != null ? Number(user.User_Role) : null;
-        if (userRoleId === 2 && !passportNo) {
-            return res.status(401).json({ error: "Invalid credentials" });
-        }
-        if (userRoleId === 2 && passportNo) {
-            const worker = await db_1.prisma.tbl_Worker_PersonalInfo.findFirst({
-                where: {
-                    Worker_Id: user.User_Id,
-                    Passport_Number: passportNo,
-                },
-            });
-            if (!worker) {
-                return res.status(401).json({ error: "Invalid credentials" });
-            }
-        }
-        if (user.User_Status != null && Number(user.User_Status) !== 1) {
-            return res.status(403).json({ error: "Inactive user" });
-        }
-        const stored = (user.Login_Pwd ?? "").toString();
-        const plainOk = stored === password;
-        const salt = (user.User_Id ?? "").toString();
-        const legacyOk = stored === (0, cryptoLegacy_1.encryptLegacyPassword)(password, salt);
-        if (!plainOk && !legacyOk) {
-            return res.status(401).json({ error: "Invalid credentials" });
-        }
-        let countryCode = undefined;
-        if (userRoleId === 6) {
-            const embassyUserId = (user.User_Id ?? "").toString().trim();
-            const candidates = [
-                { sql: "SELECT TOP 1 Nationality as value FROM Tbl_Embassy WHERE User_Id = @p1", param: embassyUserId, key: "value" },
-                { sql: "SELECT TOP 1 Country_Code as value FROM Tbl_Embassy WHERE User_Id = @p1", param: embassyUserId, key: "value" },
-                { sql: "SELECT TOP 1 CountryCode as value FROM Tbl_Embassy WHERE User_Id = @p1", param: embassyUserId, key: "value" },
-                { sql: "SELECT TOP 1 Nationality as value FROM Tbl_User WHERE User_Id = @p1", param: embassyUserId, key: "value" },
-                { sql: "SELECT TOP 1 Country_Code as value FROM Tbl_User WHERE User_Id = @p1", param: embassyUserId, key: "value" },
-                { sql: "SELECT TOP 1 CountryCode as value FROM Tbl_User WHERE User_Id = @p1", param: embassyUserId, key: "value" },
-            ];
-            for (const c of candidates) {
-                try {
-                    const rows = (await db_1.prisma.$queryRawUnsafe(c.sql, c.param));
-                    const row = Array.isArray(rows) ? rows[0] : null;
-                    const raw = row?.[c.key];
-                    const n = raw != null ? Number(raw) : NaN;
-                    if (Number.isFinite(n) && n > 0) {
-                        countryCode = n;
-                        break;
-                    }
-                }
-                catch {
-                    // ignore and try next
-                }
-            }
-        }
-        const claims = {
-            userId: Number(user.ID),
-            userKey: user.User_Id?.toString() ?? undefined,
-            roleId: userRoleId != null ? userRoleId : undefined,
-            appRole: mapAppRole(user.User_Role),
-            countryCode,
-            emailId: user.Email_Id?.toString(),
-            userName: user.User_Name?.toString() ?? user.User_Id?.toString() ?? userName,
-        };
-        const access_token = (0, auth_1.signToken)(claims);
-        return res.json({
-            access_token,
-            token_type: "bearer",
-            expires_in: 86400,
-            userName: claims.userName,
-        });
-    }
-    catch (e) {
-        console.error(e);
-        return res.status(500).json({ error: "Login failed" });
-    }
-});
-async function findMemberInfoIdByPassport(passportNo) {
-    const candidates = [
-        "SELECT TOP 1 MemberInfoId FROM MemberInfo WHERE PassportNo = @p1",
-        "SELECT TOP 1 MemberInfoId FROM MemberInfo WHERE PassportNumber = @p1",
-        "SELECT TOP 1 MemberInfoId FROM MemberInfo WHERE Passport = @p1",
-    ];
-    for (const sql of candidates) {
-        try {
-            const rows = (await db_1.prisma.$queryRawUnsafe(sql, passportNo));
-            const row = Array.isArray(rows) ? rows[0] : null;
-            const value = row?.MemberInfoId;
-            if (value != null)
-                return Number(value);
-        }
-        catch {
-            // ignore and try next
-        }
-    }
-    return null;
-}
-async function findWorkerMetadataByPassport(passportNo) {
-    if (!passportNo)
-        return null;
-    try {
-        const row = await db_1.prisma.tbl_Worker_PersonalInfo.findFirst({
-            where: {
-                Passport_Number: passportNo,
-            },
-            select: {
-                Worker_Id: true,
-                Photo: true,
-            },
-        });
-        if (!row?.Worker_Id)
-            return null;
-        return {
-            workerId: String(row.Worker_Id),
-            currentLocation: null,
-            companyName: null,
-            passportPhoto: row.Photo != null ? String(row.Photo) : null,
-        };
-    }
-    catch {
-        return null;
-    }
-}
-async function findWorkerPassportByJwtUserId(jwtUserId) {
-    if (!Number.isFinite(jwtUserId) || jwtUserId <= 0)
-        return null;
-    const user = await db_1.prisma.tbl_User.findFirst({
-        where: { ID: jwtUserId },
-    });
-    const workerId = user?.User_Id?.toString();
-    if (!workerId)
-        return null;
-    const worker = await db_1.prisma.tbl_Worker_PersonalInfo.findFirst({
-        where: { Worker_Id: workerId },
-    });
-    const passport = worker?.Passport_Number?.toString()?.trim();
-    return passport ? passport : null;
-}
-async function findWorkerIdByJwtUserId(jwtUserId) {
-    if (!Number.isFinite(jwtUserId) || jwtUserId <= 0)
-        return null;
-    const user = await db_1.prisma.tbl_User.findFirst({
-        where: { ID: jwtUserId },
-    });
-    const workerId = user?.User_Id?.toString()?.trim();
-    return workerId ? workerId : null;
-}
-async function handlePanic(req, res) {
-    let passportNo = (req.body.PassportNo ?? req.body.passportNo ?? "").toString().trim();
-    const title = (req.body.Title ?? req.body.title ?? "Panic Alert").toString();
-    const description = (req.body.Description ?? req.body.description ?? "Panic alert triggered").toString();
-    const latitude = (req.body.Latitude ?? req.body.latitude ?? req.body.lattitude ?? "").toString();
-    const longitude = (req.body.Longitude ?? req.body.longitude ?? "").toString();
-    let memberInfoId = Number(req.body.MemberInfoId ?? req.body.memberInfoId ?? 0);
-    const jwtUserId = Number(req.user?.userId ?? 0);
-    const isAuthed = Number.isFinite(jwtUserId) && jwtUserId > 0;
-    const workerIdFromJwt = isAuthed ? await findWorkerIdByJwtUserId(jwtUserId) : null;
-    if (!passportNo && !memberInfoId) {
-        if (isAuthed) {
-            passportNo = (await findWorkerPassportByJwtUserId(jwtUserId)) ?? "";
-        }
-    }
-    if (!memberInfoId && passportNo) {
-        memberInfoId = (await findMemberInfoIdByPassport(passportNo)) ?? 0;
-    }
-    if (!memberInfoId && !passportNo && !workerIdFromJwt) {
-        return res.status(400).json({ error: "MemberInfoId or PassportNo is required" });
-    }
-    if (!memberInfoId && !isAuthed) {
-        return res.status(400).json({ error: "MemberInfoId or PassportNo is required" });
-    }
-    try {
-        const uploaded = req.file;
-        const uploadPath = uploaded?.filename ? `/uploads/${uploaded.filename}` : null;
-        const workerMeta = passportNo ? await findWorkerMetadataByPassport(passportNo) : null;
-        const created = await db_1.prisma.tbl_ProbSol.create({
-            data: {
-                Prob_ID: passportNo || workerIdFromJwt || (memberInfoId ? memberInfoId.toString() : ""),
-                Type: "Panic",
-                Title: title,
-                Description: latitude || longitude
-                    ? `${description} (lat=${latitude || ""}, lng=${longitude || ""})`
-                    : description,
-                ProbStatus: "Pending",
-                Updated_By: workerIdFromJwt || passportNo || "worker",
-                Updated_On: new Date(),
-                worker_ID: workerIdFromJwt || null,
-                Current_Location: workerMeta?.currentLocation ?? undefined,
-                Company_Name: workerMeta?.companyName ?? undefined,
-                ...(uploadPath
-                    ? {
-                        DocumentPath: uploadPath,
-                    }
-                    : {}),
-                IsResolved: false,
-                Lat: Number.isFinite(Number(latitude)) ? Number(latitude) : undefined,
-                Lng: Number.isFinite(Number(longitude)) ? Number(longitude) : undefined,
-            },
-        });
-        const data = {
-            id: created.ID,
-            title,
-            description,
-            passportNo: passportNo || undefined,
-            memberInfoId: memberInfoId || undefined,
-            workerId: workerMeta?.workerId ?? workerIdFromJwt ?? undefined,
-            currentLocation: workerMeta?.currentLocation ?? undefined,
-            companyName: workerMeta?.companyName ?? undefined,
-            passportPhoto: workerMeta?.passportPhoto ?? undefined,
-            uploadedFileUrl: uploadPath ? `${req.protocol}://${req.get("host")}${uploadPath}` : undefined,
-            createdAt: new Date().toISOString(),
-        };
-        io.to("admin").emit("new_trigger", data);
-        console.log("New alert emitted", {
-            id: created.ID,
-            title,
-            passportNo,
-            memberInfoId,
-        });
-        return res.status(200).json({ ProblemAndActionId: created.ID });
-    }
-    catch (e) {
-        throw e;
-    }
-}
-// New route name requested
-app.post("/panic", auth_1.requireAuth, upload.single("file"), handlePanic);
-// Backward-compatible route for existing frontend
-app.post("/Api/Panic", auth_1.requireAuth, upload.single("file"), handlePanic);
 app.get("/Api/Worker/Documents", auth_1.requireAuth, async (req, res, next) => {
     try {
         const jwtUserId = Number(req.user?.userId ?? 0);
-        const workerId = await findWorkerIdByJwtUserId(jwtUserId);
+        const workerId = await (0, workerLookup_1.findWorkerIdByJwtUserId)(jwtUserId);
         if (!workerId)
             return res.status(400).json({ error: "Worker not found" });
         const row = await db_1.prisma.tbl_Worker_Attachments.findFirst({
@@ -2116,7 +754,7 @@ app.get("/Api/Worker/Documents", auth_1.requireAuth, async (req, res, next) => {
         return next(e);
     }
 });
-app.post("/Api/Worker/Documents", auth_1.requireAuth, upload.single("file"), async (req, res, next) => {
+app.post("/Api/Worker/Documents", auth_1.requireAuth, upload_1.upload.single("file"), async (req, res, next) => {
     const docType = (req.body?.docType ?? req.body?.DocType ?? "").toString().trim().toLowerCase();
     const uploaded = req.file;
     if (!uploaded?.filename) {
@@ -2124,7 +762,7 @@ app.post("/Api/Worker/Documents", auth_1.requireAuth, upload.single("file"), asy
     }
     try {
         const jwtUserId = Number(req.user?.userId ?? 0);
-        const workerId = await findWorkerIdByJwtUserId(jwtUserId);
+        const workerId = await (0, workerLookup_1.findWorkerIdByJwtUserId)(jwtUserId);
         if (!workerId)
             return res.status(400).json({ error: "Worker not found" });
         const uploadPath = `/uploads/${uploaded.filename}`;
@@ -2134,27 +772,27 @@ app.post("/Api/Worker/Documents", auth_1.requireAuth, upload.single("file"), asy
         const existing = await db_1.prisma.tbl_Worker_Attachments.findFirst({ where: { Worker_Id: workerId } });
         const data = { Worker_Id: workerId };
         if (t === "passport") {
-            safeUnlinkUpload(existing?.Passport_Copy);
+            (0, upload_1.safeUnlinkUpload)(existing?.Passport_Copy);
             data.Passport_Copy = uploadPath;
             data.Passport_Copy_Filename = fileName;
         }
         else if (t === "permit") {
-            safeUnlinkUpload(existing?.Permit_Copy);
+            (0, upload_1.safeUnlinkUpload)(existing?.Permit_Copy);
             data.Permit_Copy = uploadPath;
             data.Permit_Copy_Filename = fileName;
         }
         else if (t === "insurance") {
-            safeUnlinkUpload(existing?.Insurance_Policy);
+            (0, upload_1.safeUnlinkUpload)(existing?.Insurance_Policy);
             data.Insurance_Policy = uploadPath;
             data.Insurance_Policy_Filename = fileName;
         }
         else if (t === "contract") {
-            safeUnlinkUpload(existing?.Employment_Contract);
+            (0, upload_1.safeUnlinkUpload)(existing?.Employment_Contract);
             data.Employment_Contract = uploadPath;
             data.Employment_Contract_Filename = fileName;
         }
         else if (t === "demand_letter") {
-            safeUnlinkUpload(existing?.Demand_Letter);
+            (0, upload_1.safeUnlinkUpload)(existing?.Demand_Letter);
             data.Demand_Letter = uploadPath;
             data.Demand_Letter_Filename = fileName;
         }
@@ -2174,7 +812,7 @@ app.delete("/Api/Worker/Documents", auth_1.requireAuth, async (req, res, next) =
     const docType = (raw ?? "").toString().trim().toLowerCase();
     try {
         const jwtUserId = Number(req.user?.userId ?? 0);
-        const workerId = await findWorkerIdByJwtUserId(jwtUserId);
+        const workerId = await (0, workerLookup_1.findWorkerIdByJwtUserId)(jwtUserId);
         if (!workerId)
             return res.status(400).json({ error: "Worker not found" });
         const allowed = new Set(["passport", "permit", "insurance", "contract", "demand_letter"]);
@@ -2186,27 +824,228 @@ app.delete("/Api/Worker/Documents", auth_1.requireAuth, async (req, res, next) =
             return res.json({ ok: true });
         const data = {};
         if (t === "passport") {
-            safeUnlinkUpload(existing?.Passport_Copy);
+            (0, upload_1.safeUnlinkUpload)(existing?.Passport_Copy);
             data.Passport_Copy = null;
             data.Passport_Copy_Filename = null;
         }
         else if (t === "permit") {
-            safeUnlinkUpload(existing?.Permit_Copy);
+            (0, upload_1.safeUnlinkUpload)(existing?.Permit_Copy);
             data.Permit_Copy = null;
             data.Permit_Copy_Filename = null;
         }
         else if (t === "insurance") {
-            safeUnlinkUpload(existing?.Insurance_Policy);
+            (0, upload_1.safeUnlinkUpload)(existing?.Insurance_Policy);
             data.Insurance_Policy = null;
             data.Insurance_Policy_Filename = null;
         }
         else if (t === "contract") {
-            safeUnlinkUpload(existing?.Employment_Contract);
+            (0, upload_1.safeUnlinkUpload)(existing?.Employment_Contract);
             data.Employment_Contract = null;
             data.Employment_Contract_Filename = null;
         }
         else if (t === "demand_letter") {
-            safeUnlinkUpload(existing?.Demand_Letter);
+            (0, upload_1.safeUnlinkUpload)(existing?.Demand_Letter);
+            data.Demand_Letter = null;
+            data.Demand_Letter_Filename = null;
+        }
+        await db_1.prisma.tbl_Worker_Attachments.update({
+            where: { Worker_Id: workerId },
+            data,
+        });
+        return res.json({ ok: true });
+    }
+    catch (e) {
+        return next(e);
+    }
+});
+app.get("/Api/HRMS/Workers/:workerId/Profile", auth_1.requireAuth, (0, auth_1.checkRole)([1, 3, 4]), async (req, res, next) => {
+    try {
+        const workerId = (req.params?.workerId ?? "").toString().trim();
+        if (!workerId)
+            return res.status(400).json({ error: "workerId is required" });
+        const roleId = Number(req.user?.roleId ?? 0);
+        if (roleId !== 1) {
+            const scopeWhere = await (0, queryGuard_1.buildWorkerScopeWhere)(req.user);
+            const scopedWorker = await db_1.prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
+            if (!scopedWorker)
+                return res.status(403).json({ error: "Forbidden" });
+        }
+        const personal = await db_1.prisma.tbl_Worker_PersonalInfo.findFirst({
+            where: { Worker_Id: workerId },
+            select: {
+                Worker_Id: true,
+                Name: true,
+                Passport_Number: true,
+                Email_Id: true,
+                Nationality: true,
+                Gender: true,
+                Date_Of_Birth: true,
+                Contact_Number: true,
+                Contact_Number_Country_Code: true,
+                Address: true,
+                Created_On: true,
+                Employer_Id: true,
+            },
+        });
+        const employerInfo = await db_1.prisma.tbl_Worker_EmployerInfo.findFirst({
+            where: { Worker_Id: workerId },
+            select: {
+                Employer_Name: true,
+                Employer_Address: true,
+                Telephone_No: true,
+                Contract_Expiry_Date: true,
+                Contract_issue_Date: true,
+                Employment_Description: true,
+            },
+        });
+        const permit = await db_1.prisma.tbl_Worker_PermitInsurance.findFirst({
+            where: { Worker_Id: workerId },
+            select: {
+                Permit_Issue_Date: true,
+                Permit_Expire_Date: true,
+                Insurance_Policy_Number: true,
+                SOSCO_Number: true,
+            },
+        });
+        return res.json({ personal, employerInfo, permit });
+    }
+    catch (e) {
+        return next(e);
+    }
+});
+app.get("/Api/HRMS/Workers/:workerId/Documents", auth_1.requireAuth, (0, auth_1.checkRole)([1, 3, 4]), async (req, res, next) => {
+    try {
+        const workerId = (req.params?.workerId ?? "").toString().trim();
+        if (!workerId)
+            return res.status(400).json({ error: "workerId is required" });
+        const roleId = Number(req.user?.roleId ?? 0);
+        if (roleId !== 1) {
+            const scopeWhere = await (0, queryGuard_1.buildWorkerScopeWhere)(req.user);
+            const scopedWorker = await db_1.prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
+            if (!scopedWorker)
+                return res.status(403).json({ error: "Forbidden" });
+        }
+        const row = await db_1.prisma.tbl_Worker_Attachments.findFirst({ where: { Worker_Id: workerId } });
+        const docs = [
+            { type: "passport", name: "Passport Copy", path: row?.Passport_Copy ?? null, filename: row?.Passport_Copy_Filename ?? null },
+            { type: "permit", name: "Work Permit", path: row?.Permit_Copy ?? null, filename: row?.Permit_Copy_Filename ?? null },
+            { type: "insurance", name: "Insurance Policy", path: row?.Insurance_Policy ?? null, filename: row?.Insurance_Policy_Filename ?? null },
+            { type: "contract", name: "Employment Contract", path: row?.Employment_Contract ?? null, filename: row?.Employment_Contract_Filename ?? null },
+            { type: "demand_letter", name: "Demand Letter", path: row?.Demand_Letter ?? null, filename: row?.Demand_Letter_Filename ?? null },
+        ].map((d) => {
+            const p = d.path != null ? String(d.path) : "";
+            const isUrl = p.startsWith("http://") || p.startsWith("https://") || p.startsWith("/uploads/");
+            const url = p ? (isUrl ? (p.startsWith("/uploads/") ? `${req.protocol}://${req.get("host")}${p}` : p) : "") : "";
+            return { ...d, url, hasFile: !!url };
+        });
+        return res.json({ workerId, documents: docs });
+    }
+    catch (e) {
+        return next(e);
+    }
+});
+app.post("/Api/HRMS/Workers/:workerId/Documents", auth_1.requireAuth, (0, auth_1.checkRole)([1, 3, 4]), subscription_1.requireActivePlanForWrite, upload_1.upload.single("file"), async (req, res, next) => {
+    const workerId = (req.params?.workerId ?? "").toString().trim();
+    const docType = (req.body?.docType ?? req.body?.DocType ?? "").toString().trim().toLowerCase();
+    const uploaded = req.file;
+    if (!workerId)
+        return res.status(400).json({ error: "workerId is required" });
+    if (!uploaded?.filename)
+        return res.status(400).json({ error: "file is required" });
+    try {
+        const roleId = Number(req.user?.roleId ?? 0);
+        if (roleId !== 1) {
+            const scopeWhere = await (0, queryGuard_1.buildWorkerScopeWhere)(req.user);
+            const scopedWorker = await db_1.prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
+            if (!scopedWorker)
+                return res.status(403).json({ error: "Forbidden" });
+        }
+        const uploadPath = `/uploads/${uploaded.filename}`;
+        const fileName = (uploaded.originalname ?? uploaded.filename).toString();
+        const allowed = new Set(["passport", "permit", "insurance", "contract", "demand_letter"]);
+        const t = allowed.has(docType) ? docType : "passport";
+        const existing = await db_1.prisma.tbl_Worker_Attachments.findFirst({ where: { Worker_Id: workerId } });
+        const data = { Worker_Id: workerId };
+        if (t === "passport") {
+            (0, upload_1.safeUnlinkUpload)(existing?.Passport_Copy);
+            data.Passport_Copy = uploadPath;
+            data.Passport_Copy_Filename = fileName;
+        }
+        else if (t === "permit") {
+            (0, upload_1.safeUnlinkUpload)(existing?.Permit_Copy);
+            data.Permit_Copy = uploadPath;
+            data.Permit_Copy_Filename = fileName;
+        }
+        else if (t === "insurance") {
+            (0, upload_1.safeUnlinkUpload)(existing?.Insurance_Policy);
+            data.Insurance_Policy = uploadPath;
+            data.Insurance_Policy_Filename = fileName;
+        }
+        else if (t === "contract") {
+            (0, upload_1.safeUnlinkUpload)(existing?.Employment_Contract);
+            data.Employment_Contract = uploadPath;
+            data.Employment_Contract_Filename = fileName;
+        }
+        else if (t === "demand_letter") {
+            (0, upload_1.safeUnlinkUpload)(existing?.Demand_Letter);
+            data.Demand_Letter = uploadPath;
+            data.Demand_Letter_Filename = fileName;
+        }
+        await db_1.prisma.tbl_Worker_Attachments.upsert({
+            where: { Worker_Id: workerId },
+            create: data,
+            update: data,
+        });
+        return res.json({ ok: true, docType: t, url: `${req.protocol}://${req.get("host")}${uploadPath}` });
+    }
+    catch (e) {
+        return next(e);
+    }
+});
+app.delete("/Api/HRMS/Workers/:workerId/Documents", auth_1.requireAuth, (0, auth_1.checkRole)([1, 3, 4]), subscription_1.requireActivePlanForWrite, async (req, res, next) => {
+    const workerId = (req.params?.workerId ?? "").toString().trim();
+    const raw = Array.isArray(req.query.docType) ? req.query.docType[0] : req.query.docType;
+    const docType = (raw ?? "").toString().trim().toLowerCase();
+    try {
+        if (!workerId)
+            return res.status(400).json({ error: "workerId is required" });
+        const roleId = Number(req.user?.roleId ?? 0);
+        if (roleId !== 1) {
+            const scopeWhere = await (0, queryGuard_1.buildWorkerScopeWhere)(req.user);
+            const scopedWorker = await db_1.prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
+            if (!scopedWorker)
+                return res.status(403).json({ error: "Forbidden" });
+        }
+        const allowed = new Set(["passport", "permit", "insurance", "contract", "demand_letter"]);
+        const t = allowed.has(docType) ? docType : "";
+        if (!t)
+            return res.status(400).json({ error: "docType is required" });
+        const existing = await db_1.prisma.tbl_Worker_Attachments.findFirst({ where: { Worker_Id: workerId } });
+        if (!existing)
+            return res.json({ ok: true });
+        const data = {};
+        if (t === "passport") {
+            (0, upload_1.safeUnlinkUpload)(existing?.Passport_Copy);
+            data.Passport_Copy = null;
+            data.Passport_Copy_Filename = null;
+        }
+        else if (t === "permit") {
+            (0, upload_1.safeUnlinkUpload)(existing?.Permit_Copy);
+            data.Permit_Copy = null;
+            data.Permit_Copy_Filename = null;
+        }
+        else if (t === "insurance") {
+            (0, upload_1.safeUnlinkUpload)(existing?.Insurance_Policy);
+            data.Insurance_Policy = null;
+            data.Insurance_Policy_Filename = null;
+        }
+        else if (t === "contract") {
+            (0, upload_1.safeUnlinkUpload)(existing?.Employment_Contract);
+            data.Employment_Contract = null;
+            data.Employment_Contract_Filename = null;
+        }
+        else if (t === "demand_letter") {
+            (0, upload_1.safeUnlinkUpload)(existing?.Demand_Letter);
             data.Demand_Letter = null;
             data.Demand_Letter_Filename = null;
         }
@@ -2223,8 +1062,8 @@ app.delete("/Api/Worker/Documents", auth_1.requireAuth, async (req, res, next) =
 app.get("/Api/Worker/Problems", auth_1.requireAuth, async (req, res, next) => {
     try {
         const jwtUserId = Number(req.user?.userId ?? 0);
-        const workerId = await findWorkerIdByJwtUserId(jwtUserId);
-        const passport = await findWorkerPassportByJwtUserId(jwtUserId);
+        const workerId = await (0, workerLookup_1.findWorkerIdByJwtUserId)(jwtUserId);
+        const passport = await (0, workerLookup_1.findWorkerPassportByJwtUserId)(jwtUserId);
         if (!workerId && !passport)
             return res.json([]);
         const rows = await db_1.prisma.tbl_ProbSol.findMany({
@@ -2258,45 +1097,7 @@ app.get("/Api/Worker/Problems", auth_1.requireAuth, async (req, res, next) => {
         return next(e);
     }
 });
-app.get("/Api/Panic/Latest", auth_1.requireAuth, (0, auth_1.checkRole)([1, 3, 4, 5, 6, 7]), async (req, res, next) => {
-    const rawSinceId = Array.isArray(req.query.sinceId) ? req.query.sinceId[0] : req.query.sinceId;
-    const sinceId = rawSinceId != null ? Number(rawSinceId) : 0;
-    try {
-        const roleId = Number(req.user?.roleId ?? 0);
-        const scopeWhere = await (0, queryGuard_1.buildWorkerScopeWhere)(req.user);
-        const scopedWorkers = await db_1.prisma.tbl_Worker_PersonalInfo.findMany({
-            where: scopeWhere,
-            select: { Worker_Id: true },
-            take: 5000,
-        });
-        const allowedWorkerIds = new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean));
-        if (roleId !== 1 && !allowedWorkerIds.size) {
-            return res.json([]);
-        }
-        const rows = await db_1.prisma.tbl_ProbSol.findMany({
-            where: {
-                Type: "Panic",
-                ID: {
-                    gt: Number.isFinite(sinceId) ? sinceId : 0,
-                },
-                ...(roleId !== 1 ? { ProbStatus: { not: "Pending" } } : {}),
-                ...(roleId !== 1 && allowedWorkerIds.size ? { worker_ID: { in: Array.from(allowedWorkerIds) } } : {}),
-            },
-            orderBy: {
-                ID: "desc",
-            },
-        });
-        return res.json(rows);
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-const requireAuthority = (0, auth_1.checkRole)([1, 4, 5, 6, 7]);
-const requireAlertViewer = (0, auth_1.checkRole)([1, 3, 4, 5, 6, 7]);
-const requireAdmin = (0, auth_1.checkRole)([1]);
-const requireReportsAccess = (0, auth_1.checkRole)([1, 3, 4, 5, 6, 7]);
-app.post("/Api/Incidents/Approve", auth_1.requireAuth, requireAdmin, async (req, res, next) => {
+app.post("/Api/Incidents/Approve", auth_1.requireAuth, auth_1.requireAdmin, async (req, res, next) => {
     try {
         const id = Number(req.body?.id ?? req.body?.incidentId ?? req.body?.panicId ?? 0);
         if (!Number.isFinite(id) || id <= 0) {
@@ -2332,41 +1133,7 @@ app.post("/Api/Incidents/Approve", auth_1.requireAuth, requireAdmin, async (req,
         return next(e);
     }
 });
-app.post("/Api/Panic/Forward", auth_1.requireAuth, requireAdmin, async (req, res, next) => {
-    try {
-        const panicId = Number(req.body?.panicId ?? req.body?.id ?? 0);
-        const target = (req.body?.target ?? req.body?.embassy ?? "").toString().trim();
-        if (!Number.isFinite(panicId) || panicId <= 0) {
-            return res.status(400).json({ error: "panicId is required" });
-        }
-        if (target !== "embassy_source" && target !== "embassy_destination") {
-            return res.status(400).json({ error: "target must be embassy_source or embassy_destination" });
-        }
-        const row = await db_1.prisma.tbl_ProbSol.findFirst({ where: { ID: panicId, Type: "Panic" } });
-        if (!row)
-            return res.status(404).json({ error: "Panic not found" });
-        if (row?.ProbStatus?.toString() === "Pending") {
-            await db_1.prisma.tbl_ProbSol.update({ where: { ID: panicId }, data: { ProbStatus: "Approved", Updated_On: new Date() } });
-        }
-        const payload = {
-            id: row.ID,
-            title: row?.Title ?? "Panic Alert",
-            description: row?.Description ?? "",
-            workerId: row?.worker_ID ?? null,
-            companyName: row?.Company_Name ?? null,
-            currentLocation: row?.Current_Location ?? null,
-            status: "Approved",
-            createdOn: row?.Updated_On ?? null,
-        };
-        io.to(target).emit("panic_forwarded", payload);
-        io.to(target).emit("new_trigger", payload);
-        return res.json({ ok: true });
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-app.post("/Api/Problems/Resolve", auth_1.requireAuth, requireAuthority, async (req, res, next) => {
+app.post("/Api/Problems/Resolve", auth_1.requireAuth, auth_1.requireAuthority, async (req, res, next) => {
     const id = Number(req.body?.id ?? 0);
     if (!Number.isFinite(id) || id <= 0) {
         return res.status(400).json({ error: "id is required" });
@@ -2402,7 +1169,7 @@ function startOfWeekMonday(d) {
     copy.setHours(0, 0, 0, 0);
     return copy;
 }
-app.get("/api/admin/stats", auth_1.requireAuth, requireAuthority, async (_req, res, next) => {
+app.get("/api/admin/stats", auth_1.requireAuth, auth_1.requireAuthority, async (_req, res, next) => {
     try {
         const now = new Date();
         const activeAlerts = await db_1.prisma.tbl_ProbSol.count({
@@ -2567,7 +1334,7 @@ app.get("/api/admin/stats", auth_1.requireAuth, requireAuthority, async (_req, r
         return next(e);
     }
 });
-app.get("/Api/Employers/List", auth_1.requireAuth, requireAuthority, async (_req, res, next) => {
+app.get("/Api/Employers/List", auth_1.requireAuth, auth_1.requireAuthority, async (_req, res, next) => {
     try {
         const rows = (await db_1.prisma.$queryRawUnsafe("SELECT TOP (500) User_Id, Employer_Name, Employer_Address, Employer_ContactPerson, Employer_Position, Employer_EmailID, Employer_OfficeNumber, Employer_PIC_MobileNumber, Created_On FROM Tbl_Employer ORDER BY Created_On DESC"));
         return res.json(rows ?? []);
@@ -2576,7 +1343,7 @@ app.get("/Api/Employers/List", auth_1.requireAuth, requireAuthority, async (_req
         return next(e);
     }
 });
-app.get("/api/search/global", auth_1.requireAuth, requireAuthority, async (req, res, next) => {
+app.get("/api/search/global", auth_1.requireAuth, auth_1.requireAuthority, async (req, res, next) => {
     const rawQ = Array.isArray(req.query.q) ? req.query.q[0] : req.query.q;
     const q = (rawQ ?? "").toString().trim();
     if (!q)
@@ -2611,7 +1378,7 @@ app.get("/api/search/global", auth_1.requireAuth, requireAuthority, async (req, 
         return next(e);
     }
 });
-app.get("/api/reports/entry", auth_1.requireAuth, requireReportsAccess, async (req, res, next) => {
+app.get("/api/reports/entry", auth_1.requireAuth, auth_1.requireReportsAccess, async (req, res, next) => {
     const rawFrom = Array.isArray(req.query.from) ? req.query.from[0] : req.query.from;
     const rawTo = Array.isArray(req.query.to) ? req.query.to[0] : req.query.to;
     const from = rawFrom ? new Date(String(rawFrom)) : null;
@@ -2664,7 +1431,7 @@ app.get("/api/reports/entry", auth_1.requireAuth, requireReportsAccess, async (r
         return next(e);
     }
 });
-app.get("/api/reports/visa-expire", auth_1.requireAuth, requireReportsAccess, async (req, res, next) => {
+app.get("/api/reports/visa-expire", auth_1.requireAuth, auth_1.requireReportsAccess, async (req, res, next) => {
     const rawDays = Array.isArray(req.query.days) ? req.query.days[0] : req.query.days;
     const days = Math.min(3650, Math.max(1, Number(rawDays ?? 90)));
     try {
@@ -2725,7 +1492,7 @@ app.get("/Api/HRMS/Roster/Shifts", auth_1.requireAuth, async (req, res, next) =>
         const roleId = Number(req.user?.roleId ?? 0);
         if (![1, 3, 4].includes(roleId))
             return res.status(403).json({ error: "Forbidden" });
-        await ensureRosterTablesExist();
+        await (0, schemaMigrations_1.ensureRosterTablesExist)();
         const entityId = (req.user?.userKey ?? "").toString().trim();
         if (!entityId && roleId !== 1)
             return res.json([]);
@@ -2744,12 +1511,12 @@ app.get("/Api/HRMS/Roster/Shifts", auth_1.requireAuth, async (req, res, next) =>
         return next(e);
     }
 });
-app.post("/Api/HRMS/Roster/Shifts", auth_1.requireAuth, requireActivePlanForWrite, async (req, res, next) => {
+app.post("/Api/HRMS/Roster/Shifts", auth_1.requireAuth, subscription_1.requireActivePlanForWrite, async (req, res, next) => {
     try {
         const roleId = Number(req.user?.roleId ?? 0);
         if (![1, 3, 4].includes(roleId))
             return res.status(403).json({ error: "Forbidden" });
-        await ensureRosterTablesExist();
+        await (0, schemaMigrations_1.ensureRosterTablesExist)();
         const entityId = (req.user?.userKey ?? "").toString().trim();
         if (!entityId && roleId !== 1)
             return res.status(400).json({ error: "Missing entity id" });
@@ -2767,12 +1534,12 @@ app.post("/Api/HRMS/Roster/Shifts", auth_1.requireAuth, requireActivePlanForWrit
         return next(e);
     }
 });
-app.post("/Api/HRMS/Roster/Assign", auth_1.requireAuth, requireActivePlanForWrite, async (req, res, next) => {
+app.post("/Api/HRMS/Roster/Assign", auth_1.requireAuth, subscription_1.requireActivePlanForWrite, async (req, res, next) => {
     try {
         const roleId = Number(req.user?.roleId ?? 0);
         if (![1, 3, 4].includes(roleId))
             return res.status(403).json({ error: "Forbidden" });
-        await ensureRosterTablesExist();
+        await (0, schemaMigrations_1.ensureRosterTablesExist)();
         const entityId = (req.user?.userKey ?? "").toString().trim();
         if (!entityId && roleId !== 1)
             return res.status(400).json({ error: "Missing entity id" });
@@ -2804,7 +1571,7 @@ app.get("/Api/HRMS/Roster", auth_1.requireAuth, async (req, res, next) => {
         const roleId = Number(req.user?.roleId ?? 0);
         if (![1, 3, 4, 5, 6, 7].includes(roleId))
             return res.status(403).json({ error: "Forbidden" });
-        await ensureRosterTablesExist();
+        await (0, schemaMigrations_1.ensureRosterTablesExist)();
         const rawFrom = Array.isArray(req.query.from) ? req.query.from[0] : req.query.from;
         const rawTo = Array.isArray(req.query.to) ? req.query.to[0] : req.query.to;
         const from = rawFrom ? new Date(String(rawFrom)) : null;
@@ -2860,7 +1627,7 @@ app.get("/Api/HRMS/Roster", auth_1.requireAuth, async (req, res, next) => {
         return next(e);
     }
 });
-app.get("/api/reports/insurance-expire", auth_1.requireAuth, requireReportsAccess, async (req, res, next) => {
+app.get("/api/reports/insurance-expire", auth_1.requireAuth, auth_1.requireReportsAccess, async (req, res, next) => {
     const rawDays = Array.isArray(req.query.days) ? req.query.days[0] : req.query.days;
     const days = Math.min(3650, Math.max(1, Number(rawDays ?? 90)));
     try {
@@ -2911,126 +1678,7 @@ app.get("/api/reports/insurance-expire", auth_1.requireAuth, requireReportsAcces
         return next(e);
     }
 });
-app.get("/Api/Panic/Active", auth_1.requireAuth, requireAlertViewer, async (_req, res, next) => {
-    try {
-        const roleId = Number(_req.user?.roleId ?? 0);
-        const scopeWhere = await (0, queryGuard_1.buildWorkerScopeWhere)(_req.user);
-        const scopedWorkers = await db_1.prisma.tbl_Worker_PersonalInfo.findMany({
-            where: scopeWhere,
-            select: { Worker_Id: true },
-            take: 5000,
-        });
-        const allowedWorkerIds = new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean));
-        const rows = await db_1.prisma.tbl_ProbSol.findMany({
-            where: {
-                Type: "Panic",
-                OR: [{ IsResolved: false }, { IsResolved: null }],
-                ...(roleId !== 1 ? { ProbStatus: { not: "Pending" } } : {}),
-                ...(allowedWorkerIds.size ? { worker_ID: { in: Array.from(allowedWorkerIds) } } : {}),
-            },
-            select: {
-                ID: true,
-                Prob_ID: true,
-                Type: true,
-                Title: true,
-                Description: true,
-                ProbStatus: true,
-                Updated_On: true,
-                worker_ID: true,
-                DocumentPath: true,
-                Current_Location: true,
-                Company_Name: true,
-                Lat: true,
-                Lng: true,
-                IsResolved: true,
-            },
-            orderBy: [{ ID: "desc" }],
-            take: 200,
-        });
-        const workerIds = Array.from(new Set((rows ?? []).map((r) => (r.worker_ID ?? "").toString()).filter(Boolean)));
-        const workerPhotos = workerIds.length
-            ? await db_1.prisma.tbl_Worker_PersonalInfo.findMany({
-                where: {
-                    Worker_Id: { in: workerIds },
-                },
-                select: {
-                    Worker_Id: true,
-                    Photo: true,
-                },
-            })
-            : [];
-        const photoByWorkerId = new Map();
-        for (const w of workerPhotos ?? []) {
-            photoByWorkerId.set(w.Worker_Id, w.Photo ?? null);
-        }
-        return res.json((rows ?? []).map((r) => ({
-            ...r,
-            passportPhoto: r.worker_ID ? photoByWorkerId.get(r.worker_ID) ?? null : null,
-        })));
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-app.get("/Api/Panic/History", auth_1.requireAuth, requireAuthority, async (_req, res, next) => {
-    try {
-        const scopeWhere = await (0, queryGuard_1.buildWorkerScopeWhere)(_req.user);
-        const scopedWorkers = await db_1.prisma.tbl_Worker_PersonalInfo.findMany({
-            where: scopeWhere,
-            select: { Worker_Id: true },
-            take: 5000,
-        });
-        const allowedWorkerIds = new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean));
-        const rows = await db_1.prisma.tbl_ProbSol.findMany({
-            where: {
-                Type: "Panic",
-                ...(allowedWorkerIds.size ? { worker_ID: { in: Array.from(allowedWorkerIds) } } : {}),
-            },
-            select: {
-                ID: true,
-                Prob_ID: true,
-                Type: true,
-                Title: true,
-                Description: true,
-                ProbStatus: true,
-                Updated_On: true,
-                worker_ID: true,
-                DocumentPath: true,
-                Current_Location: true,
-                Company_Name: true,
-                Lat: true,
-                Lng: true,
-                IsResolved: true,
-            },
-            orderBy: [{ ID: "desc" }],
-            take: 500,
-        });
-        const workerIds = Array.from(new Set((rows ?? []).map((r) => (r.worker_ID ?? "").toString()).filter(Boolean)));
-        const workerPhotos = workerIds.length
-            ? await db_1.prisma.tbl_Worker_PersonalInfo.findMany({
-                where: {
-                    Worker_Id: { in: workerIds },
-                },
-                select: {
-                    Worker_Id: true,
-                    Photo: true,
-                },
-            })
-            : [];
-        const photoByWorkerId = new Map();
-        for (const w of workerPhotos ?? []) {
-            photoByWorkerId.set(w.Worker_Id, w.Photo ?? null);
-        }
-        return res.json((rows ?? []).map((r) => ({
-            ...r,
-            passportPhoto: r.worker_ID ? photoByWorkerId.get(r.worker_ID) ?? null : null,
-        })));
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-app.get("/Api/Incidents", auth_1.requireAuth, requireAlertViewer, async (_req, res, next) => {
+app.get("/Api/Incidents", auth_1.requireAuth, auth_1.requireAlertViewer, async (_req, res, next) => {
     try {
         const scopeWhere = await (0, queryGuard_1.buildWorkerScopeWhere)(_req.user);
         const scopedWorkers = await db_1.prisma.tbl_Worker_PersonalInfo.findMany({
@@ -3090,7 +1738,7 @@ app.get("/Api/Incidents", auth_1.requireAuth, requireAlertViewer, async (_req, r
         return next(e);
     }
 });
-app.get("/Api/Incidents/:id", auth_1.requireAuth, requireAlertViewer, async (req, res, next) => {
+app.get("/Api/Incidents/:id", auth_1.requireAuth, auth_1.requireAlertViewer, async (req, res, next) => {
     const id = Number(req.params?.id ?? 0);
     if (!Number.isFinite(id) || id <= 0)
         return res.status(400).json({ error: "Invalid id" });
@@ -3120,7 +1768,7 @@ app.get("/Api/Incidents/:id", auth_1.requireAuth, requireAlertViewer, async (req
         return next(e);
     }
 });
-app.get("/Api/Alerts/Recent", auth_1.requireAuth, requireAlertViewer, async (req, res, next) => {
+app.get("/Api/Alerts/Recent", auth_1.requireAuth, auth_1.requireAlertViewer, async (req, res, next) => {
     try {
         const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
         const limit = Math.min(200, Math.max(1, Number(rawLimit ?? 50)));
@@ -3223,264 +1871,209 @@ app.delete("/Api/Incidents/:id", auth_1.requireAuth, (0, auth_1.checkRole)([1]),
         return next(e);
     }
 });
-app.get("/Api/HRMS/Attendance", auth_1.requireAuth, async (req, res, next) => {
+app.get("/Api/HRMS/Reports/Summary", auth_1.requireAuth, (0, auth_1.checkRole)([1, 3, 4]), async (req, res, next) => {
     try {
+        await (0, schemaMigrations_1.ensureRosterTablesExist)();
+        await (0, schemaMigrations_1.ensureHrmsRequestTablesExist)();
         const roleId = Number(req.user?.roleId ?? 0);
-        if (![1, 3, 4, 5, 6, 7].includes(roleId))
-            return res.status(403).json({ error: "Forbidden" });
+        const rawFrom = Array.isArray(req.query.from) ? req.query.from[0] : req.query.from;
+        const rawTo = Array.isArray(req.query.to) ? req.query.to[0] : req.query.to;
+        const from = rawFrom ? new Date(String(rawFrom)) : null;
+        const to = rawTo ? new Date(String(rawTo)) : null;
+        if (!from || !to || isNaN(from.getTime()) || isNaN(to.getTime()))
+            return res.status(400).json({ error: "from and to are required" });
+        const fromStr = from.toISOString().slice(0, 10);
+        const toStr = to.toISOString().slice(0, 10);
         const scopeWhere = await (0, queryGuard_1.buildWorkerScopeWhere)(req.user);
         const scopedWorkers = await db_1.prisma.tbl_Worker_PersonalInfo.findMany({
-            where: scopeWhere,
-            select: { Worker_Id: true },
+            where: roleId === 1 ? {} : scopeWhere,
+            select: { Worker_Id: true, Name: true },
             take: 5000,
         });
         const workerIds = Array.from(new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean)));
-        if (!workerIds.length)
-            return res.json([]);
-        const rows = await db_1.prisma.tbl_Attendance.findMany({
-            where: { workerId: { in: workerIds } },
-            orderBy: [{ id: "desc" }],
-            take: 1000,
-        });
-        return res.json(rows ?? []);
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-app.get("/Api/HRMS/Attendance/me", auth_1.requireAuth, (0, auth_1.checkRole)([2]), async (req, res, next) => {
-    try {
-        const userKey = (req.user?.userKey ?? "").toString().trim();
-        if (!userKey)
-            return res.status(400).json({ error: "Missing worker id" });
-        const rows = await db_1.prisma.tbl_Attendance.findMany({
-            where: { workerId: userKey },
-            orderBy: [{ id: "desc" }],
-            take: 200,
-        });
-        return res.json(rows ?? []);
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-app.post("/Api/HRMS/Attendance/ClockIn", auth_1.requireAuth, (0, auth_1.checkRole)([2]), async (req, res, next) => {
-    try {
-        const userKey = (req.user?.userKey ?? "").toString().trim();
-        if (!userKey)
-            return res.status(400).json({ error: "Missing worker id" });
-        const lat = req.body?.lat != null ? Number(req.body.lat) : null;
-        const lng = req.body?.lng != null ? Number(req.body.lng) : null;
-        const photoUrl = (req.body?.photoUrl ?? null) != null ? String(req.body.photoUrl) : null;
-        const created = await db_1.prisma.tbl_Attendance.create({
-            data: {
-                workerId: userKey,
-                checkIn: new Date(),
-                checkOut: null,
-                lat: lat != null && Number.isFinite(lat) ? lat : null,
-                lng: lng != null && Number.isFinite(lng) ? lng : null,
-                photoUrl,
+        if (roleId !== 1 && !workerIds.length)
+            return res.json({ from: fromStr, to: toStr, rows: [] });
+        const nameById = new Map();
+        for (const w of scopedWorkers ?? []) {
+            const id = (w.Worker_Id ?? "").toString();
+            if (id)
+                nameById.set(id, w.Name ?? null);
+        }
+        const attendance = await db_1.prisma.tbl_Attendance.findMany({
+            where: {
+                workerId: { in: workerIds },
+                checkIn: { gte: from, lte: to },
             },
+            select: { id: true, workerId: true, checkIn: true, checkOut: true },
+            take: 50000,
         });
-        return res.status(201).json(created);
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-app.post("/Api/HRMS/Attendance/ClockOut", auth_1.requireAuth, (0, auth_1.checkRole)([2]), async (req, res, next) => {
-    try {
-        const userKey = (req.user?.userKey ?? "").toString().trim();
-        if (!userKey)
-            return res.status(400).json({ error: "Missing worker id" });
-        const open = await db_1.prisma.tbl_Attendance.findFirst({
-            where: { workerId: userKey, checkOut: null },
-            orderBy: [{ id: "desc" }],
-        });
-        if (!open)
-            return res.status(409).json({ error: "No open attendance record" });
-        const updated = await db_1.prisma.tbl_Attendance.update({
-            where: { id: open.id },
-            data: { checkOut: new Date() },
-        });
-        return res.json(updated);
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-app.get("/Api/HRMS/Leave", auth_1.requireAuth, async (req, res, next) => {
-    try {
-        const roleId = Number(req.user?.roleId ?? 0);
-        if (roleId === 2) {
-            const userKey = (req.user?.userKey ?? "").toString().trim();
-            const rows = await db_1.prisma.tbl_Leave.findMany({
-                where: { workerId: userKey },
-                orderBy: [{ id: "desc" }],
-                take: 500,
-            });
-            return res.json(rows ?? []);
+        const byWorker = new Map();
+        const ensureRow = (workerId) => {
+            if (!byWorker.has(workerId)) {
+                byWorker.set(workerId, {
+                    workerId,
+                    name: nameById.get(workerId) ?? null,
+                    daysPresent: 0,
+                    workedHours: 0,
+                    lateCount: 0,
+                    earlyLeaveCount: 0,
+                    overtimeRequestedHours: 0,
+                    overtimeApprovedHours: 0,
+                    expenseClaimed: 0,
+                    expenseApproved: 0,
+                });
+            }
+            return byWorker.get(workerId);
+        };
+        const dayKeySet = new Set();
+        for (const a of attendance ?? []) {
+            const workerId = (a.workerId ?? "").toString();
+            if (!workerId)
+                continue;
+            const checkIn = a.checkIn ? new Date(a.checkIn) : null;
+            const checkOut = a.checkOut ? new Date(a.checkOut) : null;
+            if (!checkIn || isNaN(checkIn.getTime()))
+                continue;
+            const dayKey = `${workerId}__${checkIn.toISOString().slice(0, 10)}`;
+            const row = ensureRow(workerId);
+            if (!dayKeySet.has(dayKey)) {
+                dayKeySet.add(dayKey);
+                row.daysPresent += 1;
+            }
+            if (checkOut && !isNaN(checkOut.getTime())) {
+                row.workedHours += Math.max(0, (checkOut.getTime() - checkIn.getTime()) / 36e5);
+            }
         }
-        if (![1, 3, 4].includes(roleId))
-            return res.status(403).json({ error: "Forbidden" });
-        const scopeWhere = await (0, queryGuard_1.buildWorkerScopeWhere)(req.user);
-        const scopedWorkers = await db_1.prisma.tbl_Worker_PersonalInfo.findMany({
-            where: scopeWhere,
-            select: { Worker_Id: true },
-            take: 5000,
+        // Late/early count based on roster shifts where available
+        const pairs = Array.from(dayKeySet).map((k) => {
+            const [workerId, dateStr] = k.split("__");
+            return { workerId, dateStr };
         });
-        const workerIds = Array.from(new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean)));
-        if (!workerIds.length)
-            return res.json([]);
-        const rows = await db_1.prisma.tbl_Leave.findMany({
-            where: { workerId: { in: workerIds } },
-            orderBy: [{ id: "desc" }],
-            take: 1000,
-        });
-        return res.json(rows ?? []);
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-app.post("/Api/HRMS/Leave/Apply", auth_1.requireAuth, (0, auth_1.checkRole)([2]), async (req, res, next) => {
-    try {
-        const userKey = (req.user?.userKey ?? "").toString().trim();
-        if (!userKey)
-            return res.status(400).json({ error: "Missing worker id" });
-        const leaveType = (req.body?.leaveType ?? "").toString().trim();
-        const startDateRaw = req.body?.startDate;
-        const endDateRaw = req.body?.endDate;
-        const startDate = startDateRaw ? new Date(String(startDateRaw)) : null;
-        const endDate = endDateRaw ? new Date(String(endDateRaw)) : null;
-        if (!leaveType || !startDate || !endDate || isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-            return res.status(400).json({ error: "leaveType, startDate, endDate are required" });
+        const shiftByWorkerDay = new Map();
+        if (pairs.length) {
+            const whereParts = [];
+            const params = [];
+            let p = 1;
+            for (const pair of pairs) {
+                whereParts.push(`(r.workerId=@P${p} AND r.[date]=CAST(@P${p + 1} AS DATE))`);
+                params.push(pair.workerId, pair.dateStr);
+                p += 2;
+            }
+            const q = "SELECT TOP (50000) r.workerId, r.[date] as d, s.startTime, s.endTime " +
+                "FROM dbo.Tbl_Roster_Assignment r LEFT JOIN dbo.Tbl_Shift_Template s ON s.id=r.shiftId " +
+                `WHERE ${whereParts.join(" OR ")}`;
+            const roster = (await db_1.prisma.$queryRawUnsafe(q, ...params));
+            for (const rr of roster ?? []) {
+                const workerId = (rr.workerId ?? "").toString();
+                const d = rr.d ? new Date(rr.d) : null;
+                const dateStr = d && !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : "";
+                if (!workerId || !dateStr)
+                    continue;
+                shiftByWorkerDay.set(`${workerId}__${dateStr}`, {
+                    startTime: rr.startTime != null ? String(rr.startTime) : null,
+                    endTime: rr.endTime != null ? String(rr.endTime) : null,
+                });
+            }
         }
-        const created = await db_1.prisma.tbl_Leave.create({
-            data: {
-                workerId: userKey,
-                leaveType,
-                startDate,
-                endDate,
-                status: "Pending",
-            },
-        });
-        return res.status(201).json(created);
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-app.post("/Api/HRMS/Leave/Decision", auth_1.requireAuth, requireActivePlanForWrite, async (req, res, next) => {
-    try {
-        const roleId = Number(req.user?.roleId ?? 0);
-        if (![1, 3, 4].includes(roleId))
-            return res.status(403).json({ error: "Forbidden" });
-        const id = Number(req.body?.id ?? 0);
-        const decision = (req.body?.status ?? "").toString().trim();
-        if (!Number.isFinite(id) || id <= 0)
-            return res.status(400).json({ error: "id is required" });
-        if (decision !== "Approved" && decision !== "Rejected")
-            return res.status(400).json({ error: "Invalid status" });
-        const scopeWhere = await (0, queryGuard_1.buildWorkerScopeWhere)(req.user);
-        const scopedWorkers = await db_1.prisma.tbl_Worker_PersonalInfo.findMany({
-            where: scopeWhere,
-            select: { Worker_Id: true },
-            take: 5000,
-        });
-        const workerIds = new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean));
-        const row = await db_1.prisma.tbl_Leave.findFirst({ where: { id } });
-        if (!row)
-            return res.status(404).json({ error: "Not found" });
-        if (roleId !== 1 && !workerIds.has((row.workerId ?? "").toString()))
-            return res.status(403).json({ error: "Forbidden" });
-        const updated = await db_1.prisma.tbl_Leave.update({ where: { id }, data: { status: decision } });
-        try {
-            io.to("authorities").emit("new_trigger", {
-                id: updated.id,
-                title: `Leave ${decision}`,
-                description: `Leave request ${decision} for worker ${String(updated.workerId ?? "")}`,
-                workerId: updated.workerId ?? null,
-                companyName: null,
-                createdAt: new Date().toISOString(),
-            });
+        const parseTime = (t) => {
+            if (!t)
+                return null;
+            const m = String(t).trim().match(/^(\d{1,2}):(\d{2})/);
+            if (!m)
+                return null;
+            const hh = Number(m[1]);
+            const mm = Number(m[2]);
+            if (!Number.isFinite(hh) || !Number.isFinite(mm))
+                return null;
+            return { hh, mm };
+        };
+        const graceMinutes = 5;
+        // Build lookup for attendance by worker/day to compare with shift
+        const attByWorkerDay = new Map();
+        for (const a of attendance ?? []) {
+            const workerId = (a.workerId ?? "").toString();
+            const checkIn = a.checkIn ? new Date(a.checkIn) : null;
+            if (!workerId || !checkIn || isNaN(checkIn.getTime()))
+                continue;
+            const dateStr = checkIn.toISOString().slice(0, 10);
+            const k = `${workerId}__${dateStr}`;
+            const existing = attByWorkerDay.get(k);
+            const checkOut = a.checkOut ? new Date(a.checkOut) : null;
+            if (!existing) {
+                attByWorkerDay.set(k, { checkIn, checkOut: checkOut && !isNaN(checkOut.getTime()) ? checkOut : null });
+            }
+            else {
+                // keep earliest checkIn and latest checkOut for the day
+                if (checkIn && (!existing.checkIn || checkIn.getTime() < existing.checkIn.getTime()))
+                    existing.checkIn = checkIn;
+                if (checkOut && !isNaN(checkOut.getTime())) {
+                    if (!existing.checkOut || checkOut.getTime() > existing.checkOut.getTime())
+                        existing.checkOut = checkOut;
+                }
+            }
         }
-        catch {
-            // ignore emit errors
+        for (const [k, att] of attByWorkerDay.entries()) {
+            const [workerId, dateStr] = k.split("__");
+            const shift = shiftByWorkerDay.get(k);
+            if (!shift)
+                continue;
+            const start = parseTime(shift.startTime);
+            const end = parseTime(shift.endTime);
+            if (!start || !end)
+                continue;
+            const plannedStart = new Date(`${dateStr}T00:00:00.000Z`);
+            plannedStart.setUTCHours(start.hh, start.mm, 0, 0);
+            const plannedEnd = new Date(`${dateStr}T00:00:00.000Z`);
+            plannedEnd.setUTCHours(end.hh, end.mm, 0, 0);
+            const row = ensureRow(workerId);
+            if (att.checkIn) {
+                const lateMinutes = Math.max(0, Math.round((att.checkIn.getTime() - plannedStart.getTime()) / 60000) - graceMinutes);
+                if (lateMinutes > 0)
+                    row.lateCount += 1;
+            }
+            if (att.checkOut) {
+                const earlyMinutes = Math.max(0, Math.round((plannedEnd.getTime() - att.checkOut.getTime()) / 60000) - graceMinutes);
+                if (earlyMinutes > 0)
+                    row.earlyLeaveCount += 1;
+            }
         }
-        return res.json(updated);
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-app.get("/Api/HRMS/Payroll", auth_1.requireAuth, async (req, res, next) => {
-    try {
-        const roleId = Number(req.user?.roleId ?? 0);
-        if (![1, 3, 4, 5, 6, 7].includes(roleId))
-            return res.status(403).json({ error: "Forbidden" });
-        const scopeWhere = await (0, queryGuard_1.buildWorkerScopeWhere)(req.user);
-        const scopedWorkers = await db_1.prisma.tbl_Worker_PersonalInfo.findMany({
-            where: scopeWhere,
-            select: { Worker_Id: true },
-            take: 5000,
-        });
-        const workerIds = Array.from(new Set((scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean)));
-        if (!workerIds.length)
-            return res.json([]);
-        const rows = await db_1.prisma.tbl_Payroll.findMany({
-            where: { workerId: { in: workerIds } },
-            orderBy: [{ id: "desc" }],
-            take: 1000,
-        });
-        return res.json(rows ?? []);
-    }
-    catch (e) {
-        return next(e);
-    }
-});
-app.post("/Api/HRMS/Payroll/Upload", auth_1.requireAuth, requireActivePlanForWrite, async (req, res, next) => {
-    try {
-        const roleId = Number(req.user?.roleId ?? 0);
-        if (![1, 3, 4].includes(roleId))
-            return res.status(403).json({ error: "Forbidden" });
-        const workerId = (req.body?.workerId ?? "").toString().trim();
-        const month = Number(req.body?.month ?? 0);
-        const year = Number(req.body?.year ?? 0);
-        const amount = Number(req.body?.amount ?? 0);
-        const voucherUrl = (req.body?.voucherUrl ?? "").toString().trim();
-        const isPaid = req.body?.isPaid != null ? Boolean(req.body.isPaid) : false;
-        if (!workerId || !Number.isFinite(month) || !Number.isFinite(year)) {
-            return res.status(400).json({ error: "workerId, month, year are required" });
+        // Overtime aggregates
+        const otRows = (await db_1.prisma.$queryRawUnsafe(roleId === 1
+            ? "SELECT workerId, SUM(hours) as totalHours, SUM(CASE WHEN status='Approved' THEN hours ELSE 0 END) as approvedHours FROM dbo.Tbl_HRMS_Overtime_Request WHERE workDate >= CAST(@P1 AS DATE) AND workDate <= CAST(@P2 AS DATE) GROUP BY workerId"
+            : `SELECT workerId, SUM(hours) as totalHours, SUM(CASE WHEN status='Approved' THEN hours ELSE 0 END) as approvedHours FROM dbo.Tbl_HRMS_Overtime_Request WHERE workDate >= CAST(@P1 AS DATE) AND workDate <= CAST(@P2 AS DATE) AND workerId IN (${workerIds
+                .map((_, i) => `@P${i + 3}`)
+                .join(",")}) GROUP BY workerId`, fromStr, toStr, ...(roleId === 1 ? [] : workerIds)));
+        for (const r of otRows ?? []) {
+            const workerId = (r.workerId ?? "").toString();
+            if (!workerId)
+                continue;
+            const row = ensureRow(workerId);
+            row.overtimeRequestedHours += Number(r.totalHours ?? 0) || 0;
+            row.overtimeApprovedHours += Number(r.approvedHours ?? 0) || 0;
         }
-        const scopeWhere = await (0, queryGuard_1.buildWorkerScopeWhere)(req.user);
-        const scopedWorker = await db_1.prisma.tbl_Worker_PersonalInfo.findFirst({ where: { ...scopeWhere, Worker_Id: workerId } });
-        if (roleId !== 1 && !scopedWorker)
-            return res.status(403).json({ error: "Forbidden" });
-        const created = await db_1.prisma.tbl_Payroll.create({
-            data: {
-                workerId,
-                month,
-                year,
-                amount: Number.isFinite(amount) ? amount : 0,
-                voucherUrl: voucherUrl || null,
-                isPaid,
-            },
-        });
-        try {
-            io.to("authorities").emit("new_trigger", {
-                id: created.id,
-                title: "Payroll uploaded",
-                description: `Payroll uploaded for worker ${workerId} (${month}/${year})`,
-                workerId,
-                companyName: null,
-                createdAt: new Date().toISOString(),
-            });
+        // Expense aggregates
+        const expRows = (await db_1.prisma.$queryRawUnsafe(roleId === 1
+            ? "SELECT workerId, SUM(amount) as totalAmount, SUM(CASE WHEN status='Approved' THEN amount ELSE 0 END) as approvedAmount FROM dbo.Tbl_HRMS_Expense_Claim WHERE claimDate >= CAST(@P1 AS DATE) AND claimDate <= CAST(@P2 AS DATE) GROUP BY workerId"
+            : `SELECT workerId, SUM(amount) as totalAmount, SUM(CASE WHEN status='Approved' THEN amount ELSE 0 END) as approvedAmount FROM dbo.Tbl_HRMS_Expense_Claim WHERE claimDate >= CAST(@P1 AS DATE) AND claimDate <= CAST(@P2 AS DATE) AND workerId IN (${workerIds
+                .map((_, i) => `@P${i + 3}`)
+                .join(",")}) GROUP BY workerId`, fromStr, toStr, ...(roleId === 1 ? [] : workerIds)));
+        for (const r of expRows ?? []) {
+            const workerId = (r.workerId ?? "").toString();
+            if (!workerId)
+                continue;
+            const row = ensureRow(workerId);
+            row.expenseClaimed += Number(r.totalAmount ?? 0) || 0;
+            row.expenseApproved += Number(r.approvedAmount ?? 0) || 0;
         }
-        catch {
-            // ignore emit errors
-        }
-        return res.status(201).json(created);
+        const out = Array.from(byWorker.values()).map((r) => ({
+            ...r,
+            workedHours: Math.round(Number(r.workedHours ?? 0) * 100) / 100,
+            overtimeRequestedHours: Math.round(Number(r.overtimeRequestedHours ?? 0) * 100) / 100,
+            overtimeApprovedHours: Math.round(Number(r.overtimeApprovedHours ?? 0) * 100) / 100,
+            expenseClaimed: Math.round(Number(r.expenseClaimed ?? 0) * 100) / 100,
+            expenseApproved: Math.round(Number(r.expenseApproved ?? 0) * 100) / 100,
+        }));
+        return res.json({ from: fromStr, to: toStr, rows: out });
     }
     catch (e) {
         return next(e);
@@ -3528,7 +2121,7 @@ app.get("/Api/HRMS/Contracts/Expiring", auth_1.requireAuth, async (req, res, nex
         return next(e);
     }
 });
-app.get("/Api/Workers/List", auth_1.requireAuth, requireReportsAccess, async (_req, res, next) => {
+app.get("/Api/Workers/List", auth_1.requireAuth, auth_1.requireReportsAccess, async (_req, res, next) => {
     try {
         const where = await (0, queryGuard_1.buildWorkerScopeWhere)(_req.user);
         const rows = await db_1.prisma.tbl_Worker_PersonalInfo.findMany({
@@ -3568,26 +2161,6 @@ app.get("/Api/Workers/List", auth_1.requireAuth, requireReportsAccess, async (_r
         return next(e);
     }
 });
-app.post("/Api/Panic/Resolve", auth_1.requireAuth, requireAuthority, async (req, res, next) => {
-    const id = Number(req.body?.id ?? 0);
-    if (!Number.isFinite(id) || id <= 0) {
-        return res.status(400).json({ error: "id is required" });
-    }
-    try {
-        await db_1.prisma.tbl_ProbSol.update({
-            where: { ID: id },
-            data: {
-                ProbStatus: "Resolved",
-                Updated_On: new Date(),
-                IsResolved: true,
-            },
-        });
-        return res.json({ ok: true });
-    }
-    catch (e) {
-        return next(e);
-    }
-});
 // AddProblem -> POST /panic-like but authenticated and uses UserId from token
 app.post("/Api/AddProblem", auth_1.requireAuth, async (req, res) => {
     const user = req.user;
@@ -3608,7 +2181,7 @@ app.post("/Api/AddProblem", auth_1.requireAuth, async (req, res) => {
         return res.status(500).json({ error: "Unable to save data" });
     }
 });
-app.get("/Api/ProblemList", auth_1.requireAuth, requireAuthority, async (req, res, next) => {
+app.get("/Api/ProblemList", auth_1.requireAuth, auth_1.requireAuthority, async (req, res, next) => {
     try {
         const roleId = Number(req.user?.roleId ?? 0);
         const rawStatus = Array.isArray(req.query.status) ? req.query.status[0] : req.query.status;
@@ -3710,176 +2283,15 @@ app.get("/Api/ProblemList", auth_1.requireAuth, requireAuthority, async (req, re
         return next(e);
     }
 });
-app.post("/Api/Chat/Sessions", auth_1.requireAuth, async (req, res, next) => {
-    const workerId = Number(req.body?.WorkerId ?? req.body?.workerId ?? 0);
-    if (!Number.isFinite(workerId) || workerId <= 0) {
-        return res.status(400).json({ error: "WorkerId is required" });
-    }
-    try {
-        const rows = (await db_1.prisma.$queryRawUnsafe("INSERT INTO [dbo].[ChatSessions]([WorkerId]) OUTPUT INSERTED.[ChatSessionId] as ChatSessionId VALUES(@p1);", workerId));
-        const id = Array.isArray(rows) ? rows[0]?.ChatSessionId : null;
-        if (!id)
-            return res.status(500).json({ error: "Unable to create chat session" });
-        return res.json({ ChatSessionId: Number(id) });
-    }
-    catch (e) {
-        const msg = (e?.message ?? "").toString();
-        if (/invalid object name|chatsessions/i.test(msg)) {
-            return res.status(501).json({ error: "Chat tables not installed" });
-        }
-        return next(e);
-    }
-});
-app.post("/Api/Chat/Messages", auth_1.requireAuth, async (req, res, next) => {
-    const chatSessionId = Number(req.body?.ChatSessionId ?? req.body?.chatSessionId ?? 0);
-    const senderType = (req.body?.SenderType ?? req.body?.senderType ?? "User").toString();
-    const message = (req.body?.Message ?? req.body?.message ?? "").toString();
-    if (!Number.isFinite(chatSessionId) || chatSessionId <= 0) {
-        return res.status(400).json({ error: "ChatSessionId is required" });
-    }
-    if (!message.trim()) {
-        return res.status(400).json({ error: "Message is required" });
-    }
-    try {
-        const rows = (await db_1.prisma.$queryRawUnsafe("INSERT INTO [dbo].[ChatMessages]([ChatSessionId],[SenderType],[Message]) OUTPUT INSERTED.[ChatMessageId] as ChatMessageId, INSERTED.[CreatedOn] as CreatedOn VALUES(@p1,@p2,@p3);", chatSessionId, senderType, message));
-        const row = Array.isArray(rows) ? rows[0] : null;
-        return res.json({ ChatMessageId: row?.ChatMessageId != null ? Number(row.ChatMessageId) : null, CreatedOn: row?.CreatedOn ?? null });
-    }
-    catch (e) {
-        const msg = (e?.message ?? "").toString();
-        if (/invalid object name|chatmessages/i.test(msg)) {
-            return res.status(501).json({ error: "Chat tables not installed" });
-        }
-        return next(e);
-    }
-});
-app.get("/Api/Chat/Messages", auth_1.requireAuth, async (req, res, next) => {
-    const raw = Array.isArray(req.query.ChatSessionId) ? req.query.ChatSessionId[0] : req.query.ChatSessionId;
-    const chatSessionId = raw != null ? Number(raw) : 0;
-    if (!Number.isFinite(chatSessionId) || chatSessionId <= 0) {
-        return res.status(400).json({ error: "ChatSessionId is required" });
-    }
-    try {
-        const rows = (await db_1.prisma.$queryRawUnsafe("SELECT [ChatMessageId],[ChatSessionId],[SenderType],[Message],[CreatedOn] FROM [dbo].[ChatMessages] WHERE [ChatSessionId] = @p1 ORDER BY [CreatedOn] ASC;", chatSessionId));
-        return res.json(rows ?? []);
-    }
-    catch (e) {
-        const msg = (e?.message ?? "").toString();
-        if (/invalid object name|chatmessages/i.test(msg)) {
-            return res.status(501).json({ error: "Chat tables not installed" });
-        }
-        return next(e);
-    }
-});
-app.post("/Api/Chat/SupportRequests", auth_1.requireAuth, async (req, res, next) => {
-    const chatSessionId = Number(req.body?.ChatSessionId ?? req.body?.chatSessionId ?? 0);
-    const workerId = Number(req.body?.WorkerId ?? req.body?.workerId ?? 0);
-    const reason = (req.body?.Reason ?? req.body?.reason ?? "").toString();
-    if (!Number.isFinite(chatSessionId) || chatSessionId <= 0) {
-        return res.status(400).json({ error: "ChatSessionId is required" });
-    }
-    if (!Number.isFinite(workerId) || workerId <= 0) {
-        return res.status(400).json({ error: "WorkerId is required" });
-    }
-    try {
-        const rows = (await db_1.prisma.$queryRawUnsafe("INSERT INTO [dbo].[SupportRequests]([ChatSessionId],[WorkerId],[Reason]) OUTPUT INSERTED.[SupportRequestId] as SupportRequestId VALUES(@p1,@p2,@p3);", chatSessionId, workerId, reason));
-        const id = Array.isArray(rows) ? rows[0]?.SupportRequestId : null;
-        return res.json({ SupportRequestId: id != null ? Number(id) : null });
-    }
-    catch (e) {
-        const msg = (e?.message ?? "").toString();
-        if (/invalid object name|supportrequests/i.test(msg)) {
-            return res.status(501).json({ error: "Chat tables not installed" });
-        }
-        return next(e);
-    }
-});
-app.get("/Api/Chat/DbStatus", auth_1.requireAuth, async (_req, res, next) => {
-    try {
-        const sessions = (await db_1.prisma.$queryRawUnsafe("SELECT TOP (1) [ChatSessionId] FROM [dbo].[ChatSessions] ORDER BY [ChatSessionId] DESC;"));
-        const messages = (await db_1.prisma.$queryRawUnsafe("SELECT TOP (1) [ChatMessageId] FROM [dbo].[ChatMessages] ORDER BY [ChatMessageId] DESC;"));
-        return res.json({ ok: true, chatSessionsVisible: Array.isArray(sessions), chatMessagesVisible: Array.isArray(messages) });
-    }
-    catch (e) {
-        const msg = (e?.message ?? "").toString();
-        if (/invalid object name/i.test(msg)) {
-            return res.status(200).json({ ok: false, error: "Chat tables not installed" });
-        }
-        return next(e);
-    }
-});
-app.post("/Api/Chat/AIReply", auth_1.requireAuth, async (req, res, next) => {
-    const chatSessionId = Number(req.body?.ChatSessionId ?? req.body?.chatSessionId ?? 0);
-    const workerId = Number(req.body?.WorkerId ?? req.body?.workerId ?? 0);
-    const userText = (req.body?.Message ?? req.body?.message ?? "").toString();
-    if (!Number.isFinite(chatSessionId) || chatSessionId <= 0) {
-        return res.status(400).json({ error: "ChatSessionId is required" });
-    }
-    if (!Number.isFinite(workerId) || workerId <= 0) {
-        return res.status(400).json({ error: "WorkerId is required" });
-    }
-    if (!userText.trim()) {
-        return res.status(400).json({ error: "Message is required" });
-    }
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-        return res.status(500).json({ error: "OPENAI_API_KEY is not set" });
-    }
-    const model = process.env.OPENAI_MODEL ?? "gpt-4o";
-    try {
-        await db_1.prisma.$queryRawUnsafe("INSERT INTO [dbo].[ChatMessages]([ChatSessionId],[SenderType],[Message]) VALUES(@p1,@p2,@p3);", chatSessionId, "User", userText);
-        const systemPrompt = "You are a Supportive Safety Liaison for International Workers using the MWMSYS app. " +
-            "You must only answer questions related to: personal safety, emergency steps, worker rights, workplace issues, immigration/permit general guidance, and how to use this app (panic button, reporting, evidence upload). " +
-            "If the user asks for anything off-topic (coding, entertainment, politics, hacking, medical diagnosis, illegal activity, unrelated personal advice), politely refuse and redirect to safety/app topics. " +
-            "Use Markdown for clarity with short sections and bullet points. Keep responses concise. " +
-            "If the user indicates immediate danger, instruct them to trigger the Panic Button and contact local emergency services immediately.";
-        const client = new openai_1.default({ apiKey });
-        const completion = await client.chat.completions.create({
-            model,
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userText },
-            ],
-            temperature: 0.4,
-            max_tokens: 350,
-        });
-        const aiText = completion.choices?.[0]?.message?.content?.toString?.() ?? "";
-        await db_1.prisma.$queryRawUnsafe("INSERT INTO [dbo].[ChatMessages]([ChatSessionId],[SenderType],[Message]) VALUES(@p1,@p2,@p3);", chatSessionId, "AI", aiText);
-        return res.json({ ok: true, reply: aiText });
-    }
-    catch (e) {
-        const msg = (e?.message ?? "").toString();
-        if (/invalid object name|chatmessages|chatsessions/i.test(msg)) {
-            return res.status(501).json({ error: "Chat tables not installed" });
-        }
-        return next(e);
-    }
-});
-app.use((err, _req, res, _next) => {
-    const errStr = (err?.message ?? "").toString();
-    if (err?.code === "P2021") {
-        const message = "Database schema is missing required tables";
-        console.error(message, err);
-        return res.status(500).json({ error: message, code: "DB_SCHEMA_MISSING" });
-    }
-    if (/invalid object name/i.test(errStr)) {
-        const message = "Database schema is missing required tables";
-        console.error(message, err);
-        return res.status(500).json({ error: message, code: "DB_SCHEMA_MISSING" });
-    }
-    if (/prisma|econnrefused|failed to connect|timeout|sql|database/i.test(errStr) || err?.code === "P1001" || err?.code === "P1002") {
-        console.error("Database Connection Error", err);
-        return res.status(503).json({ error: "Database Connection Error", code: "DB_CONNECTION_ERROR" });
-    }
-    const message = err?.message?.toString?.() ??
-        err?.meta?.cause?.toString?.() ??
-        err?.meta?.message?.toString?.() ??
-        "Internal Server Error";
-    const detail = err?.code != null ? `${message} (code=${String(err.code)})` : message;
-    console.error("Unhandled error", err);
-    return res.status(500).json({ error: detail });
-});
-const port = Number(process.env.PORT ?? 3000);
-server.listen(port, () => {
-    console.log(`ModernBackend listening on http://localhost:${port}`);
+app.use(errorHandler_1.errorHandler);
+const port = Number(process.env.PORT) || 3000;
+// Bootstrap schema bootstrappers up-front (idempotent, errors swallowed),
+// then start listening. Route-level `ensure*TableExists()` calls remain
+// in place as cheap no-ops after the initial run for defense-in-depth.
+(0, schemaMigrations_1.runSchemaMigrations)()
+    .catch((e) => console.warn("runSchemaMigrations failed (continuing)", e))
+    .finally(() => {
+    server.listen(port, "0.0.0.0", () => {
+        console.log(`ModernBackend listening on port ${String(port)}`);
+    });
 });

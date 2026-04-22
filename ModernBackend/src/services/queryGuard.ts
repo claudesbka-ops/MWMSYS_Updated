@@ -1,4 +1,4 @@
-import type { JwtClaims } from "../auth";
+import type { JwtClaims } from "../middleware/auth";
 import { prisma } from "../db";
 
 export async function buildWorkerScopeWhere(user: JwtClaims): Promise<Record<string, any>> {

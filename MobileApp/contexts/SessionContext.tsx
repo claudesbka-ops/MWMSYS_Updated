@@ -64,6 +64,9 @@ function decodeJwtClaims(token: string): Record<string, unknown> | null {
 }
 
 function readDefaultApiBaseUrl(): string {
+  // Precedence: EXPO_PUBLIC_API_BASE_URL env > app.json extra.API_BASE_URL > localhost
+  const fromEnv = (process.env.EXPO_PUBLIC_API_BASE_URL ?? "").toString().trim();
+  if (fromEnv) return fromEnv;
   const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
   const raw = extra.API_BASE_URL;
   if (typeof raw === "string" && raw.trim()) return raw.trim();

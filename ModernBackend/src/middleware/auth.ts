@@ -50,3 +50,14 @@ export function checkRole(allowedRoleIds: number[]) {
     return res.status(403).json({ error: "Forbidden" });
   };
 }
+
+/**
+ * Pre-built role middleware matching the role conventions used throughout
+ * MWMSYS. Role IDs:
+ *   1 = Admin, 2 = Worker, 3 = Employer, 4 = Agency,
+ *   5 = Embassy (Source), 6 = Embassy (Destination), 7 = Labour
+ */
+export const requireAdmin = checkRole([1]);
+export const requireAuthority = checkRole([1, 4, 5, 6, 7]);
+export const requireAlertViewer = checkRole([1, 3, 4, 5, 6, 7]);
+export const requireReportsAccess = checkRole([1, 3, 4, 5, 6, 7]);

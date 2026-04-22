@@ -35,8 +35,12 @@ export function useHrmsService() {
   return {
     me: () => api.get<MeResponse>("/Api/me"),
     getMyAttendance: () => api.get<AttendanceRow[]>("/Api/HRMS/Attendance/me"),
-    clockIn: (params?: { lat?: number; lng?: number; photoUrl?: string }) =>
-      api.post<AttendanceRow>("/Api/HRMS/Attendance/ClockIn", params ?? {}),
+    clockIn: (params?: { lat?: number | null; lng?: number | null; photoUrl?: string | null }) =>
+      api.post<AttendanceRow>("/Api/HRMS/Attendance/ClockIn", {
+        lat: params?.lat ?? null,
+        lng: params?.lng ?? null,
+        photoUrl: params?.photoUrl ?? null,
+      }),
     clockOut: () => api.post<AttendanceRow>("/Api/HRMS/Attendance/ClockOut", {}),
 
     getMyLeaves: () => api.get<LeaveRow[]>("/Api/HRMS/Leave"),
