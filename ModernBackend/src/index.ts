@@ -5363,8 +5363,8 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   return res.status(500).json({ error: detail });
 });
 
-const port = Number(process.env.PORT ?? 3000);
+const port = process.env.PORT || 3000;
 
-server.listen(port, () => {
-  console.log(`ModernBackend listening on http://localhost:${port}`);
+server.listen(port, "0.0.0.0", () => {
+  console.log(`ModernBackend listening on port ${String(port)}`);
 });
