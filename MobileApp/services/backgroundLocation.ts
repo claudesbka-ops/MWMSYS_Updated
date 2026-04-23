@@ -4,8 +4,9 @@ import * as SecureStore from "expo-secure-store";
 
 const TASK_NAME = "mwmsys-background-location";
 
-const STORE_API_BASE_URL = "mwmsys_api_base_url";
 const STORE_TOKEN = "mwmsys_access_token";
+
+const PROD_API_BASE_URL = "http://173.233.72.39:3000";
 
 let defined = false;
 
@@ -22,11 +23,10 @@ function ensureTaskDefined() {
       const coords = loc?.coords;
       if (!coords) return;
 
-      const apiBaseUrl = (await SecureStore.getItemAsync(STORE_API_BASE_URL))?.trim() || "";
       const token = (await SecureStore.getItemAsync(STORE_TOKEN))?.trim() || "";
-      if (!apiBaseUrl || !token) return;
+      if (!token) return;
 
-      const url = apiBaseUrl.replace(/\/+$/, "") + "/Api/Worker/Location";
+      const url = PROD_API_BASE_URL.replace(/\/+$/, "") + "/Api/Worker/Location";
       await fetch(url, {
         method: "POST",
         headers: {

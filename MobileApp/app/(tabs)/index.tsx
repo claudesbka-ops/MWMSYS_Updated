@@ -3,6 +3,8 @@ import { ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { Text, View } from '@/components/Themed';
+import Colors from '@/constants/Colors';
+import { useColorScheme } from '@/components/useColorScheme';
 import { useSession } from '@/contexts/SessionContext';
 import { useDashboardService } from '@/services/dashboardService';
 import { useApiClient } from '@/services/apiClient';
@@ -13,6 +15,8 @@ export default function HomeScreen() {
   const appRole = (session.claims?.appRole ?? 'worker').toString();
   const dashboard = useDashboardService();
   const api = useApiClient();
+  const scheme = (useColorScheme() ?? 'light') as 'light' | 'dark';
+  const theme = Colors[scheme];
 
   const [loading, setLoading] = useState(false);
   const [cards, setCards] = useState<Record<string, number>>({});
@@ -44,7 +48,7 @@ export default function HomeScreen() {
   }, []);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}> 
       <Text style={styles.title}>MWMSYS HRMS</Text>
       <Text style={styles.subtitle}>
         {appRole} dashboard{appRole === 'employer' || appRole === 'agency' ? ` • Plan: ${plan}` : ''}
@@ -59,30 +63,30 @@ export default function HomeScreen() {
           <>
             {appRole === 'worker' ? (
               <>
-                <TouchableOpacity style={styles.kpiCard} onPress={() => router.push('/(tabs)/incidents' as any)}>
+                <TouchableOpacity style={[styles.kpiCard, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/incidents' as any)}>
                   <Text style={styles.kpiLabel}>Open Incidents</Text>
                   <Text style={styles.kpiValue}>{String(cards.openIncidents ?? 0)}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.kpiCard} onPress={() => router.push('/(tabs)/leave' as any)}>
+                <TouchableOpacity style={[styles.kpiCard, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/leave' as any)}>
                   <Text style={styles.kpiLabel}>Pending Leave</Text>
                   <Text style={styles.kpiValue}>{String(cards.pendingLeaves ?? 0)}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.kpiCard} onPress={() => router.push('/(tabs)/attendance' as any)}>
+                <TouchableOpacity style={[styles.kpiCard, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/attendance' as any)}>
                   <Text style={styles.kpiLabel}>Attendance Open</Text>
                   <Text style={styles.kpiValue}>{String(cards.openAttendance ?? 0)}</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
-                <TouchableOpacity style={styles.kpiCard} onPress={() => router.push('/(tabs)/workers' as any)}>
+                <TouchableOpacity style={[styles.kpiCard, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/workers' as any)}>
                   <Text style={styles.kpiLabel}>Workers</Text>
                   <Text style={styles.kpiValue}>{String(cards.totalWorkers ?? 0)}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.kpiCard} onPress={() => router.push('/(tabs)/incidents' as any)}>
+                <TouchableOpacity style={[styles.kpiCard, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/incidents' as any)}>
                   <Text style={styles.kpiLabel}>Open Incidents</Text>
                   <Text style={styles.kpiValue}>{String(cards.openIncidents ?? 0)}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.kpiCard} onPress={() => router.push('/(tabs)/leave' as any)}>
+                <TouchableOpacity style={[styles.kpiCard, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/leave' as any)}>
                   <Text style={styles.kpiLabel}>Pending Leave</Text>
                   <Text style={styles.kpiValue}>{String(cards.pendingLeaves ?? 0)}</Text>
                 </TouchableOpacity>
@@ -92,75 +96,75 @@ export default function HomeScreen() {
         )}
       </View>
 
-      <TouchableOpacity style={styles.refreshBtn} onPress={refresh}>
+      <TouchableOpacity style={[styles.refreshBtn, { borderColor: theme.border, backgroundColor: theme.secondary }]} onPress={refresh}>
         <Text style={styles.refreshText}>Refresh</Text>
       </TouchableOpacity>
 
       <View style={styles.cards}>
         {appRole === 'worker' ? (
           <>
-            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/attendance' as any)}>
+            <TouchableOpacity style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/attendance' as any)}>
               <Text style={styles.cardTitle}>Attendance</Text>
               <Text style={styles.cardDesc}>Clock in/out and view records</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/leave' as any)}>
+            <TouchableOpacity style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/leave' as any)}>
               <Text style={styles.cardTitle}>Leave</Text>
               <Text style={styles.cardDesc}>Apply leave and track status</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/documents' as any)}>
+            <TouchableOpacity style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/documents' as any)}>
               <Text style={styles.cardTitle}>Documents</Text>
               <Text style={styles.cardDesc}>Passport/permit/insurance uploads</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/panic' as any)}>
+            <TouchableOpacity style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/panic' as any)}>
               <Text style={styles.cardTitle}>Panic</Text>
               <Text style={styles.cardDesc}>Send emergency alert to MWMSYS</Text>
             </TouchableOpacity>
           </>
         ) : appRole === 'employer' ? (
           <>
-            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/workers' as any)}>
+            <TouchableOpacity style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/workers' as any)}>
               <Text style={styles.cardTitle}>Workers</Text>
               <Text style={styles.cardDesc}>Your scoped workers list</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/incidents' as any)}>
+            <TouchableOpacity style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/incidents' as any)}>
               <Text style={styles.cardTitle}>Incidents</Text>
               <Text style={styles.cardDesc}>Incident history</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/pricing' as any)}>
+            <TouchableOpacity style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/pricing' as any)}>
               <Text style={styles.cardTitle}>Pricing</Text>
               <Text style={styles.cardDesc}>Manage subscription</Text>
             </TouchableOpacity>
           </>
         ) : appRole === 'agency' ? (
           <>
-            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/employers' as any)}>
+            <TouchableOpacity style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/employers' as any)}>
               <Text style={styles.cardTitle}>Employers</Text>
               <Text style={styles.cardDesc}>Employer directory</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/workers' as any)}>
+            <TouchableOpacity style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/workers' as any)}>
               <Text style={styles.cardTitle}>Workers</Text>
               <Text style={styles.cardDesc}>Workers directory</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/pricing' as any)}>
+            <TouchableOpacity style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/pricing' as any)}>
               <Text style={styles.cardTitle}>Pricing</Text>
               <Text style={styles.cardDesc}>Manage subscription</Text>
             </TouchableOpacity>
           </>
         ) : (
           <>
-            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/employers' as any)}>
+            <TouchableOpacity style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/employers' as any)}>
               <Text style={styles.cardTitle}>Employers</Text>
               <Text style={styles.cardDesc}>Employer directory</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/workers' as any)}>
+            <TouchableOpacity style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/workers' as any)}>
               <Text style={styles.cardTitle}>Workers</Text>
               <Text style={styles.cardDesc}>Workers directory</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/attestation' as any)}>
+            <TouchableOpacity style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/attestation' as any)}>
               <Text style={styles.cardTitle}>Attestation</Text>
               <Text style={styles.cardDesc}>Approve/reject attestation</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.card} onPress={() => router.push('/(tabs)/reports' as any)}>
+            <TouchableOpacity style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => router.push('/(tabs)/reports' as any)}>
               <Text style={styles.cardTitle}>Reports</Text>
               <Text style={styles.cardDesc}>Entry/Visa/Insurance reports</Text>
             </TouchableOpacity>

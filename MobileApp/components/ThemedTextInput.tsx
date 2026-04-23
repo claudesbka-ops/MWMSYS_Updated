@@ -14,7 +14,7 @@ export const ThemedTextInput = forwardRef<TextInput, ThemedTextInputProps>(funct
 ) {
   const color = useThemeColor({ light: undefined, dark: undefined }, "text");
   const borderColor = useThemeColor({ light: undefined, dark: undefined }, "border");
-  const backgroundColor = useThemeColor({ light: lightBackgroundColor, dark: darkBackgroundColor }, "card");
+  const backgroundColor = useThemeColor({ light: lightBackgroundColor, dark: darkBackgroundColor }, "secondary");
   const mutedText = useThemeColor({ light: undefined, dark: undefined }, "mutedText");
 
   return (
@@ -31,7 +31,8 @@ const styles = StyleSheet.create({
   input: {
     marginTop: 6,
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 10,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
   },
 });

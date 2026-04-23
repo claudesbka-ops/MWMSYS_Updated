@@ -1,4 +1,3 @@
-import Constants from "expo-constants";
 import React, { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import * as SecureStore from "expo-secure-store";
 
@@ -14,8 +13,9 @@ type SessionState = {
 
 const SessionContext = createContext<SessionState | null>(null);
 
-const STORE_API_BASE_URL = "mwmsys_api_base_url";
 const STORE_TOKEN = "mwmsys_access_token";
+
+const PROD_API_BASE_URL = "http://173.233.72.39:3000";
 
 function base64Decode(input: string): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
@@ -63,27 +63,13 @@ function decodeJwtClaims(token: string): Record<string, unknown> | null {
   }
 }
 
-function readDefaultApiBaseUrl(): string {
-  // Precedence: EXPO_PUBLIC_API_BASE_URL env > app.json extra.API_BASE_URL > localhost
-  const fromEnv = (process.env.EXPO_PUBLIC_API_BASE_URL ?? "").toString().trim();
-  if (fromEnv) return fromEnv;
-  const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
-  const raw = extra.API_BASE_URL;
-  if (typeof raw === "string" && raw.trim()) return raw.trim();
-  return "http://localhost:3000";
-}
-
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [apiBaseUrl, setApiBaseUrl] = useState<string>(readDefaultApiBaseUrl());
+  const [apiBaseUrl] = useState<string>(PROD_API_BASE_URL);
   const [token, setToken] = useState<string>("");
   const [claims, setClaims] = useState<Record<string, unknown> | null>(null);
 
   const hydrate = async () => {
-    const storedUrl = await SecureStore.getItemAsync(STORE_API_BASE_URL);
     const storedToken = await SecureStore.getItemAsync(STORE_TOKEN);
-    if (storedUrl && storedUrl.trim()) {
-      setApiBaseUrl(storedUrl.trim());
-    }
     if (storedToken && storedToken.trim()) {
       const t = storedToken.trim();
       setToken(t);
@@ -104,10 +90,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     SecureStore.setItemAsync(STORE_TOKEN, t).catch(() => undefined);
   };
 
-  const setApiBaseUrlPersisted = (v: string) => {
-    const url = (v ?? "").toString();
-    setApiBaseUrl(url);
-    SecureStore.setItemAsync(STORE_API_BASE_URL, url).catch(() => undefined);
+  const setApiBaseUrlPersisted = (_v: string) => {
+    // production build: API base URL is fixed
   };
 
   const value = useMemo<SessionState>(

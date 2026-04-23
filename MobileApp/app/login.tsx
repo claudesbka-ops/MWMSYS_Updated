@@ -6,11 +6,15 @@ import { Text, View } from "@/components/Themed";
 import { ThemedTextInput } from "@/components/ThemedTextInput";
 import { useAuthService } from "@/services/authService";
 import { useSession } from "@/contexts/SessionContext";
+import Colors from "@/constants/Colors";
+import { useColorScheme } from "@/components/useColorScheme";
 
 export default function LoginScreen() {
   const router = useRouter();
   const auth = useAuthService();
   const session = useSession();
+  const scheme = (useColorScheme() ?? "light") as "light" | "dark";
+  const theme = Colors[scheme];
 
   const [role, setRole] = useState<
     "worker" | "employer" | "agency" | "admin" | "embassy_source" | "embassy_destination" | "labour"
@@ -54,11 +58,11 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>MWMSYS</Text>
-      <Text style={styles.subtitle}>Sign in to continue</Text>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <Text style={[styles.title, { color: theme.text }]}>MWMSYS</Text>
+      <Text style={[styles.subtitle, { color: theme.mutedText }]}>Sign in to continue</Text>
 
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Text style={styles.label}>Role</Text>
         <View style={styles.roleRow}>
           {(
@@ -101,7 +105,7 @@ export default function LoginScreen() {
           </>
         )}
 
-        <TouchableOpacity style={[styles.primaryBtn, busy && styles.disabled]} onPress={doLogin} disabled={busy}>
+        <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: theme.primary }, busy && styles.disabled]} onPress={doLogin} disabled={busy}>
           <Text style={styles.primaryBtnText}>{busy ? "Signing in..." : "Sign In"}</Text>
         </TouchableOpacity>
 
@@ -111,14 +115,6 @@ export default function LoginScreen() {
           disabled={busy}
         >
           <Text style={styles.ghostBtnText}>Create account</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.ghostBtn, busy && styles.disabled]}
-          onPress={() => router.push("/(tabs)/settings" as any)}
-          disabled={busy}
-        >
-          <Text style={styles.ghostBtnText}>API Settings</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -131,7 +127,7 @@ const styles = StyleSheet.create({
   subtitle: { marginTop: 6, opacity: 0.75, textAlign: "center" },
   card: {
     marginTop: 20,
-    padding: 14,
+    padding: 16,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "rgba(120,120,120,0.25)",
@@ -151,8 +147,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   rolePillActive: {
-    backgroundColor: "rgba(37,99,235,0.18)",
-    borderColor: "rgba(37,99,235,0.55)",
+    backgroundColor: "rgba(124,58,237,0.16)",
+    borderColor: "rgba(124,58,237,0.55)",
   },
   rolePillInactive: {
     backgroundColor: "transparent",
@@ -171,7 +167,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: "#2563eb",
+    backgroundColor: "#7c3aed",
     alignItems: "center",
   },
   primaryBtnText: { color: "white", fontWeight: "800" },

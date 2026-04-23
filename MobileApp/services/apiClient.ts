@@ -1,5 +1,7 @@
 import { useSession } from "@/contexts/SessionContext";
 
+const PROD_API_BASE_URL = "http://173.233.72.39:3000";
+
 export type ApiError = {
   status?: number;
   code?: string;
@@ -7,10 +9,10 @@ export type ApiError = {
 };
 
 export function useApiClient() {
-  const { apiBaseUrl, token } = useSession();
+  const { token } = useSession();
 
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
-    const url = apiBaseUrl.replace(/\/+$/, "") + path;
+    const url = PROD_API_BASE_URL.replace(/\/+$/, "") + path;
     const headers: Record<string, string> = {
       Accept: "application/json",
       ...(init?.headers as any),
