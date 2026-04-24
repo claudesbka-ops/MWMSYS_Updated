@@ -17,14 +17,16 @@
   "type": "commonjs",
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "@types/nodemailer": "^8.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "multer": "^1.4.5-lts.2",
+    "nodemailer": "^8.0.5",
     "openai": "^6.34.0",
-    "stripe": "^14.25.0",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "stripe": "^14.25.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

@@ -6,6 +6,34 @@ const db_1 = require("../db");
 const auth_1 = require("../middleware/auth");
 const cryptoLegacy_1 = require("../cryptoLegacy");
 const workerLookup_1 = require("../services/workerLookup");
+const schemaMigrations_1 = require("../db/schemaMigrations");
+const emailService_1 = require("../services/emailService");
+const OTP_TTL_MINUTES = 15;
+const RESEND_WINDOW_HOURS = 1;
+const RESEND_MAX_PER_WINDOW = 3;
+async function createAndSendOtp(params) {
+    await (0, schemaMigrations_1.ensureOtpTableExists)();
+    // Invalidate any outstanding OTPs of the same type for this user.
+    await db_1.prisma.tbl_UserOtp.updateMany({
+        where: { User_Id: params.userId, Otp_Type: params.otpType, Is_Used: false },
+        data: { Is_Used: true },
+    });
+    const code = (0, emailService_1.generate6DigitOtp)();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + OTP_TTL_MINUTES * 60 * 1000);
+    const created = await db_1.prisma.tbl_UserOtp.create({
+        data: {
+            User_Id: params.userId,
+            Otp_Code: code,
+            Otp_Type: params.otpType,
+            Created_At: now,
+            Expires_At: expiresAt,
+            Is_Used: false,
+        },
+    });
+    const sendResult = await (0, emailService_1.sendOtpEmail)(params.emailId, code, "email_verification");
+    return { otpId: created.Id, expiresAt, fallback: sendResult.fallback };
+}
 // ---------- Role mapping helpers (auth-local) ----------
 function mapAppRole(userRole) {
     const r = userRole == null ? null : Number(userRole);
@@ -81,6 +109,8 @@ exports.authRouter.post("/signup", async (req, res) => {
     const password = (req.body.password ?? "").toString();
     const role = (req.body.role ?? "worker").toString().toLowerCase();
     const passportNo = (req.body.passportNo ?? req.body.PassportNo ?? "").toString().trim();
+    const signupEmployerId = (req.body.employerId ?? req.body.Employer_Id ?? "").toString().trim();
+    const workerName = (req.body.name ?? req.body.fullName ?? req.body.workerName ?? "").toString().trim();
     const employerName = (req.body.employerName ?? req.body.companyName ?? "").toString().trim();
     const employerAddress = (req.body.address ?? "").toString().trim();
     const companyPhone = (req.body.companyPhone ?? req.body.company_phone ?? req.body.phoneNo ?? "").toString().trim();
@@ -117,17 +147,48 @@ exports.authRouter.post("/signup", async (req, res) => {
                 User_Status: 1,
                 User_Role: userRole,
                 Created_On: new Date(),
+                Is_Verified: false,
             },
         });
         if (userRole === 2) {
+            // Verify employer exists if one was selected.
+            let resolvedEmployerId = null;
+            if (signupEmployerId) {
+                const emp = await db_1.prisma.tbl_Employer.findFirst({
+                    where: { User_Id: signupEmployerId },
+                    select: { User_Id: true },
+                });
+                resolvedEmployerId = emp?.User_Id ?? null;
+            }
             await db_1.prisma.tbl_Worker_PersonalInfo.create({
                 data: {
                     Worker_Id: userId,
+                    Name: workerName || null,
                     Passport_Number: passportNo,
                     Email_Id: emailId,
                     Created_On: new Date(),
+                    Employer_Id: resolvedEmployerId,
                 },
             });
+            // Record the worker↔employer link so the worker shows up under that
+            // employer across the system the moment registration completes.
+            if (resolvedEmployerId) {
+                try {
+                    await (0, schemaMigrations_1.ensureRelationshipTablesExist)();
+                    await db_1.prisma.tbl_Worker_EmployerLink.create({
+                        data: {
+                            workerId: userId,
+                            employerId: resolvedEmployerId,
+                            status: "Active",
+                            createdBy: userId,
+                        },
+                    });
+                }
+                catch {
+                    // Non-fatal: denormalised Employer_Id on the worker record already
+                    // makes the worker visible; the link table is an audit trail.
+                }
+            }
         }
         if (userRole === 3) {
             try {
@@ -176,17 +237,39 @@ exports.authRouter.post("/signup", async (req, res) => {
                 // ignore agent profile insert errors
             }
         }
+        // Kick off email OTP verification — user cannot log in until they verify.
+        let otpInfo = null;
+        try {
+            const result = await createAndSendOtp({
+                userId: created.User_Id,
+                emailId: created.Email_Id,
+                otpType: "email_verification",
+            });
+            otpInfo = { expiresAt: result.expiresAt, fallback: result.fallback };
+        }
+        catch (otpErr) {
+            console.error("[signup] failed to send OTP", otpErr);
+            // Do not fail signup just because email could not be sent — the user can
+            // still request a resend from the verify page.
+        }
         return res.status(201).json({
-            id: created.ID,
+            message: "Verification email sent",
             userId: created.User_Id,
             emailId: created.Email_Id,
             role: mapAppRole(created.User_Role),
+            otpExpiresAt: otpInfo?.expiresAt ?? null,
+            smtpFallback: otpInfo?.fallback ?? null,
         });
     }
     catch (e) {
         console.error(e);
         return res.status(500).json({ error: "Signup failed" });
     }
+});
+// Alias: /Api/Auth/Register matches the Batch C spec.
+exports.authRouter.post("/Api/Auth/Register", async (req, res, next) => {
+    req.url = "/signup";
+    return req.app._router.handle(req, res, next);
 });
 exports.authRouter.post("/auth/login", async (req, res) => {
     const userName = (req.body.userName ?? req.body.username ?? "").toString().trim();
@@ -235,6 +318,14 @@ exports.authRouter.post("/Api/token", async (req, res) => {
         if (user.User_Status != null && Number(user.User_Status) !== 1) {
             return res.status(403).json({ error: "Inactive user" });
         }
+        // Email verification gate — added in Batch C.
+        if (user.Is_Verified === false) {
+            return res.status(403).json({
+                error: "Email not verified",
+                userId: user.User_Id,
+                emailId: user.Email_Id,
+            });
+        }
         const stored = (user.Login_Pwd ?? "").toString();
         const plainOk = stored === password;
         const salt = (user.User_Id ?? "").toString();
@@ -242,52 +333,155 @@ exports.authRouter.post("/Api/token", async (req, res) => {
         if (!plainOk && !legacyOk) {
             return res.status(401).json({ error: "Invalid credentials" });
         }
-        let countryCode = undefined;
-        if (userRoleId === 6) {
-            const embassyUserId = (user.User_Id ?? "").toString().trim();
-            const candidates = [
-                { sql: "SELECT TOP 1 Nationality as value FROM Tbl_Embassy WHERE User_Id = @p1", param: embassyUserId, key: "value" },
-                { sql: "SELECT TOP 1 Country_Code as value FROM Tbl_Embassy WHERE User_Id = @p1", param: embassyUserId, key: "value" },
-                { sql: "SELECT TOP 1 CountryCode as value FROM Tbl_Embassy WHERE User_Id = @p1", param: embassyUserId, key: "value" },
-                { sql: "SELECT TOP 1 Nationality as value FROM Tbl_User WHERE User_Id = @p1", param: embassyUserId, key: "value" },
-                { sql: "SELECT TOP 1 Country_Code as value FROM Tbl_User WHERE User_Id = @p1", param: embassyUserId, key: "value" },
-                { sql: "SELECT TOP 1 CountryCode as value FROM Tbl_User WHERE User_Id = @p1", param: embassyUserId, key: "value" },
-            ];
-            for (const c of candidates) {
-                try {
-                    const rows = (await db_1.prisma.$queryRawUnsafe(c.sql, c.param));
-                    const row = Array.isArray(rows) ? rows[0] : null;
-                    const raw = row?.[c.key];
-                    const n = raw != null ? Number(raw) : NaN;
-                    if (Number.isFinite(n) && n > 0) {
-                        countryCode = n;
-                        break;
-                    }
-                }
-                catch {
-                    // ignore and try next
-                }
-            }
-        }
-        const claims = {
-            userId: Number(user.ID),
-            userKey: user.User_Id?.toString() ?? undefined,
-            roleId: userRoleId != null ? userRoleId : undefined,
-            appRole: mapAppRole(user.User_Role),
-            countryCode,
-            emailId: user.Email_Id?.toString(),
-            userName: user.User_Name?.toString() ?? user.User_Id?.toString() ?? userName,
-        };
-        const access_token = (0, auth_1.signToken)(claims);
-        return res.json({
-            access_token,
-            token_type: "bearer",
-            expires_in: 86400,
-            userName: claims.userName,
-        });
+        const loginPayload = await issueLoginTokenForUser(user, userName);
+        return res.json(loginPayload);
     }
     catch (e) {
         console.error(e);
         return res.status(500).json({ error: "Login failed" });
+    }
+});
+// ---------- Shared token issuance ----------
+async function lookupEmbassyCountryCode(userIdStr) {
+    const candidates = [
+        { sql: "SELECT TOP 1 Nationality as value FROM Tbl_Embassy WHERE User_Id = @p1", param: userIdStr, key: "value" },
+        { sql: "SELECT TOP 1 Country_Code as value FROM Tbl_Embassy WHERE User_Id = @p1", param: userIdStr, key: "value" },
+        { sql: "SELECT TOP 1 CountryCode as value FROM Tbl_Embassy WHERE User_Id = @p1", param: userIdStr, key: "value" },
+        { sql: "SELECT TOP 1 Nationality as value FROM Tbl_User WHERE User_Id = @p1", param: userIdStr, key: "value" },
+        { sql: "SELECT TOP 1 Country_Code as value FROM Tbl_User WHERE User_Id = @p1", param: userIdStr, key: "value" },
+        { sql: "SELECT TOP 1 CountryCode as value FROM Tbl_User WHERE User_Id = @p1", param: userIdStr, key: "value" },
+    ];
+    for (const c of candidates) {
+        try {
+            const rows = (await db_1.prisma.$queryRawUnsafe(c.sql, c.param));
+            const row = Array.isArray(rows) ? rows[0] : null;
+            const raw = row?.[c.key];
+            const n = raw != null ? Number(raw) : NaN;
+            if (Number.isFinite(n) && n > 0)
+                return n;
+        }
+        catch {
+            // ignore and try next
+        }
+    }
+    return undefined;
+}
+async function issueLoginTokenForUser(user, fallbackUserName) {
+    const userRoleId = user.User_Role != null ? Number(user.User_Role) : null;
+    let countryCode = undefined;
+    if (userRoleId === 6) {
+        countryCode = await lookupEmbassyCountryCode((user.User_Id ?? "").toString().trim());
+    }
+    const claims = {
+        userId: Number(user.ID),
+        userKey: user.User_Id?.toString() ?? undefined,
+        roleId: userRoleId != null ? userRoleId : undefined,
+        appRole: mapAppRole(user.User_Role),
+        countryCode,
+        emailId: user.Email_Id?.toString(),
+        userName: user.User_Name?.toString() ?? user.User_Id?.toString() ?? fallbackUserName,
+    };
+    const access_token = (0, auth_1.signToken)(claims);
+    return {
+        access_token,
+        token_type: "bearer",
+        expires_in: 86400,
+        userName: claims.userName,
+    };
+}
+// ---------- Email verification ----------
+exports.authRouter.post("/Api/Auth/VerifyEmail", async (req, res) => {
+    const userId = (req.body?.userId ?? "").toString().trim();
+    const otp = (req.body?.otp ?? "").toString().trim();
+    if (!userId || !otp) {
+        return res.status(400).json({ error: "userId and otp are required" });
+    }
+    try {
+        await (0, schemaMigrations_1.ensureOtpTableExists)();
+        const now = new Date();
+        const record = await db_1.prisma.tbl_UserOtp.findFirst({
+            where: {
+                User_Id: userId,
+                Otp_Type: "email_verification",
+                Otp_Code: otp,
+                Is_Used: false,
+                Expires_At: { gte: now },
+            },
+            orderBy: [{ Id: "desc" }],
+        });
+        if (!record) {
+            return res.status(400).json({ error: "Invalid or expired code" });
+        }
+        const user = await db_1.prisma.tbl_User.findFirst({ where: { User_Id: userId } });
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+        await db_1.prisma.tbl_UserOtp.update({
+            where: { Id: record.Id },
+            data: { Is_Used: true },
+        });
+        await db_1.prisma.tbl_User.updateMany({
+            where: { User_Id: userId },
+            data: { Is_Verified: true },
+        });
+        const loginPayload = await issueLoginTokenForUser(user, userId);
+        return res.json(loginPayload);
+    }
+    catch (e) {
+        console.error(e);
+        return res.status(500).json({ error: "Verification failed" });
+    }
+});
+// Alias: /Api/Auth/Login — thin wrapper that forwards to /Api/token.
+exports.authRouter.post("/Api/Auth/Login", async (req, res, next) => {
+    req.url = "/Api/token";
+    return req.app._router.handle(req, res, next);
+});
+// ---------- Resend OTP ----------
+exports.authRouter.post("/Api/Auth/ResendOtp", async (req, res) => {
+    const userId = (req.body?.userId ?? "").toString().trim();
+    if (!userId)
+        return res.status(400).json({ error: "userId is required" });
+    try {
+        await (0, schemaMigrations_1.ensureOtpTableExists)();
+        const user = await db_1.prisma.tbl_User.findFirst({
+            where: { User_Id: userId },
+            select: { User_Id: true, Email_Id: true, Is_Verified: true },
+        });
+        if (!user)
+            return res.status(404).json({ error: "User not found" });
+        if (user.Is_Verified === true) {
+            return res.status(400).json({ error: "Email already verified" });
+        }
+        // Rate limit: at most RESEND_MAX_PER_WINDOW sends per user per RESEND_WINDOW_HOURS.
+        const windowStart = new Date(Date.now() - RESEND_WINDOW_HOURS * 60 * 60 * 1000);
+        const recentCount = await db_1.prisma.tbl_UserOtp.count({
+            where: {
+                User_Id: userId,
+                Otp_Type: "email_verification",
+                Created_At: { gte: windowStart },
+            },
+        });
+        if (recentCount >= RESEND_MAX_PER_WINDOW) {
+            return res.status(429).json({
+                error: `Too many resend attempts. Try again in ${RESEND_WINDOW_HOURS} hour(s).`,
+            });
+        }
+        const result = await createAndSendOtp({
+            userId: user.User_Id,
+            emailId: user.Email_Id,
+            otpType: "email_verification",
+        });
+        return res.json({
+            ok: true,
+            userId: user.User_Id,
+            otpExpiresAt: result.expiresAt,
+            smtpFallback: result.fallback,
+            remainingSends: Math.max(0, RESEND_MAX_PER_WINDOW - recentCount - 1),
+        });
+    }
+    catch (e) {
+        console.error(e);
+        return res.status(500).json({ error: "Resend failed" });
     }
 });

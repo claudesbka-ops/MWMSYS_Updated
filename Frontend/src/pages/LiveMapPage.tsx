@@ -126,10 +126,18 @@ export default function LiveMapPage() {
         </div>
 
         {!googleMapsApiKey ? (
-          <div className="rounded-2xl border border-border/60 bg-card p-4">
-            <div className="text-sm font-semibold">Google Maps API key is missing</div>
-            <div className="mt-1 text-sm text-muted-foreground">
-              Set <span className="font-mono text-foreground">VITE_GOOGLE_MAPS_API_KEY</span> in your Frontend environment and restart the dev server.
+          <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-5">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 h-8 w-8 rounded-full bg-destructive/10 text-destructive flex items-center justify-center font-bold">!</div>
+              <div>
+                <div className="text-base font-semibold text-destructive">Map API key not configured</div>
+                <div className="mt-1 text-sm text-foreground/80">
+                  The live map cannot render because <span className="font-mono text-foreground">VITE_GOOGLE_MAPS_API_KEY</span> is not set in the Frontend environment.
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Add it to <span className="font-mono">Frontend/.env</span> and restart the Vite dev server.
+                </div>
+              </div>
             </div>
           </div>
         ) : !isLoaded ? (
@@ -151,7 +159,14 @@ export default function LiveMapPage() {
               </div>
               <div className="max-h-[70vh] overflow-auto p-2">
                 {filteredRows.length === 0 ? (
-                  <div className="p-3 text-sm text-muted-foreground">No locations yet.</div>
+                  <div className="p-3 text-sm text-muted-foreground">
+                    <div className="font-medium text-foreground">No worker locations to show.</div>
+                    <div className="mt-1 text-xs">
+                      If this is unexpected, check that (a) at least one worker has sent a location via
+                      the mobile app, and (b) your account is linked to those workers
+                      (Employer_Id on the worker record for employers; Tbl_Worker_RecruitAgent for agencies).
+                    </div>
+                  </div>
                 ) : (
                   <div className="space-y-1">
                     {filteredRows

@@ -8,6 +8,22 @@ export interface LoginResponse {
   [key: string]: unknown;
 }
 
+/**
+ * Thrown when the backend returns 403 "Email not verified". Callers should
+ * catch and route to /verify-email?userId=... rather than showing a generic
+ * credentials error.
+ */
+export class EmailNotVerifiedError extends Error {
+  userId: string;
+  emailId?: string;
+  constructor(userId: string, emailId?: string) {
+    super("Email not verified");
+    this.name = "EmailNotVerifiedError";
+    this.userId = userId;
+    this.emailId = emailId;
+  }
+}
+
 export async function login(params: {
   userName: string;
   password: string;
@@ -21,23 +37,32 @@ export async function login(params: {
     body.set("passportNo", params.passportNo);
   }
 
-  const res = await apiClient.post<LoginResponse>("/Api/token", body, {
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-  });
+  try {
+    const res = await apiClient.post<LoginResponse>("/Api/token", body, {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    });
 
-  const { access_token, userName } = res.data;
-  if (access_token) {
-    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, access_token);
-  }
-  if (userName) {
-    localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, userName);
-  } else {
-    localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, params.userName);
-  }
+    const { access_token, userName } = res.data;
+    if (access_token) {
+      localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, access_token);
+    }
+    if (userName) {
+      localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, userName);
+    } else {
+      localStorage.setItem(AUTH_USERNAME_STORAGE_KEY, params.userName);
+    }
 
-  return res.data;
+    return res.data;
+  } catch (err: any) {
+    const status = Number(err?.response?.status ?? 0);
+    const data = err?.response?.data ?? {};
+    if (status === 403 && data?.error === "Email not verified" && data?.userId) {
+      throw new EmailNotVerifiedError(String(data.userId), data?.emailId ? String(data.emailId) : undefined);
+    }
+    throw err;
+  }
 }
 
 export function logout() {

@@ -60,7 +60,8 @@ export default function PricingPage() {
       }
 
       const origin = window.location.origin;
-      const successUrl = `${origin}/pricing?checkout=success`;
+      // Spec: on success redirect to /account; on cancel stay on /pricing.
+      const successUrl = `${origin}/account?checkout=success`;
       const cancelUrl = `${origin}/pricing?checkout=cancel`;
 
       const res = await apiClient.post("/Api/subscription/checkout", { planType, successUrl, cancelUrl });

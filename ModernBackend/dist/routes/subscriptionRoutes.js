@@ -68,9 +68,23 @@ exports.subscriptionRouter.post("/Api/subscription/checkout", auth_1.requireAuth
         const planKey = planType.toLowerCase();
         if (planKey === "free")
             return res.status(400).json({ error: "Free plan does not require checkout" });
-        const priceIdEnvKey = planKey === "pro" ? "STRIPE_PRICE_PRO" : planKey === "enterprise" ? "STRIPE_PRICE_ENTERPRISE" : "";
-        const priceId = priceIdEnvKey ? process.env[priceIdEnvKey] : null;
-        if (!priceId || typeof priceId !== "string" || !priceId.trim()) {
+        // Accept both naming conventions. Prefer the Batch D spec names
+        // (STRIPE_PRO_PRICE_ID / STRIPE_ENTERPRISE_PRICE_ID) and fall back to the
+        // legacy names (STRIPE_PRICE_PRO / STRIPE_PRICE_ENTERPRISE).
+        const priceEnvCandidates = planKey === "pro"
+            ? ["STRIPE_PRO_PRICE_ID", "STRIPE_PRICE_PRO"]
+            : planKey === "enterprise"
+                ? ["STRIPE_ENTERPRISE_PRICE_ID", "STRIPE_PRICE_ENTERPRISE"]
+                : [];
+        let priceId = null;
+        for (const key of priceEnvCandidates) {
+            const v = process.env[key];
+            if (typeof v === "string" && v.trim()) {
+                priceId = v.trim();
+                break;
+            }
+        }
+        if (!priceId) {
             return res.status(500).json({ error: "Stripe price is not configured" });
         }
         const origin = (req.header("origin") ?? "").toString().trim();

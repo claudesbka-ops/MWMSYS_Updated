@@ -1,3 +1,3 @@
-import Signup from "./Signup";
+import WorkerSignupForm from "./WorkerSignupForm";
 
-export default Signup;
+export default WorkerSignupForm;

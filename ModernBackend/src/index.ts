@@ -31,11 +31,14 @@ import { buildWorkerScopeWhere } from "./services/queryGuard";
 import { resolveWorkerScopes } from "./services/workerScopes";
 import { initSocket } from "./services/socketService";
 import { findWorkerIdByJwtUserId, findWorkerPassportByJwtUserId } from "./services/workerLookup";
+import { accountRouter } from "./routes/accountRoutes";
 import { authRouter } from "./routes/authRoutes";
 import { broadcastRouter } from "./routes/broadcastRoutes";
 import { chatRouter } from "./routes/chatRoutes";
+import { disputeRouter } from "./routes/disputeRoutes";
 import { hrmsRouter } from "./routes/hrmsRoutes";
 import { panicRouter } from "./routes/panicRoutes";
+import { relationshipRouter } from "./routes/relationshipRoutes";
 import { subscriptionRouter } from "./routes/subscriptionRoutes";
 
 const app = express();
@@ -340,11 +343,14 @@ const server = http.createServer(app);
 const io = initSocket(server);
 
 // ---- Domain routers (mounted after socket init so `getIO()` works at request time) ----
+app.use(accountRouter);
 app.use(authRouter);
 app.use(broadcastRouter);
 app.use(chatRouter);
+app.use(disputeRouter);
 app.use(hrmsRouter);
 app.use(panicRouter);
+app.use(relationshipRouter);
 app.use(subscriptionRouter);
 
 
@@ -2363,38 +2369,95 @@ app.get("/Api/Workers/List", requireAuth, requireReportsAccess, async (_req, res
       where,
       select: {
         Worker_Id: true,
+        Name: true,
         Passport_Number: true,
         Email_Id: true,
         Created_On: true,
         Nationality: true,
+        Employer_Id: true,
       },
       orderBy: [{ Created_On: "desc" }],
       take: 500,
     });
 
+    const workerIds = Array.from(new Set((rows ?? []).map((r) => (r.Worker_Id ?? "").toString()).filter(Boolean)));
     const natIds = Array.from(new Set((rows ?? []).map((r) => r.Nationality).filter((x): x is number => x != null)));
-    const countries = natIds.length
-      ? await prisma.tbl_Country.findMany({
-          where: { ID: { in: natIds } },
-          select: { ID: true, Country_Name: true },
-        })
-      : [];
+    const employerUserIds = Array.from(
+      new Set((rows ?? []).map((r) => (r.Employer_Id ?? "").toString().trim()).filter(Boolean))
+    );
+
+    const [countries, employerInfos, employerAccounts, permits] = await Promise.all([
+      natIds.length
+        ? prisma.tbl_Country.findMany({
+            where: { ID: { in: natIds } },
+            select: { ID: true, Country_Name: true },
+          })
+        : Promise.resolve([] as Array<{ ID: number; Country_Name: string }>),
+      workerIds.length
+        ? prisma.tbl_Worker_EmployerInfo.findMany({
+            where: { Worker_Id: { in: workerIds } },
+            select: { Worker_Id: true, Employer_Name: true, Employer_Address: true },
+            take: 5000,
+          })
+        : Promise.resolve([] as Array<{ Worker_Id: string; Employer_Name: string | null; Employer_Address: string | null }>),
+      employerUserIds.length
+        ? prisma.tbl_Employer.findMany({
+            where: { User_Id: { in: employerUserIds } },
+            select: { User_Id: true, Employer_Name: true, Employer_Address: true },
+            take: 5000,
+          })
+        : Promise.resolve([] as Array<{ User_Id: string; Employer_Name: string; Employer_Address: string }>),
+      workerIds.length
+        ? prisma.tbl_Worker_PermitInsurance.findMany({
+            where: { Worker_Id: { in: workerIds } },
+            select: { Worker_Id: true, Permit_Expire_Date: true },
+            take: 5000,
+          })
+        : Promise.resolve([] as Array<{ Worker_Id: string; Permit_Expire_Date: Date | null }>),
+    ]);
 
     const countryById = new Map<number, string>();
-    for (const c of countries ?? []) {
-      countryById.set(c.ID, c.Country_Name);
+    for (const c of countries ?? []) countryById.set(c.ID, c.Country_Name);
+
+    const employerByWorker = new Map<string, { name: string | null; address: string | null }>();
+    for (const e of employerInfos ?? []) {
+      employerByWorker.set((e.Worker_Id ?? "").toString(), {
+        name: e.Employer_Name ?? null,
+        address: e.Employer_Address ?? null,
+      });
+    }
+
+    const employerByAccount = new Map<string, { name: string | null; address: string | null }>();
+    for (const e of employerAccounts ?? []) {
+      employerByAccount.set((e.User_Id ?? "").toString(), {
+        name: e.Employer_Name ?? null,
+        address: e.Employer_Address ?? null,
+      });
+    }
+
+    const permitByWorker = new Map<string, Date | null>();
+    for (const p of permits ?? []) {
+      permitByWorker.set((p.Worker_Id ?? "").toString(), p.Permit_Expire_Date ?? null);
     }
 
     return res.json(
-      (rows ?? []).map((r) => ({
-        Worker_Id: r.Worker_Id,
-        Passport_Number: r.Passport_Number,
-        Email_Id: r.Email_Id,
-        Created_On: r.Created_On,
-        Current_Location: null,
-        Company_Name: null,
-        Country_Name: r.Nationality != null ? countryById.get(r.Nationality) ?? null : null,
-      }))
+      (rows ?? []).map((r) => {
+        const wid = (r.Worker_Id ?? "").toString();
+        const eid = (r.Employer_Id ?? "").toString().trim();
+        const employer = employerByWorker.get(wid) ?? (eid ? employerByAccount.get(eid) : undefined) ?? null;
+        return {
+          Worker_Id: r.Worker_Id,
+          Name: r.Name ?? null,
+          Passport_Number: r.Passport_Number,
+          Email_Id: r.Email_Id,
+          Created_On: r.Created_On,
+          Employer_Id: r.Employer_Id ?? null,
+          Current_Location: employer?.address ?? null,
+          Company_Name: employer?.name ?? null,
+          Country_Name: r.Nationality != null ? countryById.get(r.Nationality) ?? null : null,
+          Permit_Expire_Date: permitByWorker.get(wid) ?? null,
+        };
+      })
     );
   } catch (e) {
     return next(e);

@@ -1,0 +1,251 @@
+MWMSYS — Execution Plan (Discovery Pass, 2026-04-23)
+=====================================================
+
+Stack recap
+-----------
+- Frontend/ ............. Vite + React + TS, TanStack Query, Tailwind, shadcn/ui, react-router, axios, react-google-maps, framer-motion, react-markdown, socket.io-client, recharts NOT YET INSTALLED.
+- ModernBackend/ ........ Express + TS, Prisma (SQL Server), JWT auth, Stripe + OpenAI SDKs installed, socket.io server. DB models in ModernBackend/prisma/schema.prisma.
+- MobileApp/ ............ Expo/React Native with its own SessionContext. Mostly out of scope for web bugs.
+
+Key cross-cutting facts discovered
+----------------------------------
+- Role IDs: 1=Admin, 2=Worker, 3=Employer, 4=Agency, 5=Embassy_Source, 6=Embassy_Destination, 7=Labour.
+  Mapping: ModernBackend/src/routes/authRoutes.ts (mapAppRole, roleNameToRoleId).
+- JWT claims already carry userName + emailId + appRole + userKey. Login response returns userName.
+  See ModernBackend/src/middleware/auth.ts:JwtClaims and /Api/token handler.
+- Frontend has ONLY RoleContext (currentRole). There is NO AuthContext exposing currentUser.name.
+  userName is read ad-hoc from localStorage in components/TopHeader.tsx:81 via AUTH_USERNAME_STORAGE_KEY.
+- Worker→Employer relationship: stored in Tbl_Worker_PersonalInfo.Employer_Id (string, equals Tbl_User.User_Id of employer).
+  Separate denormalised Tbl_Worker_EmployerInfo also exists (Employer_Name, etc).
+- Worker→Agency relationship: stored in Tbl_Worker_RecruitAgent.Malaysian_Reqruitment_Agency /
+  Source_Country_Requirtment_Agency (compared against user.userKey = User_Id).
+- Employer→Agency relationship: NOT modelled anywhere in schema. Must be added for task 8 (Agency→Employer linking).
+- Embassy nationality scoping: driven by JWT countryCode populated only at login from Tbl_Embassy.Nationality (see authRoutes.ts L266-290).
+- Scope helper used by all list/report queries: ModernBackend/src/services/queryGuard.ts:buildWorkerScopeWhere.
+- Attestation model already exists: Tbl_Attestation (AttestationId, Worker_Id, DocumentType, DocumentPath, Status, AdminRemarks).
+- Salary dispute: NO DB model. No backend route. Frontend route only: App.tsx L236 → PlaceholderPage.
+- Account page: App.tsx L235 → PlaceholderPage. No profile-photo upload endpoint.
+- Blog: not present in App.tsx at all.
+- Stripe: backend fully wired (subscriptionRoutes.ts), frontend PricingPage uses /Api/subscription/checkout. Needs env vars STRIPE_SECRET_KEY, STRIPE_PRICE_PRO, STRIPE_PRICE_ENTERPRISE, STRIPE_WEBHOOK_SECRET.
+- Chatbot: backend chatRoutes.ts L199-207 has a minimal safety system prompt. Needs the MWMS knowledge prompt.
+- Email/phone OTP: not implemented anywhere. No nodemailer/twilio deps in package.json.
+
+======================================================================
+Per-item execution plan (priority order as requested)
+======================================================================
+
+1. Worker not displaying under employer/agency/admin — root cause + fix
+----------------------------------------------------------------------
+Root cause: /Api/Workers/List → buildWorkerScopeWhere is correct for Admin (1) and Employer (3),
+but the returned row DTO drops Employer info and Company_Name is always null (index.ts:2395).
+Frontend WorkerPage.tsx uses hardcoded `workersData` dummy in addition to mapping API rows
+(lines 4, 14) and the Employer filter dropdown is populated from DUMMY (line 14).
+Additionally, the Agency scope in queryGuard.ts looks up links in Tbl_Worker_RecruitAgent only,
+which is sparse in real data; it also never joins to Tbl_Employer.
+
+Fix tasks:
+  a. Backend (index.ts ~L2359 /Api/Workers/List): LEFT JOIN Tbl_Worker_EmployerInfo by Worker_Id
+     to populate Company_Name (Employer_Name) and Current_Location. Also return Name, Employer_Id.
+  b. Backend: add /Api/Workers/EmployerOptions that returns distinct employers visible to the caller
+     (for the filter dropdown); for agency use Tbl_Worker_RecruitAgent→Tbl_Worker_PersonalInfo→Employer_Id→Tbl_Employer.
+  c. Frontend WorkerPage.tsx: drop `workersData` import and `employers` hardcoded constant.
+     Populate the Employer filter and the Add Worker form employer dropdown from new endpoint.
+     Ensure fields Company_Name, Name, permitExpiry (from Tbl_Worker_PermitInsurance.Permit_Expire_Date
+     — already surfaced in /Api/Workers/Profile but not in List) are included in the list DTO so the
+     table can show real values.
+  d. Frontend AgenciesPage, AdminDashboard, views/*: audit each for imports from src/data/*.ts
+     and replace with service calls. Files to audit:
+       - Frontend/src/data/workersData.ts, employersData.ts, agenciesData.ts, alertsData.ts
+       - Any page or view that imports from "@/data/*"
+
+2. Live operations map — GPS not rendering
+------------------------------------------
+Contract mismatch is NOT the issue: backend /Api/Workers/Locations returns { rows: [...] } which
+LiveMapPage already destructures at LiveMapPage.tsx:38. Actual failure modes:
+  - VITE_GOOGLE_MAPS_API_KEY missing → page renders the "Google Maps API key is missing" card.
+    Confirm Frontend/.env has it and restart Vite.
+  - Tbl_Worker_Location has no rows → backend returns empty array, map renders empty. Need a seed
+    or to make workers send POST /Api/Workers/Locations (endpoint at index.ts:~L380).
+  - For Agency/Embassy/Labour roles, buildWorkerScopeWhere returns empty set when no nationality
+    or agent link exists → empty rows. Verify by calling /Api/Workers/Locations as admin first.
+  - Fix: add a debug panel (dev-only) showing the raw response length & scope info. Also relax the
+    MarkerF.icon path block — it references window.google.maps.Point inside render; when not loaded
+    it throws. Guard with `isLoaded` (already done) but also short-circuit stale branch.
+
+Action: (i) add console logging + a small dev banner showing row count and scope,
+(ii) verify env var, (iii) add a seed endpoint (admin only) to insert a row for QA, document it.
+
+3. Insurance/visa expiry with 90/60/30 colour bands
+---------------------------------------------------
+Backend endpoints already exist:
+  /api/reports/visa-expire   → returns rows with Permit_Expire_Date (from Tbl_Worker_PermitInsurance).
+  /api/reports/insurance-expire → returns rows with Contract_Expiry_Date (Tbl_Worker_EmployerInfo).
+  NOTE: "insurance" in this module actually pulls Contract_Expiry_Date, not Tbl_Worker_PermitInsurance.Insurance_Policy_Number's underlying date. Malaysia_Insurance and Source_Country_Insurance in Tbl_Worker_PermitInsurance are policy strings, not dates. If there is a true insurance expiry date field we need to add it to schema (none present today).
+
+Frontend ExpiryReportPage.tsx still uses workersData dummy for the "insurance" variant (lines 91-93, 161-179).
+Fix:
+  a. Add useQuery for getInsuranceExpireReport when reportType === "insurance" mirroring the visa branch.
+  b. Build a shared getBand(date): 0-30 → red, 31-60 → orange, 61-90 → amber, >90 → green, <0 → red/expired.
+  c. Render real dates + coloured badge; delete the workersData branch entirely.
+  d. Update summary stat cards to compute counts from the fetched rows (not from workersData).
+
+4. "Welcome back FWWMC SEELAAN" hardcoded on homepage hero
+----------------------------------------------------------
+Locations:
+  - Frontend/src/components/views/AdminView.tsx:269  (the hero)
+  - Frontend/src/components/TopHeader.tsx:81 (fallback)
+  - Frontend/src/pages/IncidentPage.tsx L65,91,105 (audit log author)
+  - Frontend/src/pages/NewIncidentPage.tsx L66
+  - Frontend/src/pages/PlaceholderPage.tsx L369 (default-value in Account placeholder)
+  - Frontend/src/data/agenciesData.ts L15,18 (dummy agency, leave for now)
+  - Frontend/src/data/alertsData.ts (dummy reporter name, leave for now)
+
+Fix approach (do this ONCE via new AuthContext rather than each page grabbing localStorage):
+  a. Create Frontend/src/contexts/AuthContext.tsx exposing { currentUser: { userId, userName, emailId,
+     role, userKey, countryCode } | null, refresh() }. Hydrate from /Api/me on mount + after login.
+  b. Wrap <App /> with AuthProvider in App.tsx (inside RoleProvider).
+  c. Replace all FWWMC SEELAAN references with {currentUser?.userName ?? "there"}.
+  d. Also switch TopHeader.tsx:81 off the direct localStorage read.
+
+5. Email OTP on signup via nodemailer
+-------------------------------------
+No existing plumbing. Needs:
+  - Schema: add Tbl_UserOtp { id, userId, emailId, code, type ("email"|"phone"), expiresAt, usedOn? }.
+  - Backend: `npm i nodemailer` + types. New routes:
+      POST /auth/otp/send      body { emailId | userId, type }   → stores code, sends email.
+      POST /auth/otp/verify    body { userId, code, type }       → marks Tbl_User.User_Status from 0→1 on first verify (or flip Activated_On).
+  - In authRoutes.ts:signup, set User_Status = 0 until OTP verified. /Api/token handler already rejects
+    User_Status != 1 with 403 "Inactive user" (L251-253) — that enforces the gate.
+  - Frontend: new page VerifyEmailPage.tsx that redirects post-signup; route /verify-email?userId=...
+  - Env: SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / SMTP_FROM.
+
+6. Phone OTP via Twilio (or console log fallback)
+-------------------------------------------------
+Same Tbl_UserOtp table, type="phone". Backend uses TWILIO_* env if present, else console.log.
+Phone number comes from Tbl_Worker_PersonalInfo.Contact_Number or Tbl_Employer.Employer_PIC_MobileNumber.
+Add optional gate via User_Status = 2 meaning "email verified, phone pending".
+
+7. "Complete Profile" forced after first login
+----------------------------------------------
+Define "incomplete": Tbl_User.Password_Changed == 0 OR the role's profile row has null essentials
+(e.g. Tbl_Worker_PersonalInfo.Name IS NULL, Tbl_Employer.Employer_Address == "-", Tbl_Agent.Agent_Name IS NULL).
+Add /Api/me to include `profileComplete: boolean`. ProtectedRoute should redirect to /complete-profile
+when false. Build a single CompleteProfilePage.tsx that shows a role-specific form.
+
+8. Relationship forms
+---------------------
+DB work required:
+  - Add Tbl_Agency_Employer_Link { id, agencyUserId, employerUserId, createdOn, createdBy } — new table.
+  - Worker→Employer already reachable via Tbl_Worker_PersonalInfo.Employer_Id.
+  - Agency→Worker already reachable via Tbl_Worker_RecruitAgent but it's set-at-import. For "auto appears
+    under employer everywhere" we ALSO need Tbl_Worker_PersonalInfo.Employer_Id to be set when a Worker
+    registers → already supported by POST /Api/HRMS/Workers (see index.ts:~L520-570 where Employer_Id is
+    computed from user.userKey when employer signs up the worker).
+
+Endpoints to add:
+  GET  /api/users/search?role=employer|worker&q=...   — username/email search (restricted by caller role).
+  POST /api/links/agency-employer  body { employerUserId }  (agency-only)
+  DELETE /api/links/agency-employer/:id
+  POST /api/links/employer-worker  body { workerUserId }    (employer-only; writes Employer_Id).
+  GET  /api/links/my-employers  (for agency)
+  GET  /api/links/my-workers     (for employer; already covered by scoped /Api/Workers/List — reuse).
+
+Worker signup form currently a stub: Frontend/src/pages/WorkerSignup.tsx is 55 bytes (see listing).
+Replace with form including Employer dropdown populated from new GET /api/users/employers/public (role=3).
+
+Scope implications:
+  - Update buildWorkerScopeWhere(roleId=4 agency) to UNION workers from Tbl_Worker_RecruitAgent AND
+    workers whose Employer_Id ∈ (employers linked via Tbl_Agency_Employer_Link).
+
+9. Labour role: global view
+---------------------------
+Already partly in buildWorkerScopeWhere: roleId 5/6/7 filter by nationality. Change:
+  - roleId === 7 (Labour) → return {} (no filter).
+  - roleId === 5 || 6 (Embassy) → keep nationality filter.
+Add the same guard in /Api/Employers/List (currently no scoping — fix: only roleId 1 or 7 see all).
+
+10. Embassy role: nationality-scoped + broadcast
+------------------------------------------------
+queryGuard already filters by countryCode. Verify countryCode is populated at login for Embassy_Source
+too (currently authRoutes.ts only does lookup when roleId===6). Fix: also do lookup when roleId===5.
+Broadcast: broadcastRoutes.ts exists — read it and add role-5/6 restriction that only sends to workers
+where Tbl_Worker_PersonalInfo.Nationality == user.countryCode.
+
+11-13. Account / Profile page
+-----------------------------
+Build Frontend/src/pages/AccountPage.tsx that:
+  - Renders editable form bound to Tbl_Worker_PersonalInfo / Tbl_Employer / Tbl_Agent / Tbl_Embassy depending on role.
+  - Photo upload: for Worker, Tbl_Worker_PersonalInfo already has Photo (base64) + PhotoName. Reuse.
+    For Employer/Agency/Embassy/Labour add a new column ProfilePhoto to each or a shared Tbl_User_Profile.
+  - Backend: add PUT /Api/me/profile (role-specific body); POST /Api/me/photo (multipart → base64).
+Route /account in App.tsx:235 already exists as PlaceholderPage — swap element to <AccountPage />.
+
+14. Stripe
+----------
+Already wired. Remaining work:
+  - Populate .env: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_PRO, STRIPE_PRICE_ENTERPRISE,
+    STRIPE_SUCCESS_URL, STRIPE_CANCEL_URL.
+  - Add webhook route to ModernBackend/src/index.ts raw body middleware (verify it is there — search
+    `rawBody` / `bodyParser.raw`). If not, wire express.raw for /webhooks/stripe.
+  - Frontend PricingPage already fully functional.
+
+15-16. HRMS modernization
+-------------------------
+Pages: AttendancePage, LeavePage, PayrollPage, ContractsPage, RosterPage, TimesheetsPage, HrmsHomePage,
+HrmsRequestsPage, HrmsReportPage, WorkerHrmsRequestsPage. All exist with real service calls.
+Task: visual pass only. Create reusable `StatCard` and `DataTable` components under
+Frontend/src/components/ui/mwm/ using the indigo/emerald/amber/red palette from task 27.
+Install recharts (`npm i recharts`) for HrmsHomePage charts.
+
+17-20. Salary Dispute module (new)
+----------------------------------
+Schema: add Tbl_SalaryDispute {
+  id, workerId, employerId, month, year, expectedAmount, receivedAmount,
+  description, proofPath, status ("Pending"|"Accepted"|"Rejected"|"Resolved"),
+  employerComment, createdOn, updatedOn
+}.
+Backend: new routes in ModernBackend/src/routes/disputeRoutes.ts
+  POST /api/disputes              (worker submit, multipart for proof)
+  GET  /api/disputes              (scoped — admin all; agency via link; employer own; worker own)
+  POST /api/disputes/:id/decision (employer accept/reject + comment)
+Frontend: replace PlaceholderPage "Salary Dispute" with real DisputePage + DisputeFormModal.
+
+21-24. Attestation module
+-------------------------
+Tbl_Attestation already exists. AttestationPage.tsx exists.
+Remaining: ensure upload endpoint exists (search index.ts for "Attestation"), add "Verify/Reject + remarks"
+endpoint for role 4 (Agency) and role 1 (Admin), and add status-badge UI.
+
+25. Chatbot prompt
+------------------
+Edit ModernBackend/src/routes/chatRoutes.ts L199-207: replace systemPrompt with the full MWMS knowledge
+prompt from the user's request. Single-line change scope.
+
+26. Blog page
+-------------
+New: Frontend/src/pages/BlogPage.tsx + Frontend/src/pages/BlogPostPage.tsx.
+Route: /blog and /blog/:slug in App.tsx (no auth required — accessible at marketing level).
+Content: 5 static MDX/Markdown articles in Frontend/src/content/blog/*.md with frontmatter
+(title, slug, date, readingTime, heroImage, metaDescription). Use `marked` or `react-markdown` (already installed).
+Add route-level <Helmet> (install react-helmet-async if not present) for SEO meta tags.
+
+27. Design upgrade palette
+--------------------------
+Add CSS variables to Frontend/src/index.css under @layer base:
+  --mwm-primary:   #6366f1;
+  --mwm-success:   #10b981;
+  --mwm-warning:   #f59e0b;
+  --mwm-danger:    #ef4444;
+  --mwm-card:      #1e1b4b;
+  --mwm-card-alt:  #0f172a;
+Then build the shared StatCard + DataTable primitives mentioned under 15.
+
+Suggested execution batches for future sessions
+===============================================
+Batch A (1 session): items 1, 2, 3, 4  (critical bugs, incl. new AuthContext)
+Batch B (1-2 sessions): items 8 link tables, 9, 10 (relationships), 7 complete-profile
+Batch C (1 session): items 5, 6 OTP + verify flow
+Batch D (1 session): item 14 Stripe env/webhook verification; item 17-20 salary dispute
+Batch E (1 session): items 11-13 account page; item 21-24 attestation finish
+Batch F (1 session): items 15-16 HRMS polish + charts; item 27 palette
+Batch G (1 session): item 25 chatbot prompt; item 26 blog

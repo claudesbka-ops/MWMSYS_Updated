@@ -2,12 +2,15 @@ import { apiClient } from "./apiClient";
 
 export type WorkerListRow = {
   Worker_Id: string;
+  Name?: string | null;
   Passport_Number?: string | null;
   Email_Id?: string | null;
   Created_On?: string | null;
   Current_Location?: string | null;
   Company_Name?: string | null;
   Country_Name?: string | null;
+  Employer_Id?: string | null;
+  Permit_Expire_Date?: string | null;
 };
 
 export type WorkerProfileResponse = {

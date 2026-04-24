@@ -38,15 +38,19 @@ export default function Signup() {
     }
 
     try {
-      await apiClient.post("/signup", {
+      const res = await apiClient.post("/signup", {
         userId: form.userId.trim(),
         emailId: form.emailId.trim(),
         passportNo: form.role === "worker" ? form.passportNo.trim() : undefined,
         password: form.password,
         role: form.role,
       });
-      toast.success("Account created");
-      navigate("/login");
+      const body = res.data as { userId?: string; emailId?: string };
+      toast.success("Verification email sent");
+      const qs = new URLSearchParams();
+      qs.set("userId", body?.userId ?? form.userId.trim());
+      if (body?.emailId || form.emailId) qs.set("email", body?.emailId ?? form.emailId.trim());
+      navigate(`/verify-email?${qs.toString()}`);
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? "Signup failed";
       toast.error(msg);

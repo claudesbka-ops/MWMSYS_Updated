@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import AuthLayout from "@/components/AuthLayout";
 import { toast } from "sonner";
 import { useRole } from "@/contexts/RoleContext";
-import { login } from "@/services/authService";
+import { login, EmailNotVerifiedError } from "@/services/authService";
 
 export default function LabourLogin() {
   const navigate = useNavigate();
@@ -34,6 +34,14 @@ export default function LabourLogin() {
       localStorage.setItem("mwmsys_logged_in", "true");
       navigate("/");
     } catch (err: any) {
+      if (err instanceof EmailNotVerifiedError) {
+        toast.message("Please verify your email to continue");
+        const qs = new URLSearchParams();
+        qs.set("userId", err.userId);
+        if (err.emailId) qs.set("email", err.emailId);
+        navigate(`/verify-email?${qs.toString()}`);
+        return;
+      }
       const msg = err?.response?.data?.error ?? "Invalid credentials";
       toast.error(msg);
     }

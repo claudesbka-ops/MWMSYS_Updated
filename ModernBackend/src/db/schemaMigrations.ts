@@ -229,6 +229,114 @@ export async function ensureBroadcastTableExists(): Promise<void> {
   }
 }
 
+export async function ensureDisputeTableExists(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.Tbl_SalaryDispute','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.Tbl_SalaryDispute (" +
+        "Id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+        "Worker_Id VARCHAR(100) NOT NULL," +
+        "Employer_Id VARCHAR(100) NOT NULL," +
+        "Dispute_Month VARCHAR(20) NOT NULL," +
+        "Expected_Amount DECIMAL(10,2) NOT NULL," +
+        "Received_Amount DECIMAL(10,2) NOT NULL," +
+        "Description VARCHAR(1000) NOT NULL," +
+        "Proof_File_Path VARCHAR(500) NULL," +
+        "Status VARCHAR(20) NOT NULL DEFAULT('Pending')," +
+        "Employer_Comment VARCHAR(500) NULL," +
+        "Submitted_At DATETIME NOT NULL DEFAULT(GETDATE())," +
+        "Reviewed_At DATETIME NULL," +
+        "Reviewed_By VARCHAR(100) NULL" +
+        ");" +
+        "CREATE INDEX IX_Tbl_SalaryDispute_Worker_Id ON dbo.Tbl_SalaryDispute(Worker_Id);" +
+        "CREATE INDEX IX_Tbl_SalaryDispute_Employer_Id ON dbo.Tbl_SalaryDispute(Employer_Id);" +
+        "CREATE INDEX IX_Tbl_SalaryDispute_Status ON dbo.Tbl_SalaryDispute(Status);" +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+}
+
+export async function ensureOtpTableExists(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.Tbl_UserOtp','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.Tbl_UserOtp (" +
+        "Id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+        "User_Id VARCHAR(100) NOT NULL," +
+        "Otp_Code VARCHAR(6) NOT NULL," +
+        "Otp_Type VARCHAR(20) NOT NULL," +
+        "Created_At DATETIME NOT NULL DEFAULT(GETDATE())," +
+        "Expires_At DATETIME NOT NULL," +
+        "Is_Used BIT NOT NULL DEFAULT(0)" +
+        ");" +
+        "CREATE INDEX IX_Tbl_UserOtp_user_type ON dbo.Tbl_UserOtp(User_Id,Otp_Type);" +
+        "CREATE INDEX IX_Tbl_UserOtp_expires ON dbo.Tbl_UserOtp(Expires_At);" +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+
+  // Add Is_Verified column to Tbl_User if missing (idempotent ALTER).
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF NOT EXISTS (SELECT 1 FROM sys.columns " +
+        "WHERE object_id = OBJECT_ID('dbo.Tbl_User') AND name = 'Is_Verified') " +
+        "BEGIN " +
+        "ALTER TABLE dbo.Tbl_User ADD Is_Verified BIT NULL CONSTRAINT DF_Tbl_User_Is_Verified DEFAULT(0); " +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+}
+
+export async function ensureRelationshipTablesExist(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.Tbl_Agency_Employer_Link','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.Tbl_Agency_Employer_Link (" +
+        "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+        "agencyId VARCHAR(100) NOT NULL," +
+        "employerId VARCHAR(100) NOT NULL," +
+        "linkedAt DATETIME NOT NULL DEFAULT(GETDATE())," +
+        "createdBy VARCHAR(100) NULL" +
+        ");" +
+        "CREATE UNIQUE INDEX UX_Tbl_Agency_Employer_Link_agency_employer " +
+        "ON dbo.Tbl_Agency_Employer_Link(agencyId,employerId);" +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(
+      "IF OBJECT_ID('dbo.Tbl_Worker_EmployerLink','U') IS NULL BEGIN " +
+        "CREATE TABLE dbo.Tbl_Worker_EmployerLink (" +
+        "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
+        "workerId VARCHAR(100) NOT NULL," +
+        "employerId VARCHAR(100) NOT NULL," +
+        "startDate DATETIME NOT NULL DEFAULT(GETDATE())," +
+        "endDate DATETIME NULL," +
+        "status VARCHAR(20) NOT NULL DEFAULT('Active')," +
+        "createdBy VARCHAR(100) NULL" +
+        ");" +
+        "CREATE UNIQUE INDEX UX_Tbl_Worker_EmployerLink_w_e_s " +
+        "ON dbo.Tbl_Worker_EmployerLink(workerId,employerId,startDate);" +
+        "CREATE INDEX IX_Tbl_Worker_EmployerLink_workerId " +
+        "ON dbo.Tbl_Worker_EmployerLink(workerId);" +
+        "CREATE INDEX IX_Tbl_Worker_EmployerLink_employerId " +
+        "ON dbo.Tbl_Worker_EmployerLink(employerId);" +
+        "END"
+    );
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Non-mutating probe used when a host denies `CREATE TABLE` (e.g. read-only
  * DB users). Returns true if `dbo.Tbl_Broadcast_Message` currently exists.
@@ -261,5 +369,8 @@ export async function runSchemaMigrations(): Promise<void> {
     ensureChatTablesExist(),
     ensureBroadcastTableExists(),
     ensureSubscriptionTableExists(),
+    ensureRelationshipTablesExist(),
+    ensureOtpTableExists(),
+    ensureDisputeTableExists(),
   ]);
 }

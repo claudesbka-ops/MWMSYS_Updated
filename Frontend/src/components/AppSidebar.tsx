@@ -5,7 +5,7 @@ import {
   Home, Building2, Users, FileCheck, Search, CreditCard,
   Wallet, BarChart3, Shield, ChevronRight,
   FileText, HeartPulse, Eye, AlertTriangle, UserCheck, Menu, X, Clock,
-  User, MessageSquare, Megaphone
+  User, MessageSquare, Megaphone, BookOpen, Scale
 } from "lucide-react";
 
 interface NavItem {
@@ -22,6 +22,7 @@ const navItems: NavItem[] = [
   { label: "Employer", icon: Building2, path: "/employer", roles: ["admin", "agency"] },
   { label: "Worker", icon: Users, path: "/worker", roles: ["admin", "agency", "employer"] },
   { label: "Attestation", icon: FileCheck, path: "/attestation", roles: ["admin", "agency"] },
+  { label: "Salary Disputes", icon: Scale, path: "/dispute", roles: ["admin", "agency", "employer", "worker", "labour"] },
   { label: "Search", icon: Search, path: "/search", roles: ["admin", "agency", "embassy_source", "embassy_destination", "labour"] },
   {
     label: "HRMS",
@@ -60,6 +61,8 @@ const navItems: NavItem[] = [
   // Worker-only items
   { label: "My Documents", icon: FileText, path: "/my-documents", roles: ["worker"] },
   { label: "Panic Status", icon: AlertTriangle, path: "/panic-status", roles: ["worker"] },
+  // Available to every role
+  { label: "Blog", icon: BookOpen, path: "/blog", roles: ["admin", "agency", "employer", "worker", "embassy_source", "embassy_destination", "labour"] },
 ];
 
 export default function AppSidebar() {

@@ -126,6 +126,24 @@ broadcastRouter.post("/Api/Broadcast/Send", requireAuth, async (req, res, next) 
   }
 });
 
+// Alias route for embassy clients: forwards to the standard /Api/Broadcast/Send
+// handler. The existing handler already targets workers by nationality for
+// roleId 5/6, so this is just a semantic alias — no duplicated logic.
+broadcastRouter.post("/Api/Embassy/Broadcast", requireAuth, async (req, res, next) => {
+  try {
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    if (roleId !== 5 && roleId !== 6) {
+      return res.status(403).json({ error: "Only embassy accounts may use /Api/Embassy/Broadcast" });
+    }
+    // Re-enter the broadcast pipeline via the Express router. Simpler: forward
+    // in-process by re-invoking the handler.
+    req.url = "/Api/Broadcast/Send";
+    return (req.app as any)._router.handle(req, res, next);
+  } catch (e) {
+    return next(e);
+  }
+});
+
 broadcastRouter.post("/Api/Broadcast/SendMultipart", requireAuth, broadcastUpload.array("files", 5), async (req, res, next) => {
   try {
     await ensureBroadcastTableExists();

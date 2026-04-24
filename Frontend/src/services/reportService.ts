@@ -51,6 +51,7 @@ export type InsuranceExpireRow = {
   Created_On?: string | null;
   Company_Name?: string | null;
   StatusLabel?: string | null;
+  Employer_Name?: string | null;
 };
 
 export type InsuranceExpireResponse = {

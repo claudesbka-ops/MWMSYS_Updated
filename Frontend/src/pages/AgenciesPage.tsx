@@ -1,17 +1,43 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
 import { agenciesData, type Agency } from "@/data/agenciesData";
-import { Building2, Mail, MapPin, Phone, Search, ChevronLeft, Users, BriefcaseBusiness } from "lucide-react";
+import { Building2, Mail, MapPin, Phone, Search, ChevronLeft, Users, BriefcaseBusiness, Link2 } from "lucide-react";
+import { useRole } from "@/contexts/RoleContext";
+import LinkEntityModal, { type LinkSearchRow } from "@/components/LinkEntityModal";
+import { agencyLinkEmployer, searchEmployers } from "@/services/relationshipService";
 
 export default function AgenciesPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { currentRole } = useRole();
   const [search, setSearch] = useState("");
   const [selectedAgency, setSelectedAgency] = useState<Agency | null>(null);
+  const [linkEmployerOpen, setLinkEmployerOpen] = useState(false);
 
   const filtered = agenciesData.filter((a) =>
     a.name.toLowerCase().includes(search.toLowerCase()) || a.contact.toLowerCase().includes(search.toLowerCase())
   );
+
+  const canLinkEmployer = currentRole === "agency";
+
+  const handleSearchEmployers = async (q: string): Promise<LinkSearchRow[]> => {
+    const results = await searchEmployers(q);
+    return results.map((r) => ({
+      id: r.id,
+      primary: r.companyName || r.id,
+      secondary: r.email || "—",
+      meta: r.contactPerson ? `Contact: ${r.contactPerson}` : undefined,
+    }));
+  };
+
+  const handleLinkEmployer = async (row: LinkSearchRow) => {
+    await agencyLinkEmployer(row.id);
+    // Invalidate lists so scoped worker views refresh under the new link.
+    queryClient.invalidateQueries({ queryKey: ["workers_list"] });
+    queryClient.invalidateQueries({ queryKey: ["employers_list"] });
+  };
 
   if (selectedAgency) {
     return (
@@ -98,6 +124,15 @@ export default function AgenciesPage() {
           <h2 className="text-xl font-bold text-foreground">Agency Directory</h2>
           <p className="text-sm text-muted-foreground mt-0.5">{filtered.length} agencies registered</p>
         </div>
+        {canLinkEmployer && (
+          <button
+            onClick={() => setLinkEmployerOpen(true)}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors shadow-sm"
+          >
+            <Link2 className="w-4 h-4" />
+            Link Employer
+          </button>
+        )}
       </div>
 
       <div className="bg-card rounded-2xl border border-border/60 p-4 mb-4">
@@ -158,6 +193,16 @@ export default function AgenciesPage() {
           </button>
         ))}
       </div>
+
+      <LinkEntityModal
+        open={linkEmployerOpen}
+        title="Link an Employer"
+        subtitle="Search for an existing employer account by name, user ID, or email."
+        placeholder="Search employer name, ID, or email…"
+        onClose={() => setLinkEmployerOpen(false)}
+        onSearch={handleSearchEmployers}
+        onLink={handleLinkEmployer}
+      />
     </DashboardLayout>
   );
 }

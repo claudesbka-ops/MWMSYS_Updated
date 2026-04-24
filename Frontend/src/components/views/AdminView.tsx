@@ -4,6 +4,7 @@ import { workersData } from "@/data/workersData";
 import { useQuery } from "@tanstack/react-query";
 import { getProblemsFiltered, resolveProblem } from "@/services/problemService";
 import { usePanicAlerts } from "@/contexts/PanicAlertsContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/services/apiClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -72,6 +73,7 @@ const panicPulseIcon = L.divIcon({
 
 export default function AdminView({ title = "Mission Control" }: { title?: string }) {
   const { alerts: panicAlerts, resolve: resolvePanic } = usePanicAlerts();
+  const { user } = useAuth();
 
   const [statusFilter, setStatusFilter] = useState<"active" | "resolved" | "all">("active");
   const [searchText, setSearchText] = useState("");
@@ -266,7 +268,7 @@ export default function AdminView({ title = "Mission Control" }: { title?: strin
             <Sparkles className="w-4 h-4 text-primary" />
             <span className="text-xs font-medium text-primary uppercase tracking-widest">{title}</span>
           </div>
-          <h1 className="text-2xl font-bold text-[hsl(0,0%,100%)] mb-1.5">Welcome back, FWWMC SEELAAN</h1>
+          <h1 className="text-2xl font-bold text-[hsl(0,0%,100%)] mb-1.5">Welcome back, {user?.name ?? "there"}</h1>
           <p className="text-[hsl(210,20%,75%)] text-sm max-w-lg">Here's what's happening with your migrant workers today. Stay on top of alerts and manage your workforce efficiently.</p>
           <div className="flex gap-3 mt-5">
             <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[hsl(0,0%,100%)]/10 text-[hsl(0,0%,100%)] text-xs font-medium backdrop-blur-md border border-[hsl(0,0%,100%)]/10">

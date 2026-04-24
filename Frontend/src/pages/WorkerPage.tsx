@@ -1,17 +1,18 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
-import { workersData, Worker } from "@/data/workersData";
-import { Plus, Edit2, FileText, Search, Filter, X, Upload, User } from "lucide-react";
+import type { Worker } from "@/data/workersData";
+import { Plus, Edit2, FileText, Search, Filter, X, Upload, User, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/contexts/RoleContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getWorkersList } from "@/services/workerService";
 import { Skeleton } from "@/components/ui/skeleton";
+import LinkEntityModal, { type LinkSearchRow } from "@/components/LinkEntityModal";
+import { employerLinkWorker, searchWorkers } from "@/services/relationshipService";
 
 const countries = ["Nepal", "Bangladesh", "Myanmar", "Indonesia", "Cambodia"];
-const employers = [...new Set(workersData.map(w => w.employer).filter(Boolean))];
 
 function AddEditWorkerModal({ worker, onClose }: { worker?: Worker; onClose: () => void }) {
   const isEdit = !!worker;
@@ -122,30 +123,53 @@ function AddEditWorkerModal({ worker, onClose }: { worker?: Worker; onClose: () 
 export default function WorkerPage() {
   const navigate = useNavigate();
   const { currentRole } = useRole();
+  const queryClient = useQueryClient();
 
   const { data: workersRows = [], isLoading } = useQuery({
     queryKey: ["workers_list"],
     queryFn: getWorkersList,
   });
 
+  const canLinkWorker = currentRole === "employer";
+  const [linkWorkerOpen, setLinkWorkerOpen] = useState(false);
+
+  const handleSearchWorkers = async (q: string): Promise<LinkSearchRow[]> => {
+    const results = await searchWorkers(q);
+    return results.map((r) => ({
+      id: r.id,
+      primary: r.name || r.id,
+      secondary: [r.passport, r.email].filter(Boolean).join(" · ") || "—",
+      meta: r.currentEmployerId ? `Currently under: ${r.currentEmployerId}` : "Currently unassigned",
+    }));
+  };
+
+  const handleLinkWorker = async (row: LinkSearchRow) => {
+    await employerLinkWorker(row.id);
+    queryClient.invalidateQueries({ queryKey: ["workers_list"] });
+  };
+
   const workers = useMemo(() => {
-    // Keep the existing Worker UI model for now by mapping the API shape.
     if (!workersRows || workersRows.length === 0) return [] as Worker[];
     return workersRows.map((w, idx) => ({
       id: idx + 1,
-      name: (w.Worker_Id ?? "").toString(),
+      name: ((w.Name ?? "").toString().trim() || (w.Worker_Id ?? "").toString()),
       passportNo: (w.Passport_Number ?? "").toString(),
       country: (w.Country_Name ?? "").toString() || "Unknown",
       dob: "",
       employer: (w.Company_Name ?? "").toString() || "",
-      permitExpiry: "",
+      permitExpiry: w.Permit_Expire_Date ? new Date(String(w.Permit_Expire_Date)).toLocaleDateString() : "",
       insuranceExpiry: "",
       phone: "",
       maritalStatus: "",
       entryDate: w.Created_On ? new Date(String(w.Created_On)).toLocaleDateString() : "",
-      status: "Active",
+      status: "Active" as const,
     }));
   }, [workersRows]);
+
+  const employers = useMemo(
+    () => Array.from(new Set(workers.map((w) => w.employer).filter(Boolean))) as string[],
+    [workers]
+  );
   const [showModal, setShowModal] = useState(false);
   const [editWorker, setEditWorker] = useState<Worker | undefined>();
   const [search, setSearch] = useState("");
@@ -181,6 +205,15 @@ export default function WorkerPage() {
             <Filter className="w-4 h-4" />
             Filters
           </button>
+          {canLinkWorker && (
+            <button
+              onClick={() => setLinkWorkerOpen(true)}
+              className="flex items-center gap-2 border border-primary/40 text-primary px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary/10 transition-colors"
+            >
+              <Link2 className="w-4 h-4" />
+              Link Existing Worker
+            </button>
+          )}
           {currentRole !== "worker" && (
             <button
               onClick={() => { setEditWorker(undefined); setShowModal(true); }}
@@ -346,6 +379,16 @@ export default function WorkerPage() {
       {currentRole !== "worker" && showModal && (
         <AddEditWorkerModal worker={editWorker} onClose={() => setShowModal(false)} />
       )}
+
+      <LinkEntityModal
+        open={linkWorkerOpen}
+        title="Link a Worker"
+        subtitle="Search for an existing worker by name, Worker ID, email, or passport. Linking will reassign the worker to your account."
+        placeholder="Search worker name, ID, email or passport…"
+        onClose={() => setLinkWorkerOpen(false)}
+        onSearch={handleSearchWorkers}
+        onLink={handleLinkWorker}
+      />
     </DashboardLayout>
   );
 }

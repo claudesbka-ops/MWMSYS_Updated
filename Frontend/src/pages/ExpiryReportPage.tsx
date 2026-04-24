@@ -1,13 +1,31 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { workersData } from "@/data/workersData";
 import { Download, FileText, Eye, HeartPulse, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
-import { getVisaExpireReport } from "@/services/reportService";
+import { getInsuranceExpireReport, getVisaExpireReport } from "@/services/reportService";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type ReportType = "insurance" | "visa";
+
+type ExpiryBand = {
+  label: "Expired" | "Critical (≤30d)" | "Warning (≤60d)" | "Caution (≤90d)" | "Valid" | "Unknown";
+  color: string;
+  daysLeft: number | null;
+};
+
+function classifyExpiry(raw?: string | Date | null): ExpiryBand {
+  if (!raw) return { label: "Unknown", color: "bg-muted text-muted-foreground", daysLeft: null };
+  const d = raw instanceof Date ? raw : new Date(String(raw));
+  if (!Number.isFinite(d.getTime())) return { label: "Unknown", color: "bg-muted text-muted-foreground", daysLeft: null };
+  const now = new Date();
+  const diffDays = Math.floor((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return { label: "Expired", color: "bg-destructive/10 text-destructive", daysLeft: diffDays };
+  if (diffDays <= 30) return { label: "Critical (≤30d)", color: "bg-destructive/10 text-destructive", daysLeft: diffDays };
+  if (diffDays <= 60) return { label: "Warning (≤60d)", color: "bg-warning/15 text-warning", daysLeft: diffDays };
+  if (diffDays <= 90) return { label: "Caution (≤90d)", color: "bg-warning/10 text-warning", daysLeft: diffDays };
+  return { label: "Valid", color: "bg-success/10 text-success", daysLeft: diffDays };
+}
 
 export default function ExpiryReportPage() {
   const [reportType, setReportType] = useState<ReportType>("insurance");
@@ -18,25 +36,52 @@ export default function ExpiryReportPage() {
     enabled: reportType === "visa",
   });
 
+  const insuranceQuery = useQuery({
+    queryKey: ["report_insurance_expire", reportType],
+    queryFn: () => getInsuranceExpireReport({ days: 90 }),
+    enabled: reportType === "insurance",
+  });
+
   const handleExport = (format: string) => {
     toast.success(`Export to ${format} initiated (placeholder)`);
   };
 
-  const expiryField = reportType === "insurance" ? "insuranceExpiry" : "permitExpiry";
-  const title = reportType === "insurance" ? "Insurance Expiry Report" : "Visa/Permit Expiry Report";
+  const title = reportType === "insurance" ? "Contract / Insurance Expiry Report" : "Visa/Permit Expiry Report";
   const Icon = reportType === "insurance" ? HeartPulse : Eye;
 
-  // Simple expiry classification for demo
-  const getExpiryStatus = (dateStr?: string) => {
-    if (!dateStr) return { label: "Unknown", color: "bg-muted text-muted-foreground" };
-    const parts = dateStr.split("/");
-    const date = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-    const now = new Date();
-    const diffDays = Math.floor((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) return { label: "Expired", color: "bg-destructive/10 text-destructive" };
-    if (diffDays < 90) return { label: "Expiring Soon", color: "bg-warning/10 text-warning" };
-    return { label: "Valid", color: "bg-success/10 text-success" };
-  };
+  const activeRows = useMemo(() => {
+    if (reportType === "visa") {
+      return (visaQuery.data?.rows ?? []).map((r) => ({
+        workerId: (r.Worker_Id ?? "").toString(),
+        name: (r.Name ?? r.Worker_Id ?? "").toString(),
+        passport: (r.Passport_Number ?? "").toString(),
+        company: (r.Company_Name ?? "").toString(),
+        date: r.Permit_Expire_Date ?? null,
+      }));
+    }
+    return (insuranceQuery.data?.rows ?? []).map((r) => ({
+      workerId: (r.Worker_Id ?? "").toString(),
+      name: (r.Name ?? r.Worker_Id ?? "").toString(),
+      passport: (r.Passport_Number ?? "").toString(),
+      company: (r.Company_Name ?? "").toString(),
+      date: r.Contract_Expiry_Date ?? null,
+    }));
+  }, [reportType, visaQuery.data, insuranceQuery.data]);
+
+  const counts = useMemo(() => {
+    let expired = 0;
+    let soon = 0; // ≤90d, not expired
+    let valid = 0;
+    for (const r of activeRows) {
+      const band = classifyExpiry(r.date);
+      if (band.label === "Expired") expired++;
+      else if (band.label === "Valid") valid++;
+      else if (band.label !== "Unknown") soon++;
+    }
+    return { expired, soon, valid };
+  }, [activeRows]);
+
+  const isLoading = reportType === "visa" ? visaQuery.isLoading : insuranceQuery.isLoading;
 
   return (
     <DashboardLayout>
@@ -74,9 +119,16 @@ export default function ExpiryReportPage() {
         ))}
       </div>
 
+      {reportType === "insurance" && (
+        <div className="mb-4 rounded-xl border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+          Insurance expiry date — currently using <span className="font-mono text-foreground">Tbl_Worker_EmployerInfo.Contract_Expiry_Date</span> as a proxy.
+          Update schema to add a dedicated insurance expiry column when available.
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        {reportType === "visa" && visaQuery.isLoading ? (
+        {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="bg-card rounded-2xl border border-border/60 p-5 flex items-center gap-4">
               <Skeleton className="h-12 w-12 rounded-2xl" />
@@ -88,9 +140,9 @@ export default function ExpiryReportPage() {
           ))
         ) : (
           [
-            { label: "Expired", count: workersData.filter(w => getExpiryStatus(w[expiryField]).label === "Expired").length, color: "text-destructive", bg: "bg-destructive/10", icon: AlertTriangle },
-            { label: "Expiring Soon", count: workersData.filter(w => getExpiryStatus(w[expiryField]).label === "Expiring Soon").length, color: "text-warning", bg: "bg-warning/10", icon: Icon },
-            { label: "Valid", count: workersData.filter(w => getExpiryStatus(w[expiryField]).label === "Valid").length, color: "text-success", bg: "bg-success/10", icon: Icon },
+            { label: "Expired", count: counts.expired, color: "text-destructive", bg: "bg-destructive/10", icon: AlertTriangle },
+            { label: "Expiring ≤90d", count: counts.soon, color: "text-warning", bg: "bg-warning/10", icon: Icon },
+            { label: "Valid", count: counts.valid, color: "text-success", bg: "bg-success/10", icon: Icon },
           ].map(s => (
             <div key={s.label} className="bg-card rounded-2xl border border-border/60 p-5 flex items-center gap-4">
               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${s.bg}`}>
@@ -108,74 +160,60 @@ export default function ExpiryReportPage() {
       {/* Table */}
       <div className="bg-card rounded-2xl border border-border/60 overflow-hidden">
         <div className="overflow-x-auto">
-          {reportType === "visa" ? (
-            visaQuery.isLoading ? (
-              <div className="p-4 space-y-3">
-                <Skeleton className="h-6 w-44" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/30 border-b border-border/40">
-                    <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">#</th>
-                    <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Worker</th>
-                    <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Passport</th>
-                    <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Company</th>
-                    <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Permit Expiry</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {(visaQuery.data?.rows ?? []).map((r, i) => (
-                    <tr key={`${r.Worker_Id}-${i}`} className="hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
-                      <td className="px-4 py-3 font-medium text-foreground">{(r.Name ?? r.Worker_Id).toString()}</td>
-                      <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{(r.Passport_Number ?? "—").toString()}</td>
-                      <td className="px-4 py-3 text-muted-foreground text-xs">{(r.Company_Name ?? "—").toString()}</td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {r.Permit_Expire_Date
-                          ? new Date(String(r.Permit_Expire_Date)).toLocaleDateString()
-                          : (r.StatusLabel ?? "Missing Data").toString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )
+          {isLoading ? (
+            <div className="p-4 space-y-3">
+              <Skeleton className="h-6 w-44" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted/30 border-b border-border/40">
                   <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">#</th>
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Name</th>
+                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Worker</th>
                   <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Passport</th>
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Country</th>
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Employer</th>
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">{reportType === "insurance" ? "Insurance Expiry" : "Permit Expiry"}</th>
+                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Company</th>
+                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                    {reportType === "insurance" ? "Contract / Insurance Expiry" : "Permit Expiry"}
+                  </th>
                   <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
-                {workersData.map((w, i) => {
-                  const expiry = getExpiryStatus(w[expiryField]);
-                  return (
-                    <tr key={w.id} className="hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
-                      <td className="px-4 py-3 font-medium text-foreground">{w.name}</td>
-                      <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{w.passportNo}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{w.country}</td>
-                      <td className="px-4 py-3 text-muted-foreground text-xs">{w.employer || "—"}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{w[expiryField] || "—"}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${expiry.color}`}>
-                          {expiry.label}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {activeRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-muted-foreground">
+                      No records in this window.
+                    </td>
+                  </tr>
+                ) : (
+                  activeRows.map((r, i) => {
+                    const band = classifyExpiry(r.date);
+                    return (
+                      <tr key={`${r.workerId}-${i}`} className="hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
+                        <td className="px-4 py-3 font-medium text-foreground">{r.name || "—"}</td>
+                        <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{r.passport || "—"}</td>
+                        <td className="px-4 py-3 text-muted-foreground text-xs">{r.company || "—"}</td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {r.date ? new Date(String(r.date)).toLocaleDateString() : "—"}
+                          {band.daysLeft != null && r.date ? (
+                            <span className="ml-2 text-[11px] text-muted-foreground">
+                              ({band.daysLeft < 0 ? `${Math.abs(band.daysLeft)}d ago` : `${band.daysLeft}d left`})
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${band.color}`}>
+                            {band.label}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           )}

@@ -2,7 +2,8 @@ import { Bell, User, Search, Plus, Banknote, FileCheck, Moon, Sun } from "lucide
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRole } from "@/contexts/RoleContext";
-import { apiClient, AUTH_USERNAME_STORAGE_KEY } from "@/services/apiClient";
+import { useAuth } from "@/contexts/AuthContext";
+import { apiClient } from "@/services/apiClient";
 import { logout } from "@/services/authService";
 import { alertsData } from "@/data/alertsData";
 import { useTheme } from "next-themes";
@@ -78,7 +79,8 @@ export default function TopHeader() {
 
   const planLabel = subscriptionQuery.data?.planType;
 
-  const userName = (localStorage.getItem(AUTH_USERNAME_STORAGE_KEY) || "FWWMC SEELAAN").toString();
+  const { user } = useAuth();
+  const userName = user?.name ?? "User";
   const localIncidents = readLocalIncidents();
   const allIncidents = [...localIncidents, ...alertsData].sort((a, b) => b.id - a.id);
   const lastSeenId = readLastSeenId();

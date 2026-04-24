@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { RoleProvider } from "@/contexts/RoleContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { PanicAlertsProvider } from "@/contexts/PanicAlertsContext";
 import Chatbot from "@/components/Chatbot";
 import PanicNotifier from "@/components/PanicNotifier";
@@ -48,6 +49,10 @@ import NotFound from "./pages/NotFound.tsx";
 import AdminDashboard from "./pages/AdminDashboard.tsx";
 import AttestationPage from "./pages/AttestationPage.tsx";
 import LiveMapPage from "./pages/LiveMapPage.tsx";
+import BlogPage from "./pages/BlogPage.tsx";
+import VerifyEmailPage from "./pages/VerifyEmailPage.tsx";
+import AccountPage from "./pages/AccountPage.tsx";
+import DisputePage from "./pages/DisputePage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -65,6 +70,9 @@ function AnimatedRoutes() {
       >
         <Routes location={location}>
           <Route path="/" element={<Index />} />
+          <Route path="/blog" element={<BlogPage />} />
+          <Route path="/blog/:slug" element={<BlogPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/login/admin" element={<AdminLogin />} />
           <Route path="/login/worker" element={<WorkerLogin />} />
@@ -232,8 +240,15 @@ function AnimatedRoutes() {
               </ProtectedRoute>
             }
           />
-          <Route path="/account" element={<PlaceholderPage title="Account" />} />
-          <Route path="/dispute" element={<PlaceholderPage title="Salary Dispute" />} />
+          <Route path="/account" element={<AccountPage />} />
+          <Route
+            path="/dispute"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer", "worker", "labour"]}>
+                <DisputePage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/incident/new" element={<NewIncidentPage />} />
           <Route path="/incident/:id" element={<IncidentPage />} />
           <Route path="/reports" element={<PlaceholderPage title="Reports" />} />
@@ -270,6 +285,7 @@ function AnimatedRoutes() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <RoleProvider>
+      <AuthProvider>
       <PanicAlertsProvider>
       <TooltipProvider>
         <Toaster />
@@ -282,6 +298,7 @@ const App = () => (
         </BrowserRouter>
       </TooltipProvider>
       </PanicAlertsProvider>
+      </AuthProvider>
     </RoleProvider>
   </QueryClientProvider>
 );
