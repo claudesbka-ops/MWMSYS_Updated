@@ -1,6 +1,5 @@
 import { useSession } from "@/contexts/SessionContext";
-
-const PROD_API_BASE_URL = "http://173.233.72.39:3000";
+import { resolveApiBaseUrl } from "@/services/apiBase";
 
 export type ApiError = {
   status?: number;
@@ -9,10 +8,11 @@ export type ApiError = {
 };
 
 export function useApiClient() {
-  const { token } = useSession();
+  const { token, apiBaseUrl } = useSession();
 
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
-    const url = PROD_API_BASE_URL.replace(/\/+$/, "") + path;
+    const base = resolveApiBaseUrl(apiBaseUrl);
+    const url = base.replace(/\/+$/, "") + path;
     const headers: Record<string, string> = {
       Accept: "application/json",
       ...(init?.headers as any),
@@ -49,10 +49,42 @@ export function useApiClient() {
     return data as T;
   }
 
+  async function postForm<T>(path: string, form: FormData): Promise<T> {
+    // Let fetch set the multipart boundary automatically by not forcing JSON.
+    const base = resolveApiBaseUrl(apiBaseUrl);
+    const url = base.replace(/\/+$/, "") + path;
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: form as any,
+    });
+    const text = await res.text();
+    const data = text ? (() => {
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text;
+      }
+    })() : null;
+    if (!res.ok) {
+      const err: ApiError = typeof data === "object" && data ? (data as any) : { error: String(data ?? res.statusText) };
+      err.status = res.status;
+      throw err;
+    }
+    return data as T;
+  }
+
   return {
     get: <T,>(path: string) => request<T>(path, { method: "GET" }),
     post: <T,>(path: string, body?: unknown) => request<T>(path, { method: "POST", body: body ? JSON.stringify(body) : "{}" }),
     put: <T,>(path: string, body?: unknown) => request<T>(path, { method: "PUT", body: body ? JSON.stringify(body) : "{}" }),
     delete: <T,>(path: string) => request<T>(path, { method: "DELETE" }),
+    postForm: <T,>(path: string, form: FormData) => postForm<T>(path, form),
   };
 }

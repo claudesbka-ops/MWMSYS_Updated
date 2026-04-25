@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import * as SecureStore from "expo-secure-store";
+import { resolveApiBaseUrl } from "@/services/apiBase";
 
 type SessionState = {
   apiBaseUrl: string;
@@ -14,8 +15,7 @@ type SessionState = {
 const SessionContext = createContext<SessionState | null>(null);
 
 const STORE_TOKEN = "mwmsys_access_token";
-
-const PROD_API_BASE_URL = "http://173.233.72.39:3000";
+const STORE_API_BASE = "mwmsys_api_base_url";
 
 function base64Decode(input: string): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
@@ -64,11 +64,15 @@ function decodeJwtClaims(token: string): Record<string, unknown> | null {
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [apiBaseUrl] = useState<string>(PROD_API_BASE_URL);
+  const [apiBaseUrl, setApiBaseUrl] = useState<string>(resolveApiBaseUrl());
   const [token, setToken] = useState<string>("");
   const [claims, setClaims] = useState<Record<string, unknown> | null>(null);
 
   const hydrate = async () => {
+    const storedBase = await SecureStore.getItemAsync(STORE_API_BASE).catch(() => null);
+    if (storedBase && storedBase.trim()) {
+      setApiBaseUrl(resolveApiBaseUrl(storedBase.trim()));
+    }
     const storedToken = await SecureStore.getItemAsync(STORE_TOKEN);
     if (storedToken && storedToken.trim()) {
       const t = storedToken.trim();
@@ -90,8 +94,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     SecureStore.setItemAsync(STORE_TOKEN, t).catch(() => undefined);
   };
 
-  const setApiBaseUrlPersisted = (_v: string) => {
-    // production build: API base URL is fixed
+  const setApiBaseUrlPersisted = (v: string) => {
+    const next = (v ?? "").toString().trim();
+    setApiBaseUrl(next ? resolveApiBaseUrl(next) : resolveApiBaseUrl());
+    if (next) {
+      SecureStore.setItemAsync(STORE_API_BASE, next).catch(() => undefined);
+    } else {
+      SecureStore.deleteItemAsync(STORE_API_BASE).catch(() => undefined);
+    }
   };
 
   const value = useMemo<SessionState>(

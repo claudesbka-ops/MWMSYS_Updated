@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { apiClient, getAccessToken } from "@/services/apiClient";
 import { io, type Socket } from "socket.io-client";
@@ -16,10 +17,18 @@ type WorkerLocationRow = {
 };
 
 export default function LiveMapPage() {
+  const [searchParams] = useSearchParams();
+  const focusWorkerId = (searchParams.get("focus") ?? "").trim();
+
   const socketRef = useRef<Socket | null>(null);
   const [rows, setRows] = useState<WorkerLocationRow[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(focusWorkerId || null);
   const [query, setQuery] = useState("");
+
+  // If the focus worker param arrives/changes, keep selection in sync.
+  useEffect(() => {
+    if (focusWorkerId) setSelectedId(focusWorkerId);
+  }, [focusWorkerId]);
 
   const googleMapsApiKey = (import.meta as any)?.env?.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
   const { isLoaded } = useJsApiLoader({
@@ -103,11 +112,15 @@ export default function LiveMapPage() {
   }, [rows, selectedId]);
 
   const center = useMemo(() => {
-    const first = filteredRows.find((r) => r.lat != null && r.lng != null);
-    return first?.lat != null && first?.lng != null
-      ? { lat: first.lat, lng: first.lng }
+    // Prefer the explicitly focused worker, then the selected row, then the first row.
+    const focused =
+      (focusWorkerId && rows.find((r) => r.workerId === focusWorkerId)) ||
+      (selectedId && rows.find((r) => r.workerId === selectedId)) ||
+      filteredRows.find((r) => r.lat != null && r.lng != null);
+    return focused?.lat != null && focused?.lng != null
+      ? { lat: focused.lat, lng: focused.lng }
       : { lat: 3.139, lng: 101.6869 };
-  }, [filteredRows]);
+  }, [focusWorkerId, selectedId, rows, filteredRows]);
 
   const nowMs = Date.now();
   const isStale = (updatedAt?: string | null) => {

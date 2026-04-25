@@ -10,8 +10,9 @@ import Animated, {
 } from "react-native-reanimated";
 import * as ImagePicker from "expo-image-picker";
 
-import { Text, View } from "@/components/Themed";
+import { Text, View } from "react-native";
 import { usePanic } from "@/hooks/usePanic";
+import { Screen, Card, PrimaryButton, GhostButton } from "@/components/ui";
 
 export default function PanicScreen() {
   const panic = usePanic();
@@ -69,15 +70,16 @@ export default function PanicScreen() {
   const syncing = panic.isSyncingEmergency;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Panic</Text>
-      <Text style={styles.subtitle}>Emergency alert goes to MWMSYS for validation</Text>
-
+    <Screen
+      title="Emergency"
+      subtitle="Your alert is reviewed by MWMSYS response team"
+      gradient={["#ef4444", "#f97316", "#ec4899"]}
+    >
       {panic.hasPendingEmergency && (
         <EmergencyPulseBanner count={panic.pendingCount} onRetry={() => panic.drain()} />
       )}
 
-      <View style={styles.card}>
+      <Card>
         <Text style={styles.label}>Describe the issue (optional)</Text>
         <TextInput
           value={desc}
@@ -85,43 +87,42 @@ export default function PanicScreen() {
           style={[styles.input, styles.multiline]}
           multiline
           placeholder="What happened?"
+          placeholderTextColor="rgba(15,23,42,0.4)"
           editable={!sending}
         />
 
         <View style={styles.photoRow}>
-          <TouchableOpacity style={[styles.ghostBtn, sending && styles.disabled]} onPress={pickPhoto} disabled={sending}>
-            <Text style={styles.ghostText}>{photoUri ? "Change Photo" : "Attach Photo"}</Text>
-          </TouchableOpacity>
+          <GhostButton title={photoUri ? "Change photo" : "Attach photo"} onPress={pickPhoto} disabled={sending} />
           {photoUri ? (
-            <TouchableOpacity
-              style={[styles.ghostBtn, sending && styles.disabled]}
+            <GhostButton
+              title="Remove"
               onPress={() => {
                 setPhotoUri("");
                 setPhotoMime(null);
                 setPhotoName(null);
               }}
               disabled={sending}
-            >
-              <Text style={styles.ghostText}>Remove</Text>
-            </TouchableOpacity>
+            />
           ) : null}
         </View>
 
         {photoUri ? <Image source={{ uri: photoUri }} style={styles.preview} /> : null}
 
-        <TouchableOpacity style={[styles.primaryBtn, sending && styles.disabled]} onPress={send} disabled={sending}>
-          <Text style={styles.primaryBtnText}>
-            {sending ? (syncing ? "Syncing emergency..." : "Sending...") : "Send Panic Alert"}
-          </Text>
-        </TouchableOpacity>
+        <PrimaryButton
+          title={sending ? (syncing ? "Syncing emergency…" : "Sending…") : "Send Panic Alert"}
+          loading={sending}
+          variant="danger"
+          onPress={send}
+          style={{ marginTop: 14 }}
+        />
 
         {panic.geoLoading ? (
-          <Text style={styles.hint}>Acquiring high-accuracy GPS fix...</Text>
+          <Text style={styles.hint}>Acquiring high-accuracy GPS fix…</Text>
         ) : panic.geoError ? (
           <Text style={styles.hintWarn}>Location unavailable — alert will still send without GPS.</Text>
         ) : null}
-      </View>
-    </View>
+      </Card>
+    </Screen>
   );
 }
 
@@ -165,59 +166,34 @@ function EmergencyPulseBanner({ count, onRetry }: { count: number; onRetry: () =
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18 },
-  title: { fontSize: 22, fontWeight: "700" },
-  subtitle: { marginTop: 6, fontSize: 14, opacity: 0.7 },
-  card: {
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(120,120,120,0.25)",
-  },
-  label: { fontSize: 12, fontWeight: "700", opacity: 0.8 },
+  label: { fontSize: 11, fontWeight: '800', color: 'rgba(15,23,42,0.6)', letterSpacing: 0.4, textTransform: 'uppercase' },
   input: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(120,120,120,0.25)",
-    paddingHorizontal: 12,
+    borderColor: 'rgba(79,70,229,0.15)',
+    paddingHorizontal: 14,
     marginTop: 8,
-    color: "inherit" as any,
+    backgroundColor: '#ffffff',
+    color: '#0f172a',
   },
-  multiline: { minHeight: 110, paddingTop: 10 },
-  photoRow: { marginTop: 12, flexDirection: "row", gap: 10, flexWrap: "wrap" },
-  ghostBtn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  ghostText: { fontWeight: "800", opacity: 0.8 },
-  preview: { marginTop: 12, width: "100%", height: 180, borderRadius: 12 },
-  primaryBtn: {
-    marginTop: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: "#dc2626",
-    alignItems: "center",
-  },
-  primaryBtnText: { color: "white", fontWeight: "800" },
-  disabled: { opacity: 0.6 },
-  hint: { marginTop: 10, fontSize: 12, opacity: 0.7 },
-  hintWarn: { marginTop: 10, fontSize: 12, color: "#b45309", fontWeight: "600" },
+  multiline: { minHeight: 110, paddingTop: 12 },
+  photoRow: { marginTop: 12, flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
+  preview: { marginTop: 12, width: '100%', height: 180, borderRadius: 14 },
+  hint: { marginTop: 10, fontSize: 12, color: 'rgba(15,23,42,0.55)' },
+  hintWarn: { marginTop: 10, fontSize: 12, color: '#b45309', fontWeight: '700' },
   pulseBanner: {
     marginTop: 14,
-    padding: 12,
-    borderRadius: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(245,158,11,0.15)",
+    padding: 14,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245,158,11,0.14)',
     borderWidth: 1,
-    borderColor: "rgba(245,158,11,0.45)",
+    borderColor: 'rgba(245,158,11,0.4)',
     gap: 12,
   },
-  pulseDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: "#f59e0b",
-  },
+  pulseDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: '#f59e0b' },
   pulseTextWrap: { flex: 1 },
-  pulseTitle: { fontSize: 13, fontWeight: "800", color: "#92400e" },
-  pulseSubtitle: { marginTop: 2, fontSize: 11, color: "#92400e", opacity: 0.9 },
+  pulseTitle: { fontSize: 13, fontWeight: '800', color: '#92400e' },
+  pulseSubtitle: { marginTop: 2, fontSize: 11, color: '#92400e', opacity: 0.9 },
 });

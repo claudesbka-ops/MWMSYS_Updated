@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from "react-native";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
 
-import { Text, View } from "@/components/Themed";
 import { useApiClient } from "@/services/apiClient";
+import { Screen, ListItemCard, SectionTitle } from "@/components/ui";
 
 type SearchResponse = {
   workers: Array<{ Worker_Id: string; Name?: string | null; Passport_Number?: string | null; Created_On?: string | null }>;
@@ -55,62 +56,58 @@ export default function SearchScreen() {
   }, [data]);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Search</Text>
-      <Text style={styles.subtitle}>Global lookup (workers & employers)</Text>
-
-      <View style={styles.searchRow}>
+    <Screen title="Search" subtitle="Global lookup across workers and employers" gradient={["#6366f1", "#06b6d4", "#10b981"]}>
+      <View style={styles.searchWrap}>
+        <FontAwesome name="search" size={14} color="rgba(15,23,42,0.5)" />
         <TextInput
           value={q}
           onChangeText={setQ}
           style={styles.input}
-          placeholder="Search by name, passport, company..."
+          placeholder="Search by name, passport, company…"
+          placeholderTextColor="rgba(15,23,42,0.4)"
           autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+          onSubmitEditing={run}
         />
-        <TouchableOpacity style={styles.btn} onPress={run}>
-          <Text style={styles.btnText}>Go</Text>
-        </TouchableOpacity>
       </View>
 
+      <SectionTitle title={q.trim() ? `Results (${rows.length})` : "Recent"} />
+
       {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator />
+        <ActivityIndicator color="#6366f1" />
+      ) : rows.length === 0 ? (
+        <View style={styles.empty}>
+          <FontAwesome name="search" size={28} color="rgba(15,23,42,0.2)" />
+          <Text style={styles.emptyText}>{q.trim() ? "No results found." : "Start typing to search."}</Text>
         </View>
       ) : (
-        <FlatList
-          data={rows}
-          keyExtractor={(_, idx) => String(idx)}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{item.title}</Text>
-              <Text style={styles.cardDesc}>{item.sub || item.kind}</Text>
-            </View>
-          )}
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>{q.trim() ? "No results" : "Type to search"}</Text>
-            </View>
-          }
-        />
+        <View style={{ gap: 10 }}>
+          {rows.map((item, idx) => (
+            <ListItemCard
+              key={`${item.kind}:${idx}`}
+              title={item.title}
+              subtitle={item.sub || undefined}
+              meta={item.kind === 'worker' ? 'Worker' : 'Employer'}
+              icon={item.kind === 'worker' ? 'user' : 'building'}
+              iconGradient={item.kind === 'worker' ? ['#6366f1', '#8b5cf6'] : ['#f59e0b', '#ef4444']}
+            />
+          ))}
+        </View>
       )}
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18 },
-  title: { fontSize: 22, fontWeight: "700" },
-  subtitle: { marginTop: 6, fontSize: 14, opacity: 0.7 },
-  searchRow: { marginTop: 14, flexDirection: "row", gap: 10, alignItems: "center" },
-  input: { flex: 1, height: 44, borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", paddingHorizontal: 12, color: "inherit" as any },
-  btn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: "#2563eb" },
-  btnText: { color: "white", fontWeight: "800" },
-  loadingWrap: { padding: 18 },
-  list: { paddingVertical: 14, gap: 10 },
-  card: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  cardTitle: { fontSize: 14, fontWeight: "800" },
-  cardDesc: { marginTop: 6, fontSize: 12, opacity: 0.75 },
-  emptyWrap: { paddingVertical: 30, alignItems: "center" },
-  emptyText: { opacity: 0.7 },
+  searchWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    height: 50, paddingHorizontal: 16, borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderWidth: 1, borderColor: 'rgba(79,70,229,0.15)',
+    shadowColor: '#4f46e5', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 1,
+  },
+  input: { flex: 1, fontSize: 14, color: '#0f172a', fontWeight: '600' },
+  empty: { alignItems: 'center', paddingVertical: 48, gap: 12 },
+  emptyText: { color: 'rgba(15,23,42,0.55)', fontSize: 13 },
 });

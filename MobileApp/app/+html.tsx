@@ -27,12 +27,8 @@ export default function Root({ children }: { children: React.ReactNode }) {
   );
 }
 
+// MWMSYS forces a light theme; keep the web background consistent with mobile.
 const responsiveBackground = `
 body {
-  background-color: #fff;
-}
-@media (prefers-color-scheme: dark) {
-  body {
-    background-color: #000;
-  }
+  background-color: #f4f6fb;
 }`;

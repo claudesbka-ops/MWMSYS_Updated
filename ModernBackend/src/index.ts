@@ -1496,6 +1496,24 @@ app.get("/Api/Employers/List", requireAuth, requireAuthority, async (_req, res, 
   }
 });
 
+/**
+ * GET /Api/Agencies/List
+ *
+ * Returns the recruitment-agency directory for the Agencies page. Any
+ * authenticated authority-role user may read it (admin, embassy, labour,
+ * employer, agency) so the directory works across dashboards.
+ */
+app.get("/Api/Agencies/List", requireAuth, requireAuthority, async (_req, res, next) => {
+  try {
+    const rows = (await prisma.$queryRawUnsafe(
+      "SELECT TOP (500) User_Id, Agent_Name, Agent_Organization_Name, Agent_IC_Passport, Agent_EmailID, Agent_ContactNumber, Agent_Country, Agent_CountryCode, Created_On FROM Tbl_Agent ORDER BY Created_On DESC",
+    )) as any[];
+    return res.json(rows ?? []);
+  } catch (e) {
+    return next(e);
+  }
+});
+
 app.get("/api/search/global", requireAuth, requireAuthority, async (req, res, next) => {
   const rawQ = Array.isArray(req.query.q) ? req.query.q[0] : req.query.q;
   const q = (rawQ ?? "").toString().trim();

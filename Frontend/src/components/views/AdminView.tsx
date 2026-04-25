@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import AlertCard, { type AlertData } from "@/components/AlertCard";
-import { workersData } from "@/data/workersData";
 import { useQuery } from "@tanstack/react-query";
 import { getProblemsFiltered, resolveProblem } from "@/services/problemService";
 import { usePanicAlerts } from "@/contexts/PanicAlertsContext";
@@ -30,6 +29,7 @@ type AdminStatsResponse = {
   activePanicAlerts?: number;
   activeIssues?: number;
   totalUsers?: number;
+  totalWorkers?: number;
   alertTrends: { key: string; month: string; alerts: number }[];
   workersByCountry: { name: string; value: number }[];
   weeklyOverview: { day: string; panic: number; issue: number }[];
@@ -199,6 +199,7 @@ export default function AdminView({ title = "Mission Control" }: { title?: strin
         id: Number(p.ID),
         name: (p.worker_ID ?? "Worker").toString(),
         idNumber: (p.Prob_ID ?? "").toString(),
+        workerId: (p.worker_ID ?? "").toString(),
         type: "Panic Alert",
         status: "active",
         description: (p.Description ?? "").toString(),
@@ -256,7 +257,9 @@ export default function AdminView({ title = "Mission Control" }: { title?: strin
 
   const panicCount = Number(stats?.activePanicAlerts ?? (panicAlerts ?? []).length);
   const issueCount = Number(stats?.activeIssues ?? visibleAlerts.filter(a => a.type !== "Panic Alert").length);
-  const workerCount = Number(stats?.totalWorkers ?? (stats?.workersByCountry?.reduce((sum, x) => sum + Number(x.value ?? 0), 0) ?? workersData.length));
+  const workerCount = Number(
+    stats?.totalWorkers ?? stats?.workersByCountry?.reduce((sum, x) => sum + Number(x.value ?? 0), 0) ?? 0
+  );
   const activeAlertsCount = Number(stats?.activeAlerts ?? visibleAlerts.length);
 
   return (
@@ -355,6 +358,7 @@ export default function AdminView({ title = "Mission Control" }: { title?: strin
                 id: Number(p.ID),
                 name: (p.worker_ID ?? "Worker").toString(),
                 idNumber: (p.Prob_ID ?? "").toString(),
+                workerId: (p.worker_ID ?? "").toString(),
                 type: "Panic Alert",
                 description: (p.Description ?? "").toString(),
                 employer: (p.Company_Name ?? undefined) as any,

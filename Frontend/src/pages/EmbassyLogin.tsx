@@ -6,10 +6,12 @@ import { Label } from "@/components/ui/label";
 import AuthLayout from "@/components/AuthLayout";
 import { toast } from "sonner";
 import { useRole } from "@/contexts/RoleContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { login, EmailNotVerifiedError } from "@/services/authService";
 
 export default function EmbassyLogin({ variant }: { variant: "source" | "destination" }) {
   const navigate = useNavigate();
+  const { refresh: refreshAuth } = useAuth();
   const { setCurrentRole } = useRole();
   const [form, setForm] = useState({
     emailId: "",
@@ -32,6 +34,7 @@ export default function EmbassyLogin({ variant }: { variant: "source" | "destina
       toast.success("Embassy login successful");
       setCurrentRole(variant === "source" ? "embassy_source" : "embassy_destination");
       localStorage.setItem("mwmsys_logged_in", "true");
+      await refreshAuth();
       navigate("/");
     } catch (err: any) {
       if (err instanceof EmailNotVerifiedError) {

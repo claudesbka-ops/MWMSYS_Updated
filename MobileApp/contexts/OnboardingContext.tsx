@@ -4,21 +4,38 @@ export type OnboardingRole = "employer" | "agency" | "worker";
 
 export type OnboardingDraft = {
   role: OnboardingRole;
+
+  // Shared
   userId: string;
   emailId: string;
   password: string;
 
+  // Worker (mirrors WorkerSignupForm)
+  fullName: string;
   passportNo: string;
+  employerId: string;
 
-  organizationName: string;
+  // Employer (mirrors EmployerSignup)
+  employerName: string;
+  ssmRocRobNo: string;
+  sector: string;
+  telephoneNo: string;
   address: string;
-  phone: string;
-  ssmNumber: string;
+  contactPerson: string;
+  contactPersonIcNo: string;
+  hpNumber: string;
+  position: string;
+  phoneNo: string;
 
-  contactPersonName: string;
-  contactPersonPosition: string;
-  contactPersonIc: string;
-  contactPersonPhone: string;
+  // Agency (mirrors AgencySignup)
+  organization: string;
+  icOrPassport: string;
+  dateOfBirth: string;
+  department: string;
+  country: string;
+  contactNo: string;
+  status: string;
+  title: string;
 };
 
 type OnboardingState = {
@@ -37,15 +54,29 @@ function createEmptyDraft(role: OnboardingRole): OnboardingDraft {
     emailId: "",
     password: "",
 
+    fullName: "",
     passportNo: "",
-    organizationName: "",
+    employerId: "",
+
+    employerName: "",
+    ssmRocRobNo: "",
+    sector: "",
+    telephoneNo: "",
     address: "",
-    phone: "",
-    ssmNumber: "",
-    contactPersonName: "",
-    contactPersonPosition: "",
-    contactPersonIc: "",
-    contactPersonPhone: "",
+    contactPerson: "",
+    contactPersonIcNo: "",
+    hpNumber: "",
+    position: "",
+    phoneNo: "",
+
+    organization: "",
+    icOrPassport: "",
+    dateOfBirth: "",
+    department: "",
+    country: "",
+    contactNo: "",
+    status: "",
+    title: "",
   };
 }
 

@@ -20,6 +20,7 @@ export default function WorkerSignupForm() {
     password: "",
     employerId: "",
   });
+  const [submitting, setSubmitting] = useState(false);
 
   const employersQuery = useQuery({
     queryKey: ["public_employers"],
@@ -30,6 +31,7 @@ export default function WorkerSignupForm() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!form.userId.trim() || !form.emailId.trim() || !form.password.trim()) {
       toast.error("Please fill in all required fields");
       return;
@@ -39,6 +41,7 @@ export default function WorkerSignupForm() {
       return;
     }
 
+    setSubmitting(true);
     try {
       const res = await apiClient.post("/signup", {
         userId: form.userId.trim(),
@@ -58,6 +61,8 @@ export default function WorkerSignupForm() {
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? "Signup failed";
       toast.error(msg);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -151,8 +156,8 @@ export default function WorkerSignupForm() {
           <Button type="button" variant="outline" className="flex-1" onClick={() => navigate("/login/worker")}>
             Back to Login
           </Button>
-          <Button type="submit" className="flex-1">
-            Create Account
+          <Button type="submit" className="flex-1" disabled={submitting}>
+            {submitting ? "Creating…" : "Create Account"}
           </Button>
         </div>
       </form>

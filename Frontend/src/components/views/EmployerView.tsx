@@ -1,12 +1,15 @@
-import { workersData } from "@/data/workersData";
-import { alertsData } from "@/data/alertsData";
 import {
   Eye, HeartPulse, Banknote, Users, TrendingDown, TrendingUp,
-  Sparkles, Clock, AlertTriangle, FileText, ArrowRight, Building2
+  Clock, AlertTriangle, ArrowRight, Building2
 } from "lucide-react";
 import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar
 } from "recharts";
+import { useQuery } from "@tanstack/react-query";
+import { getWorkersList } from "@/services/workerService";
+import { getProblemsFiltered } from "@/services/problemService";
+import { getAccountProfile } from "@/services/accountService";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const monthlyIssues = [
   { month: "Jan", visa: 1, insurance: 2, salary: 1 },
@@ -27,14 +30,58 @@ const tooltipStyle = {
 };
 
 export default function EmployerView() {
-  const employerName = localStorage.getItem("mwmsys_employer_name") || "ACME Construction SDN BHD";
-  const myWorkers = workersData.filter(w => (w.employer ?? "").toLowerCase() === employerName.toLowerCase());
-  const issueAlerts = alertsData.filter(
-    (a) => a.type !== "Panic Alert" && (a.employer ?? "").toLowerCase() === employerName.toLowerCase()
-  );
-  const visaExpiring = 3;
-  const insuranceExpiring = 2;
-  const unpaidIssues = issueAlerts.filter(a => a.description?.toLowerCase().includes("salary") || a.description?.toLowerCase().includes("unpaid")).length;
+  // Account profile is fetched to show the employer's company name (used by
+  // other blocks in this dashboard that will come online in follow-up batches).
+  useQuery({
+    queryKey: ["account_profile"],
+    queryFn: getAccountProfile,
+    staleTime: 60_000,
+  });
+
+  // Workers list is already scoped to the caller on the backend for employers.
+  const workersQuery = useQuery({
+    queryKey: ["workers_list"],
+    queryFn: getWorkersList,
+  });
+
+  const myWorkers = (workersQuery.data ?? []).map((w, idx) => ({
+    id: idx + 1,
+    name: ((w.Name ?? "").toString().trim() || (w.Worker_Id ?? "").toString()),
+    passportNo: (w.Passport_Number ?? "").toString(),
+    country: (w.Country_Name ?? "").toString() || "—",
+    status: "Active" as const,
+  }));
+
+  // Issues reported for the employer's workers — backend filters by scope for employers.
+  const issuesQuery = useQuery({
+    queryKey: ["employer_issue_feed"],
+    queryFn: () =>
+      getProblemsFiltered({ status: "active", type: "issue", q: "", limit: 100 }),
+  });
+
+  const issueAlerts = (issuesQuery.data ?? []).map((p: any) => {
+    const dt = p.Date ? String(p.Date) : p.Updated_On ? new Date(String(p.Updated_On)).toLocaleDateString() : "";
+    const tm = p.Time ? String(p.Time) : "";
+    return {
+      id: Number(p.ProblemAndActionId ?? 0),
+      name: (p.MemberName ?? p.FullName ?? "Worker").toString(),
+      description: (p.Description ?? p.Title ?? "").toString(),
+      type: "Issue" as const,
+      date: dt,
+      time: tm,
+    };
+  });
+
+  // These counters are placeholders until dedicated endpoints exist.
+  const visaExpiring = 0;
+  const insuranceExpiring = 0;
+  const unpaidIssues = issueAlerts.filter(
+    (a) =>
+      a.description?.toLowerCase().includes("salary") ||
+      a.description?.toLowerCase().includes("unpaid")
+  ).length;
+
+  const isLoading = workersQuery.isLoading || issuesQuery.isLoading;
 
   return (
     <>
@@ -108,20 +155,34 @@ export default function EmployerView() {
             </button>
           </div>
           <div className="space-y-1">
-            {myWorkers.slice(0, 6).map((w) => (
-              <div key={w.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-muted/40 transition-colors">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <span className="text-xs font-bold text-primary">{w.name.charAt(0)}</span>
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 p-2.5">
+                  <Skeleton className="h-8 w-8 rounded-lg" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-3 w-32" />
+                    <Skeleton className="h-2.5 w-24" />
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{w.name}</p>
-                  <p className="text-[11px] text-muted-foreground">{w.passportNo} · {w.country}</p>
+              ))
+            ) : myWorkers.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">No workers linked yet.</p>
+            ) : (
+              myWorkers.slice(0, 6).map((w) => (
+                <div key={w.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-muted/40 transition-colors">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <span className="text-xs font-bold text-primary">{w.name.charAt(0)}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{w.name}</p>
+                    <p className="text-[11px] text-muted-foreground">{w.passportNo} · {w.country}</p>
+                  </div>
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${w.status === "Active" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
+                    {w.status}
+                  </span>
                 </div>
-                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${w.status === "Active" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
-                  {w.status}
-                </span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

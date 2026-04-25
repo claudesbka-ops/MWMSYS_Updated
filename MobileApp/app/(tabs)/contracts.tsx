@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { Text, View } from "@/components/Themed";
 import { useApiClient } from "@/services/apiClient";
+import { Screen, PrimaryButton, SectionTitle, ListItemCard } from "@/components/ui";
 
 export default function ContractsScreen() {
   const api = useApiClient();
@@ -27,58 +27,59 @@ export default function ContractsScreen() {
   }, []);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Contracts</Text>
-      <Text style={styles.subtitle}>Expiring window</Text>
-
+    <Screen
+      title="Contracts"
+      subtitle="Contracts expiring soon"
+      gradient={["#0ea5e9", "#6366f1", "#a855f7"]}
+      refreshing={loading}
+      onRefresh={load}
+    >
       <View style={styles.row}>
-        <TextInput value={days} onChangeText={setDays} style={styles.input} keyboardType="numeric" />
-        <TouchableOpacity style={styles.btn} onPress={load}>
-          <Text style={styles.btnText}>Load</Text>
-        </TouchableOpacity>
+        <View style={styles.inputWrap}>
+          <Text style={styles.hint}>Expiring within</Text>
+          <TextInput value={days} onChangeText={setDays} style={styles.input} keyboardType="numeric" />
+          <Text style={styles.hint}>days</Text>
+        </View>
+        <PrimaryButton title="Load" onPress={load} />
       </View>
 
-      {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator />
+      <SectionTitle title={`Results (${rows.length})`} />
+
+      {loading && rows.length === 0 ? (
+        <ActivityIndicator color="#6366f1" />
+      ) : rows.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyText}>No expiring contracts in this window.</Text>
         </View>
       ) : (
-        <FlatList
-          data={rows}
-          keyExtractor={(item, idx) => String(item?.Worker_Id ?? idx)}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{String(item?.Worker_Id ?? "")}</Text>
-              <Text style={styles.cardDesc}>Employer: {String(item?.Employer_Name ?? "—")}</Text>
-              <Text style={styles.cardDesc}>Issue: {item?.Contract_issue_Date ? String(item.Contract_issue_Date).slice(0, 10) : "—"}</Text>
-              <Text style={styles.cardDesc}>Expiry: {item?.Contract_Expiry_Date ? String(item.Contract_Expiry_Date).slice(0, 10) : "—"}</Text>
-            </View>
-          )}
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>No expiring contracts</Text>
-            </View>
-          }
-        />
+        <View style={{ gap: 10 }}>
+          {rows.map((item, idx) => (
+            <ListItemCard
+              key={String(item?.Worker_Id ?? idx)}
+              title={String(item?.Worker_Id ?? "Contract")}
+              subtitle={`Employer: ${String(item?.Employer_Name ?? "—")}`}
+              meta={`Expires: ${item?.Contract_Expiry_Date ? String(item.Contract_Expiry_Date).slice(0, 10) : "—"}`}
+              icon="file-text"
+              iconGradient={['#f59e0b', '#fb7185']}
+              badge={{ label: 'Expiring', tone: 'amber' }}
+            />
+          ))}
+        </View>
       )}
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18 },
-  title: { fontSize: 22, fontWeight: "700" },
-  subtitle: { marginTop: 6, fontSize: 14, opacity: 0.7 },
-  row: { marginTop: 14, flexDirection: "row", gap: 10, alignItems: "center" },
-  input: { width: 90, height: 44, borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", paddingHorizontal: 12, color: "inherit" as any },
-  btn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: "#2563eb" },
-  btnText: { color: "white", fontWeight: "800" },
-  loadingWrap: { padding: 18 },
-  list: { paddingVertical: 14, gap: 10 },
-  card: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  cardTitle: { fontSize: 13, fontWeight: "800" },
-  cardDesc: { marginTop: 6, fontSize: 12, opacity: 0.75 },
-  emptyWrap: { paddingVertical: 30, alignItems: "center" },
-  emptyText: { opacity: 0.7 },
+  row: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  inputWrap: {
+    flex: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    height: 46, paddingHorizontal: 14, borderRadius: 14,
+    backgroundColor: '#ffffff', borderWidth: 1, borderColor: 'rgba(79,70,229,0.15)',
+  },
+  hint: { fontSize: 12, color: 'rgba(15,23,42,0.55)', fontWeight: '600' },
+  input: { flex: 1, fontSize: 14, color: '#0f172a', fontWeight: '700' },
+  empty: { alignItems: 'center', paddingVertical: 40 },
+  emptyText: { color: 'rgba(15,23,42,0.55)', fontSize: 13 },
 });

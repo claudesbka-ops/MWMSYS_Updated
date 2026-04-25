@@ -30,9 +30,11 @@ export default function EmployerSignup() {
     employmentDescription: "",
     password: "",
   });
+  const [submitting, setSubmitting] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
 
     if (
       !form.employerName.trim() ||
@@ -50,6 +52,7 @@ export default function EmployerSignup() {
       return;
     }
 
+    setSubmitting(true);
     try {
       await apiClient.post("/signup", {
         userId: form.ssmRocRobNo.trim(),
@@ -72,6 +75,8 @@ export default function EmployerSignup() {
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? "Signup failed";
       toast.error(msg);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -184,7 +189,9 @@ export default function EmployerSignup() {
               <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(1)}>
                 Back
               </Button>
-              <Button type="submit" className="flex-1" disabled={!canNextStep2}>Create Account</Button>
+              <Button type="submit" className="flex-1" disabled={!canNextStep2 || submitting}>
+                {submitting ? "Creating…" : "Create Account"}
+              </Button>
             </div>
           </>
         )}

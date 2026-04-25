@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, TouchableOpacity } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
 
-import { Text, View } from "@/components/Themed";
 import { useApiClient } from "@/services/apiClient";
 import { useSession } from "@/contexts/SessionContext";
-import Colors from "@/constants/Colors";
+import { Screen, Card, PrimaryButton } from "@/components/ui";
 
 export default function CheckoutSummaryScreen() {
   const router = useRouter();
@@ -52,50 +52,38 @@ export default function CheckoutSummaryScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} disabled={busy}>
-        <Text style={styles.backText}>Back</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.title}>Checkout Summary</Text>
-      <Text style={styles.subtitle}>Review your plan before payment</Text>
-
-      <View style={styles.card}>
-        <Text style={styles.label}>Selected plan</Text>
-        <Text style={styles.value}>{plan || "—"}</Text>
-
-        <Text style={[styles.label, { marginTop: 12 }]}>Billing</Text>
-        <Text style={styles.value}>Monthly (30 days)</Text>
-
-        <Text style={[styles.hint, { marginTop: 12 }]}>
-          You will be redirected to Stripe to complete payment. After successful payment, you will return to the app.
-        </Text>
-
-        <TouchableOpacity style={[styles.primaryBtn, busy && styles.disabled]} onPress={startCheckout} disabled={busy}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Proceed to Payment</Text>}
-        </TouchableOpacity>
-      </View>
-    </View>
+    <Screen title="Checkout" subtitle="Review your plan before payment" gradient={["#6366f1", "#8b5cf6", "#ec4899"]}>
+      <Card>
+        <View style={styles.row}>
+          <Text style={styles.label}>Selected plan</Text>
+          <View style={styles.pill}><Text style={styles.pillText}>{plan || "—"}</Text></View>
+        </View>
+        <View style={[styles.row, { marginTop: 12 }]}>
+          <Text style={styles.label}>Billing</Text>
+          <Text style={styles.value}>Monthly (30 days)</Text>
+        </View>
+        <View style={styles.divider} />
+        <View style={styles.infoRow}>
+          <FontAwesome name="lock" size={14} color="#6366f1" />
+          <Text style={styles.hint}>
+            You will be redirected to Stripe to complete payment. After successful payment, you will return to the app.
+          </Text>
+        </View>
+        <PrimaryButton title={busy ? "Opening Stripe…" : "Proceed to payment"} loading={busy} onPress={startCheckout} style={{ marginTop: 18 }} />
+      </Card>
+      <Text style={styles.cancel} onPress={() => !busy && router.back()}>Cancel</Text>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18 },
-  backBtn: { alignSelf: "flex-start", paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10 },
-  backText: { fontWeight: "800", opacity: 0.8 },
-  title: { marginTop: 6, fontSize: 22, fontWeight: "800" },
-  subtitle: { marginTop: 6, fontSize: 13, opacity: 0.7 },
-  card: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: Colors.light.border },
-  label: { fontSize: 12, opacity: 0.7, fontWeight: "700" },
-  value: { marginTop: 6, fontSize: 16, fontWeight: "900" },
-  hint: { fontSize: 12, opacity: 0.7, lineHeight: 16 },
-  primaryBtn: {
-    marginTop: 16,
-    paddingVertical: 12,
-    borderRadius: 14,
-    alignItems: "center",
-    backgroundColor: Colors.light.tint,
-  },
-  primaryText: { color: "#fff", fontWeight: "900" },
-  disabled: { opacity: 0.6 },
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  label: { fontSize: 11, fontWeight: "800", color: "rgba(15,23,42,0.55)", letterSpacing: 0.4, textTransform: "uppercase" },
+  value: { fontSize: 14, fontWeight: "800", color: "#0f172a" },
+  pill: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, backgroundColor: "rgba(99,102,241,0.12)" },
+  pillText: { fontSize: 13, fontWeight: "900", color: "#4f46e5", letterSpacing: 0.3 },
+  divider: { marginTop: 14, height: 1, backgroundColor: "rgba(15,23,42,0.08)" },
+  infoRow: { marginTop: 14, flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  hint: { flex: 1, fontSize: 12, color: "rgba(15,23,42,0.65)", lineHeight: 17 },
+  cancel: { marginTop: 18, textAlign: "center", color: "rgba(15,23,42,0.55)", fontSize: 13, fontWeight: "700" },
 });

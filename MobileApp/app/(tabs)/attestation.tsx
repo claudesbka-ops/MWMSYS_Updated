@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, StyleSheet, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { useFocusEffect } from "@react-navigation/native";
 
-import { Text, View } from "@/components/Themed";
 import { useApiClient } from "@/services/apiClient";
+import { Screen, Card, PrimaryButton, GhostButton, SectionTitle } from "@/components/ui";
 
 export default function AttestationScreen() {
   const api = useApiClient();
@@ -53,69 +53,66 @@ export default function AttestationScreen() {
   );
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Attestation</Text>
-      <Text style={styles.subtitle}>Approve/reject requests</Text>
+    <Screen
+      title="Attestation"
+      subtitle="Review and verify document requests"
+      gradient={["#f59e0b", "#ef4444", "#a855f7"]}
+      refreshing={loading}
+      onRefresh={refresh}
+    >
+      <SectionTitle title={`Pending (${rows.length})`} />
 
-      {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator />
+      {loading && rows.length === 0 ? (
+        <ActivityIndicator color="#6366f1" />
+      ) : rows.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyText}>No attestation requests.</Text>
         </View>
       ) : (
-        <FlatList
-          data={rows}
-          keyExtractor={(item, idx) => String(item?.AttestationId ?? idx)}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{String(item?.Worker_Id ?? "")}</Text>
-              <Text style={styles.cardDesc}>Doc: {String(item?.DocumentType ?? "—")}</Text>
-              <Text style={styles.cardDesc}>Status: {String(item?.Status ?? "")}</Text>
-              {item?.DocumentPath ? (
-                <TouchableOpacity
-                  style={styles.linkBtn}
-                  onPress={() => WebBrowser.openBrowserAsync(String(item.DocumentPath))}
-                >
-                  <Text style={styles.linkText}>Open Document</Text>
-                </TouchableOpacity>
-              ) : null}
-              <View style={styles.actionsRow}>
-                <TouchableOpacity style={styles.okBtn} onPress={() => approve(Number(item?.AttestationId ?? 0))}>
-                  <Text style={styles.okText}>Approve</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.noBtn} onPress={() => reject(Number(item?.AttestationId ?? 0))}>
-                  <Text style={styles.noText}>Reject</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>No attestation requests</Text>
-            </View>
-          }
-        />
+        <View style={{ gap: 10 }}>
+          {rows.map((item, idx) => {
+            const id = Number(item?.AttestationId ?? 0);
+            const status = String(item?.Status ?? "Pending");
+            return (
+              <Card key={String(item?.AttestationId ?? idx)} tight>
+                <View style={styles.row}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardTitle}>{String(item?.Worker_Id ?? "Worker")}</Text>
+                    <Text style={styles.cardSub}>Document: {String(item?.DocumentType ?? "—")}</Text>
+                  </View>
+                  <View style={styles.statusPill}>
+                    <Text style={styles.statusText}>{status}</Text>
+                  </View>
+                </View>
+
+                {item?.DocumentPath ? (
+                  <GhostButton
+                    title="Open document"
+                    onPress={() => WebBrowser.openBrowserAsync(String(item.DocumentPath))}
+                    style={{ marginTop: 12 }}
+                  />
+                ) : null}
+
+                <View style={styles.actions}>
+                  <PrimaryButton title="Approve" variant="success" onPress={() => approve(id)} style={{ flex: 1 }} />
+                  <PrimaryButton title="Reject" variant="danger" onPress={() => reject(id)} style={{ flex: 1 }} />
+                </View>
+              </Card>
+            );
+          })}
+        </View>
       )}
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18 },
-  title: { fontSize: 22, fontWeight: "700" },
-  subtitle: { marginTop: 6, fontSize: 14, opacity: 0.7 },
-  loadingWrap: { padding: 18 },
-  list: { paddingVertical: 14, gap: 10 },
-  card: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  cardTitle: { fontSize: 14, fontWeight: "700" },
-  cardDesc: { marginTop: 6, fontSize: 12, opacity: 0.75 },
-  actionsRow: { marginTop: 12, flexDirection: "row", gap: 10 },
-  linkBtn: { marginTop: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(37,99,235,0.35)", backgroundColor: "rgba(37,99,235,0.12)" },
-  linkText: { fontWeight: "800" },
-  okBtn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "rgba(16,185,129,0.15)", borderWidth: 1, borderColor: "rgba(16,185,129,0.25)" },
-  noBtn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "rgba(220,38,38,0.12)", borderWidth: 1, borderColor: "rgba(220,38,38,0.25)" },
-  okText: { fontWeight: "800" },
-  noText: { fontWeight: "800" },
-  emptyWrap: { paddingVertical: 30, alignItems: "center" },
-  emptyText: { opacity: 0.7 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  cardTitle: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
+  cardSub: { marginTop: 2, fontSize: 12, color: 'rgba(15,23,42,0.6)' },
+  statusPill: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999, backgroundColor: 'rgba(245,158,11,0.15)' },
+  statusText: { fontSize: 10, fontWeight: '800', color: '#b45309', textTransform: 'uppercase', letterSpacing: 0.3 },
+  actions: { marginTop: 12, flexDirection: 'row', gap: 10 },
+  empty: { alignItems: 'center', paddingVertical: 40 },
+  emptyText: { color: 'rgba(15,23,42,0.55)', fontSize: 13 },
 });

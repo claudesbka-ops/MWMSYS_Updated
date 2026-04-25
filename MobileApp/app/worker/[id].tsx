@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { Text, View } from "@/components/Themed";
 import { useApiClient } from "@/services/apiClient";
 import { useSession } from "@/contexts/SessionContext";
+import { Screen, Card, PrimaryButton, SectionTitle } from "@/components/ui";
 
 export default function WorkerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -115,123 +115,124 @@ export default function WorkerDetailScreen() {
     load().catch(() => undefined);
   }, [workerId]);
 
+  const inputProps = { editable: canEdit && !busy, style: styles.input, placeholderTextColor: "rgba(15,23,42,0.4)" as any };
+
   return (
-    <View style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-        <Text style={styles.backText}>Back</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.title}>Worker</Text>
-      <Text style={styles.subtitle}>{workerId}</Text>
-
-      {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator />
-        </View>
+    <Screen title="Worker" subtitle={workerId} gradient={["#6366f1", "#8b5cf6", "#ec4899"]} refreshing={loading} onRefresh={load}>
+      {loading && !personal ? (
+        <ActivityIndicator color="#6366f1" />
       ) : (
-        <View style={styles.card}>
-          <Text style={styles.label}>Name</Text>
-          <TextInput value={name} onChangeText={setName} style={styles.input} editable={canEdit && !busy} />
+        <>
+          <SectionTitle title="Personal details" />
+          <Card>
+            <Text style={styles.label}>Name</Text>
+            <TextInput value={name} onChangeText={setName} {...inputProps} />
 
-          <Text style={[styles.label, { marginTop: 12 }]}>Email</Text>
-          <TextInput value={email} onChangeText={setEmail} style={styles.input} autoCapitalize="none" editable={canEdit && !busy} />
+            <Text style={styles.label}>Email</Text>
+            <TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" {...inputProps} />
 
-          <Text style={[styles.label, { marginTop: 12 }]}>Contact</Text>
-          <TextInput value={contact} onChangeText={setContact} style={styles.input} editable={canEdit && !busy} />
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Country code</Text>
+                <TextInput value={contactCountryCode} onChangeText={setContactCountryCode} autoCapitalize="none" {...inputProps} />
+              </View>
+              <View style={{ flex: 2 }}>
+                <Text style={styles.label}>Contact</Text>
+                <TextInput value={contact} onChangeText={setContact} keyboardType="phone-pad" {...inputProps} />
+              </View>
+            </View>
 
-          <Text style={[styles.label, { marginTop: 12 }]}>Contact Country Code</Text>
-          <TextInput
-            value={contactCountryCode}
-            onChangeText={setContactCountryCode}
-            style={styles.input}
-            autoCapitalize="none"
-            editable={canEdit && !busy}
-          />
+            <Text style={styles.label}>Address</Text>
+            <TextInput value={address} onChangeText={setAddress} multiline {...inputProps} style={[styles.input, styles.multiline]} />
 
-          <Text style={[styles.label, { marginTop: 12 }]}>Address</Text>
-          <TextInput value={address} onChangeText={setAddress} style={[styles.input, styles.multiline]} multiline editable={canEdit && !busy} />
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>District</Text>
+                <TextInput value={district} onChangeText={setDistrict} {...inputProps} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>State code</Text>
+                <TextInput value={state} onChangeText={setState} keyboardType="numeric" {...inputProps} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>City code</Text>
+                <TextInput value={city} onChangeText={setCity} keyboardType="numeric" {...inputProps} />
+              </View>
+            </View>
 
-          <Text style={[styles.label, { marginTop: 12 }]}>District</Text>
-          <TextInput value={district} onChangeText={setDistrict} style={styles.input} editable={canEdit && !busy} />
+            <Text style={styles.label}>Nationality (code)</Text>
+            <TextInput value={nationality} onChangeText={setNationality} keyboardType="numeric" {...inputProps} />
+          </Card>
 
-          <Text style={[styles.label, { marginTop: 12 }]}>State (code)</Text>
-          <TextInput value={state} onChangeText={setState} style={styles.input} keyboardType="numeric" editable={canEdit && !busy} />
+          <SectionTitle title="Travel documents" />
+          <Card>
+            <Text style={styles.label}>Passport number</Text>
+            <TextInput value={passportNumber} onChangeText={setPassportNumber} autoCapitalize="characters" {...inputProps} />
 
-          <Text style={[styles.label, { marginTop: 12 }]}>City (code)</Text>
-          <TextInput value={city} onChangeText={setCity} style={styles.input} keyboardType="numeric" editable={canEdit && !busy} />
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Issue (YYYY-MM-DD)</Text>
+                <TextInput value={passportIssue} onChangeText={setPassportIssue} autoCapitalize="none" {...inputProps} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Expiry (YYYY-MM-DD)</Text>
+                <TextInput value={passportExpire} onChangeText={setPassportExpire} autoCapitalize="none" {...inputProps} />
+              </View>
+            </View>
 
-          <Text style={[styles.label, { marginTop: 12 }]}>Nationality (code)</Text>
-          <TextInput value={nationality} onChangeText={setNationality} style={styles.input} keyboardType="numeric" editable={canEdit && !busy} />
+            <Text style={styles.label}>Permit/visa expiry (YYYY-MM-DD)</Text>
+            <TextInput value={permitExpire} onChangeText={setPermitExpire} autoCapitalize="none" {...inputProps} />
+          </Card>
 
-          <Text style={[styles.label, { marginTop: 12 }]}>Passport Number</Text>
-          <TextInput
-            value={passportNumber}
-            onChangeText={setPassportNumber}
-            style={styles.input}
-            autoCapitalize="characters"
-            editable={canEdit && !busy}
-          />
+          <SectionTitle title="Demographics" />
+          <Card>
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Gender</Text>
+                <TextInput value={gender} onChangeText={setGender} {...inputProps} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>DOB (YYYY-MM-DD)</Text>
+                <TextInput value={dateOfBirth} onChangeText={setDateOfBirth} autoCapitalize="none" {...inputProps} />
+              </View>
+            </View>
 
-          <Text style={[styles.label, { marginTop: 12 }]}>Passport Issue Date (YYYY-MM-DD)</Text>
-          <TextInput value={passportIssue} onChangeText={setPassportIssue} style={styles.input} autoCapitalize="none" editable={canEdit && !busy} />
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Marital status (code)</Text>
+                <TextInput value={maritalStatus} onChangeText={setMaritalStatus} keyboardType="numeric" {...inputProps} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Education</Text>
+                <TextInput value={highestEducation} onChangeText={setHighestEducation} {...inputProps} />
+              </View>
+            </View>
 
-          <Text style={[styles.label, { marginTop: 12 }]}>Passport Expiry (YYYY-MM-DD)</Text>
-          <TextInput value={passportExpire} onChangeText={setPassportExpire} style={styles.input} autoCapitalize="none" editable={canEdit && !busy} />
+            <Text style={styles.label}>Mother name</Text>
+            <TextInput value={motherName} onChangeText={setMotherName} {...inputProps} />
 
-          <Text style={[styles.label, { marginTop: 12 }]}>Permit/Visa Expiry (YYYY-MM-DD)</Text>
-          <TextInput value={permitExpire} onChangeText={setPermitExpire} style={styles.input} autoCapitalize="none" editable={canEdit && !busy} />
-
-          <Text style={[styles.label, { marginTop: 12 }]}>Gender</Text>
-          <TextInput value={gender} onChangeText={setGender} style={styles.input} autoCapitalize="words" editable={canEdit && !busy} />
-
-          <Text style={[styles.label, { marginTop: 12 }]}>Date of Birth (YYYY-MM-DD)</Text>
-          <TextInput value={dateOfBirth} onChangeText={setDateOfBirth} style={styles.input} autoCapitalize="none" editable={canEdit && !busy} />
-
-          <Text style={[styles.label, { marginTop: 12 }]}>Marital Status (code)</Text>
-          <TextInput
-            value={maritalStatus}
-            onChangeText={setMaritalStatus}
-            style={styles.input}
-            keyboardType="numeric"
-            editable={canEdit && !busy}
-          />
-
-          <Text style={[styles.label, { marginTop: 12 }]}>Highest Education</Text>
-          <TextInput value={highestEducation} onChangeText={setHighestEducation} style={styles.input} editable={canEdit && !busy} />
-
-          <Text style={[styles.label, { marginTop: 12 }]}>Mother Name</Text>
-          <TextInput value={motherName} onChangeText={setMotherName} style={styles.input} editable={canEdit && !busy} />
-
-          <Text style={[styles.label, { marginTop: 12 }]}>Father Name</Text>
-          <TextInput value={fatherName} onChangeText={setFatherName} style={styles.input} editable={canEdit && !busy} />
+            <Text style={styles.label}>Father name</Text>
+            <TextInput value={fatherName} onChangeText={setFatherName} {...inputProps} />
+          </Card>
 
           {canEdit ? (
-            <TouchableOpacity style={[styles.primaryBtn, busy && styles.disabled]} onPress={save} disabled={busy}>
-              <Text style={styles.primaryBtnText}>{busy ? "Saving..." : "Save"}</Text>
-            </TouchableOpacity>
+            <PrimaryButton title={busy ? "Saving…" : "Save changes"} loading={busy} onPress={save} style={{ marginTop: 18 }} />
           ) : null}
 
-          {personal ? <Text style={styles.meta}>Passport: {String(personal?.Passport_Number ?? "—")}</Text> : null}
-          {permit ? <Text style={styles.meta}>Permit/Visa Expiry: {permit?.Permit_Expire_Date ? String(permit.Permit_Expire_Date).slice(0, 10) : "—"}</Text> : null}
-        </View>
+          <Text style={styles.cancel} onPress={() => router.back()}>Back</Text>
+        </>
       )}
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18 },
-  backBtn: { alignSelf: "flex-start", paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  backText: { fontWeight: "800", opacity: 0.8 },
-  title: { marginTop: 12, fontSize: 22, fontWeight: "700" },
-  subtitle: { marginTop: 6, fontSize: 14, opacity: 0.7 },
-  loadingWrap: { padding: 18 },
-  card: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  label: { fontSize: 12, fontWeight: "700", opacity: 0.8 },
-  input: { height: 44, borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", paddingHorizontal: 12, marginTop: 8, color: "inherit" as any },
-  multiline: { height: 90, paddingTop: 10 },
-  primaryBtn: { marginTop: 14, paddingVertical: 12, borderRadius: 12, backgroundColor: "#2563eb", alignItems: "center" },
-  primaryBtnText: { color: "white", fontWeight: "800" },
-  disabled: { opacity: 0.6 },
-  meta: { marginTop: 12, fontSize: 12, opacity: 0.7 },
+  label: { marginTop: 12, fontSize: 11, fontWeight: "800", color: "rgba(15,23,42,0.6)", letterSpacing: 0.4, textTransform: "uppercase" },
+  input: {
+    height: 44, borderRadius: 12, borderWidth: 1, borderColor: "rgba(79,70,229,0.15)",
+    paddingHorizontal: 12, marginTop: 8, backgroundColor: "#ffffff", color: "#0f172a",
+  },
+  multiline: { height: 90, paddingTop: 10, textAlignVertical: "top" },
+  row: { flexDirection: "row", gap: 10 },
+  cancel: { marginTop: 18, textAlign: "center", color: "rgba(15,23,42,0.55)", fontSize: 13, fontWeight: "700" },
 });

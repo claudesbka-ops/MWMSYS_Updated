@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { useRouter } from "expo-router";
 
-import { Text, View } from "@/components/Themed";
 import { useApiClient } from "@/services/apiClient";
 import { useSession } from "@/contexts/SessionContext";
 import { usePlanGate } from "@/hooks/usePlanGate";
+import { Screen, Card, PrimaryButton, GhostButton, SectionTitle, ListItemCard } from "@/components/ui";
 
 export default function PayrollScreen() {
   const router = useRouter();
@@ -101,30 +101,35 @@ export default function PayrollScreen() {
 
   if (appRole === "worker") {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Payroll</Text>
-        <Text style={styles.subtitle}>Not available for worker role</Text>
-      </View>
+      <Screen title="Payroll" subtitle="Not available for workers" gradient={["#059669", "#10b981"]}>
+        <View style={styles.empty}>
+          <Text style={styles.emptyText}>Payroll is accessed by employers and agencies only.</Text>
+        </View>
+      </Screen>
     );
   }
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Payroll</Text>
-      <Text style={styles.subtitle}>Uploads (paywalled for employer/agency)</Text>
+  const isPaywalled = (appRole === "employer" || appRole === "agency") && !gate.hasPlan;
 
-      {!gate.hasPlan && (appRole === "employer" || appRole === "agency") ? (
-        <View style={styles.paywall}>
-          <Text style={styles.paywallText}>Subscription required to upload payroll vouchers.</Text>
-          <TouchableOpacity style={styles.paywallBtn} onPress={() => router.push("/(tabs)/pricing" as any)}>
-            <Text style={styles.paywallBtnText}>Go to Pricing</Text>
-          </TouchableOpacity>
-        </View>
+  return (
+    <Screen
+      title="Payroll"
+      subtitle="Upload vouchers and view payroll history"
+      gradient={["#059669", "#10b981", "#06b6d4"]}
+      refreshing={loading}
+      onRefresh={refresh}
+    >
+      {isPaywalled ? (
+        <Card style={{ borderColor: 'rgba(239,68,68,0.25)' } as any}>
+          <Text style={styles.paywallTitle}>Subscription required</Text>
+          <Text style={styles.paywallSub}>Upgrade to upload payroll vouchers.</Text>
+          <PrimaryButton title="View pricing" variant="danger" style={{ marginTop: 12 }} onPress={() => router.push("/(tabs)/pricing" as any)} />
+        </Card>
       ) : null}
 
-      <View style={styles.card}>
+      <Card>
         <Text style={styles.label}>Worker ID</Text>
-        <TextInput value={workerId} onChangeText={setWorkerId} style={styles.input} autoCapitalize="none" />
+        <TextInput value={workerId} onChangeText={setWorkerId} style={styles.input} autoCapitalize="none" placeholder="W-001" placeholderTextColor="rgba(15,23,42,0.4)" />
 
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
@@ -140,80 +145,49 @@ export default function PayrollScreen() {
         <Text style={styles.label}>Amount</Text>
         <TextInput value={amount} onChangeText={setAmount} style={styles.input} keyboardType="numeric" />
 
-        <View style={styles.rowTight}>
-          <TouchableOpacity
-            style={[styles.ghostBtn, busy && styles.disabled, ((appRole === "employer" || appRole === "agency") && !gate.hasPlan) && styles.disabled]}
-            onPress={pickVoucher}
-            disabled={busy || ((appRole === "employer" || appRole === "agency") && !gate.hasPlan)}
-          >
-            <Text style={styles.ghostText}>{voucherUri ? "Change Voucher" : "Pick Voucher"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.primaryBtn, busy && styles.disabled, ((appRole === "employer" || appRole === "agency") && !gate.hasPlan) && styles.disabled]}
-            onPress={upload}
-            disabled={busy || ((appRole === "employer" || appRole === "agency") && !gate.hasPlan)}
-          >
-            <Text style={styles.primaryText}>{busy ? "Working..." : "Upload"}</Text>
-          </TouchableOpacity>
+        <View style={styles.actionRow}>
+          <GhostButton title={voucherUri ? "Change voucher" : "Pick voucher"} onPress={pickVoucher} disabled={busy || isPaywalled} />
+          <PrimaryButton title={busy ? "Working…" : "Upload"} variant="success" loading={busy} onPress={upload} disabled={isPaywalled} style={{ flex: 1 }} />
         </View>
-      </View>
+      </Card>
 
-      {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator />
+      <SectionTitle title={`History (${rows.length})`} />
+
+      {loading && rows.length === 0 ? (
+        <ActivityIndicator color="#6366f1" />
+      ) : rows.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyText}>No payroll rows yet.</Text>
         </View>
       ) : (
-        <FlatList
-          data={rows}
-          keyExtractor={(item, idx) => String(item?.id ?? idx)}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <View style={styles.rowCard}>
-              <Text style={styles.rowTitle}>{String(item?.workerId ?? "")}</Text>
-              <Text style={styles.rowSub}>Period: {String(item?.month ?? "").padStart(2, "0")}/{String(item?.year ?? "")}</Text>
-              <Text style={styles.rowSub}>Amount: {String(item?.amount ?? "0")}</Text>
-            </View>
-          )}
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>No payroll rows</Text>
-            </View>
-          }
-        />
+        <View style={{ gap: 10 }}>
+          {rows.map((item, idx) => (
+            <ListItemCard
+              key={String(item?.id ?? idx)}
+              title={String(item?.workerId ?? "Worker")}
+              subtitle={`Period: ${String(item?.month ?? "").padStart(2, "0")}/${String(item?.year ?? "")}`}
+              meta={`Amount: ${String(item?.amount ?? "0")}`}
+              icon="money"
+              iconGradient={['#059669', '#10b981']}
+              badge={item?.isPaid ? { label: "Paid", tone: "emerald" } : { label: "Pending", tone: "amber" }}
+            />
+          ))}
+        </View>
       )}
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18 },
-  title: { fontSize: 22, fontWeight: "700" },
-  subtitle: { marginTop: 6, fontSize: 12, opacity: 0.7 },
-  paywall: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(239,68,68,0.35)",
+  paywallTitle: { fontSize: 15, fontWeight: '800', color: '#0f172a' },
+  paywallSub: { marginTop: 4, fontSize: 12, color: 'rgba(15,23,42,0.6)' },
+  label: { marginTop: 12, fontSize: 11, fontWeight: '800', color: 'rgba(15,23,42,0.6)', letterSpacing: 0.4, textTransform: 'uppercase' },
+  input: {
+    height: 46, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(79,70,229,0.15)',
+    paddingHorizontal: 14, marginTop: 8, backgroundColor: '#ffffff', color: '#0f172a',
   },
-  paywallText: { fontSize: 12, opacity: 0.85, fontWeight: "800" },
-  paywallBtn: { marginTop: 10, paddingVertical: 10, borderRadius: 12, alignItems: "center", backgroundColor: "#111" },
-  paywallBtnText: { color: "#fff", fontWeight: "900" },
-  card: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  label: { marginTop: 10, fontSize: 12, fontWeight: "700", opacity: 0.8 },
-  input: { height: 44, borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", paddingHorizontal: 12, marginTop: 8, color: "inherit" as any },
-  row: { flexDirection: "row", gap: 10 },
-  rowTight: { marginTop: 12, flexDirection: "row", gap: 10, flexWrap: "wrap" },
-  ghostBtn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  ghostText: { fontWeight: "800", opacity: 0.8 },
-  primaryBtn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: "#2563eb" },
-  primaryText: { color: "white", fontWeight: "800" },
-  disabled: { opacity: 0.6 },
-  loadingWrap: { padding: 18 },
-  list: { paddingVertical: 14, gap: 10 },
-  rowCard: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  rowTitle: { fontSize: 13, fontWeight: "800" },
-  rowSub: { marginTop: 6, fontSize: 12, opacity: 0.75 },
-  emptyWrap: { paddingVertical: 30, alignItems: "center" },
-  emptyText: { opacity: 0.7 },
+  row: { flexDirection: 'row', gap: 10 },
+  actionRow: { marginTop: 14, flexDirection: 'row', gap: 10, alignItems: 'stretch' },
+  empty: { alignItems: 'center', paddingVertical: 40 },
+  emptyText: { color: 'rgba(15,23,42,0.55)', fontSize: 13, textAlign: 'center', paddingHorizontal: 30 },
 });

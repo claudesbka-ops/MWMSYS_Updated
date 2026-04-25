@@ -1,9 +1,12 @@
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
 
-import { Text, View } from "@/components/Themed";
 import { useApiClient } from "@/services/apiClient";
 import { useHrmsService } from "@/services/hrmsService";
+import { GradientBackground, ScreenHeader, PrimaryButton } from "@/components/ui";
 
 type ChatMessage = { senderType: string; message: string; createdOn: string };
 
@@ -97,83 +100,125 @@ export default function ChatScreen() {
     }
   };
 
+  const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    if (messages.length) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
+  }, [messages.length]);
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Chat</Text>
-      <Text style={styles.subtitle}>MWMSYS assistant</Text>
+    <GradientBackground colors={["#eef2ff", "#f5f3ff", "#fdf2f8"]}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={styles.headerWrap}>
+            <ScreenHeader
+              title="MWMS AI Assistant"
+              subtitle="Ask anything about your rights, documents or process"
+              gradient={["#0ea5e9", "#6366f1", "#8b5cf6"]}
+            />
+          </View>
 
-      {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator />
-        </View>
-      ) : (
-        <FlatList
-          data={messages}
-          keyExtractor={(_, idx) => String(idx)}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <View style={[styles.bubble, item.senderType === "User" ? styles.userBubble : styles.aiBubble]}>
-              <Text style={styles.bubbleText}>{item.message}</Text>
+          {loading && messages.length === 0 ? (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <ActivityIndicator color="#6366f1" />
             </View>
+          ) : (
+            <ScrollView
+              ref={scrollRef}
+              style={{ flex: 1 }}
+              contentContainerStyle={styles.list}
+              keyboardShouldPersistTaps="handled"
+            >
+              {messages.length === 0 ? (
+                <View style={styles.emptyWrap}>
+                  <FontAwesome name="comments-o" size={40} color="rgba(99,102,241,0.4)" />
+                  <Text style={styles.emptyTitle}>Start a conversation</Text>
+                  <Text style={styles.emptyText}>Type below to ask about leave, salary, documents or emergencies.</Text>
+                </View>
+              ) : (
+                messages.map((item, idx) => {
+                  const isUser = item.senderType === "User";
+                  return (
+                    <View key={idx} style={[styles.row, isUser ? styles.rowUser : styles.rowAi]}>
+                      {!isUser && (
+                        <LinearGradient colors={["#0ea5e9", "#6366f1"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.avatar}>
+                          <FontAwesome name="magic" size={12} color="white" />
+                        </LinearGradient>
+                      )}
+                      {isUser ? (
+                        <LinearGradient colors={["#6366f1", "#8b5cf6"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.bubble, styles.userBubble]}>
+                          <Text style={styles.userBubbleText}>{item.message}</Text>
+                        </LinearGradient>
+                      ) : (
+                        <View style={[styles.bubble, styles.aiBubble]}>
+                          <Text style={styles.aiBubbleText}>{item.message}</Text>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
           )}
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>No messages</Text>
-            </View>
-          }
-        />
-      )}
 
-      <View style={styles.inputRow}>
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          style={styles.input}
-          placeholder="Type a message"
-          autoCapitalize="sentences"
-        />
-        <TouchableOpacity style={[styles.sendBtn, busy && styles.disabled]} onPress={send} disabled={busy}>
-          <Text style={styles.sendText}>Send</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+          <View style={styles.inputRow}>
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              style={styles.input}
+              placeholder="Type a message…"
+              placeholderTextColor="rgba(15,23,42,0.4)"
+              autoCapitalize="sentences"
+              multiline
+            />
+            <PrimaryButton title={busy ? "…" : "Send"} loading={busy} onPress={send} style={{ height: 46 }} />
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </GradientBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18 },
-  title: { fontSize: 22, fontWeight: "700" },
-  subtitle: { marginTop: 6, fontSize: 14, opacity: 0.7 },
-  loadingWrap: { padding: 18 },
-  list: { paddingVertical: 14, gap: 10 },
-  bubble: {
-    padding: 12,
-    borderRadius: 14,
+  headerWrap: { paddingHorizontal: 18, paddingTop: 6 },
+  list: { padding: 18, paddingBottom: 24, gap: 10 },
+  row: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, maxWidth: '92%' },
+  rowUser: { alignSelf: 'flex-end', justifyContent: 'flex-end' },
+  rowAi: { alignSelf: 'flex-start' },
+  avatar: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  bubble: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 18, maxWidth: '100%' },
+  userBubble: { borderBottomRightRadius: 4 },
+  aiBubble: {
+    backgroundColor: '#ffffff',
+    borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: "rgba(120,120,120,0.18)",
-    maxWidth: "92%",
+    borderColor: 'rgba(79,70,229,0.1)',
   },
-  userBubble: { alignSelf: "flex-end", backgroundColor: "rgba(37,99,235,0.15)" },
-  aiBubble: { alignSelf: "flex-start", backgroundColor: "rgba(120,120,120,0.08)" },
-  bubbleText: { fontSize: 13, opacity: 0.9 },
-  emptyWrap: { paddingVertical: 30, alignItems: "center" },
-  emptyText: { opacity: 0.7 },
-  inputRow: { flexDirection: "row", gap: 10, alignItems: "center" },
+  userBubbleText: { color: 'white', fontSize: 14, lineHeight: 20 },
+  aiBubbleText: { color: '#0f172a', fontSize: 14, lineHeight: 20 },
+  emptyWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 10 },
+  emptyTitle: { fontSize: 16, fontWeight: '800', color: '#0f172a' },
+  emptyText: { fontSize: 13, color: 'rgba(15,23,42,0.6)', textAlign: 'center', paddingHorizontal: 40 },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    padding: 14,
+    paddingBottom: 18,
+    borderTopWidth: 1,
+    borderColor: 'rgba(79,70,229,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.85)',
+  },
   input: {
     flex: 1,
-    height: 44,
-    borderRadius: 12,
+    minHeight: 46,
+    maxHeight: 120,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(120,120,120,0.25)",
-    paddingHorizontal: 12,
-    color: "inherit" as any,
-  },
-  sendBtn: {
-    paddingVertical: 10,
+    borderColor: 'rgba(79,70,229,0.15)',
     paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: "#2563eb",
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+    color: '#0f172a',
+    fontSize: 14,
   },
-  sendText: { color: "white", fontWeight: "800" },
-  disabled: { opacity: 0.6 },
 });

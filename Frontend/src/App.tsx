@@ -53,6 +53,8 @@ import BlogPage from "./pages/BlogPage.tsx";
 import VerifyEmailPage from "./pages/VerifyEmailPage.tsx";
 import AccountPage from "./pages/AccountPage.tsx";
 import DisputePage from "./pages/DisputePage.tsx";
+import CompleteProfilePage from "./pages/CompleteProfilePage.tsx";
+import RequireCompleteProfile from "@/components/RequireCompleteProfile";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +71,7 @@ function AnimatedRoutes() {
         transition={{ duration: 0.18, ease: "easeOut" }}
       >
         <Routes location={location}>
+          <Route path="/complete-profile" element={<CompleteProfilePage />} />
           <Route path="/" element={<Index />} />
           <Route path="/blog" element={<BlogPage />} />
           <Route path="/blog/:slug" element={<BlogPage />} />
@@ -291,7 +294,9 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <AnimatedRoutes />
+          <RequireCompleteProfile>
+            <AnimatedRoutes />
+          </RequireCompleteProfile>
 
           <PanicNotifier />
           <Chatbot />

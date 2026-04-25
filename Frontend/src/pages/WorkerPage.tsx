@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
-import type { Worker } from "@/data/workersData";
 import { Plus, Edit2, FileText, Search, Filter, X, Upload, User, Link2 } from "lucide-react";
+
 import { toast } from "sonner";
 import { useRole } from "@/contexts/RoleContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,6 +11,21 @@ import { getWorkersList } from "@/services/workerService";
 import { Skeleton } from "@/components/ui/skeleton";
 import LinkEntityModal, { type LinkSearchRow } from "@/components/LinkEntityModal";
 import { employerLinkWorker, searchWorkers } from "@/services/relationshipService";
+
+type Worker = {
+  id: number;
+  name: string;
+  passportNo: string;
+  country: string;
+  dob: string;
+  employer: string;
+  permitExpiry: string;
+  insuranceExpiry: string;
+  phone: string;
+  maritalStatus: string;
+  entryDate?: string;
+  status: "Active" | "Expired";
+};
 
 const countries = ["Nepal", "Bangladesh", "Myanmar", "Indonesia", "Cambodia"];
 

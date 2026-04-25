@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { alertsData } from "@/data/alertsData";
-import { workersData } from "@/data/workersData";
 import {
   AlertTriangle, User, FileText, Shield, Phone, MapPin,
-  Clock, Sparkles, MessageSquare, CheckCircle2, XCircle, Image as ImageIcon, Video, Mic, Paperclip
+  Sparkles, MessageSquare, CheckCircle2, Image as ImageIcon, Video, Mic, Paperclip
 } from "lucide-react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
-
-const WORKER_PASSPORT_KEY = "mwmsys_worker_passport";
+import { getAccountProfile } from "@/services/accountService";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function WorkerView() {
   const navigate = useNavigate();
+  const { user: authUser } = useAuth();
   const [panicTriggered, setPanicTriggered] = useState(false);
   const [panicStatus, setPanicStatus] = useState<"idle" | "sending" | "sent">("idle");
   const [incidentFile, setIncidentFile] = useState<File | null>(null);
@@ -20,24 +20,27 @@ export default function WorkerView() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [myProblems, setMyProblems] = useState<any[]>([]);
 
-  const passportNo = localStorage.getItem(WORKER_PASSPORT_KEY) || "N2356781";
-  const worker = workersData.find((w) => (w.passportNo ?? "").toLowerCase() === passportNo.toLowerCase()) ?? workersData[0];
+  const accountQuery = useQuery({
+    queryKey: ["account_profile"],
+    queryFn: getAccountProfile,
+    staleTime: 60_000,
+  });
+
+  const account = accountQuery.data;
+  const workerFields = account?.profile?.kind === "worker" ? account.profile.fields : null;
 
   const workerProfile = {
-    name: (worker?.name ?? "WORKER").toUpperCase(),
-    passportNo: worker?.passportNo ?? passportNo,
-    country: worker?.country ?? "—",
-    dob: worker?.dob ?? "—",
-    employer: worker?.employer ?? "—",
-    permitExpiry: worker?.permitExpiry ?? "—",
-    insuranceExpiry: worker?.insuranceExpiry ?? "—",
-    phone: worker?.phone ?? "—",
-    status: (worker?.status ?? "Active") as "Active" | "Inactive",
+    name: (workerFields?.name || account?.userName || authUser?.name || "WORKER").toUpperCase(),
+    passportNo: workerFields?.passportNumber || "—",
+    country: "—",
+    dob: "—",
+    employer: "—",
+    permitExpiry: "—",
+    insuranceExpiry: "—",
+    phone: workerFields?.contactNumber || "—",
+    address: workerFields?.address || "—",
+    status: "Active" as const,
   };
-
-  const myAlerts = alertsData.filter(
-    (a) => (a.idNumber ?? "").toLowerCase() === workerProfile.passportNo.toLowerCase() || (a.name ?? "").toLowerCase() === (worker?.name ?? "").toLowerCase()
-  );
 
   useEffect(() => {
     const load = async () => {

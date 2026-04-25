@@ -1,27 +1,29 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
-import { alertsData } from "@/data/alertsData";
-import { workersData } from "@/data/workersData";
 import {
-  ChevronLeft, AlertTriangle, User, Building2, Phone, FileText,
-  Clock, Send, Shield, CheckCircle2, ArrowUpCircle, MessageSquare
+  ChevronLeft, AlertTriangle, User, Building2, FileText,
+  Clock, Send, Shield, CheckCircle2, ArrowUpCircle, MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { usePanicAlerts } from "@/contexts/PanicAlertsContext";
+import { getProblems, resolveProblem, type ProblemAndActionDto } from "@/services/problemService";
 
-const LOCAL_INCIDENTS_KEY = "mwmsys_local_incidents";
-
-function readLocalIncidents() {
-  try {
-    const raw = localStorage.getItem(LOCAL_INCIDENTS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed as typeof alertsData;
-  } catch {
-    return [];
-  }
-}
+type NormalisedIncident = {
+  id: number;
+  type: "Panic Alert" | "Issue";
+  name: string;
+  idNumber: string;
+  workerId?: string | null;
+  description: string;
+  employer?: string | null;
+  date: string;
+  time: string;
+  by: string;
+  resolved: boolean;
+};
 
 const statusOptions = [
   { value: "open", label: "Open", color: "bg-warning/10 text-warning" },
@@ -38,76 +40,203 @@ interface ResponseLog {
   timestamp: string;
 }
 
-function generateSmartSummary(params: {
-  incident: (typeof alertsData)[number];
-  workerEmployer?: string;
-  allIncidents: typeof alertsData;
-}) {
-  const employerName = (params.incident.employer ?? params.workerEmployer ?? "").toString();
-  const disputes = params.allIncidents.filter(
-    (x) => x.type !== "Panic Alert" && employerName && (x.employer ?? "").toLowerCase() === employerName.toLowerCase()
-  );
-  const risk = params.incident.type === "Panic Alert" ? "High" : disputes.length > 2 ? "High" : disputes.length > 0 ? "Medium" : "Low";
-  const disputeWord = disputes.length === 1 ? "dispute" : "disputes";
+function formatDateTime(raw: unknown): { date: string; time: string } {
+  if (!raw) return { date: "—", time: "—" };
+  const d = new Date(raw as any);
+  if (!Number.isFinite(d.getTime())) return { date: "—", time: "—" };
+  return { date: d.toLocaleDateString(), time: d.toLocaleTimeString() };
+}
 
-  return `Automated Risk Assessment: ${risk}. Employer has ${disputes.length} active ${disputeWord}.`;
+function isResolved(p: ProblemAndActionDto): boolean {
+  const raw = (p as any)?.IsResolved ?? (p as any)?.Status;
+  return raw === true || raw === 1 || raw === "1";
 }
 
 export default function IncidentPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const localIncidents = readLocalIncidents();
-  const allIncidents = [...localIncidents, ...alertsData];
-  const alert = allIncidents.find(a => a.id === Number(id));
-  const [status, setStatus] = useState("open");
-  const [newComment, setNewComment] = useState("");
-  const [responses, setResponses] = useState<ResponseLog[]>([
-    { id: 1, author: "FWWMC SEELAAN", action: "Incident Created", comment: "Alert received and logged into the system.", timestamp: "10 min after report" },
-    { id: 2, author: "Admin", action: "Status → Investigating", comment: "Contacting employer for details.", timestamp: "30 min after report" },
-  ]);
+  const incidentId = Number(id);
 
-  if (!alert) {
+  const { alerts: panicAlerts, resolve: resolvePanic } = usePanicAlerts();
+
+  const problemsQuery = useQuery({
+    queryKey: ["problems", "all"],
+    queryFn: () => getProblems(),
+    staleTime: 30_000,
+  });
+
+  const incident: NormalisedIncident | null = useMemo(() => {
+    if (!Number.isFinite(incidentId)) return null;
+
+    const panic = (panicAlerts ?? []).find((p) => Number(p.ID) === incidentId);
+    if (panic) {
+      const { date, time } = formatDateTime(panic.Updated_On);
+      return {
+        id: Number(panic.ID),
+        type: "Panic Alert",
+        name: (panic.worker_ID ?? "Worker").toString(),
+        idNumber: (panic.Prob_ID ?? "").toString(),
+        workerId: panic.worker_ID ?? null,
+        description: (panic.Description ?? panic.Title ?? "Panic alert triggered").toString(),
+        employer: panic.Company_Name ?? null,
+        date,
+        time,
+        by: "Worker",
+        resolved: false,
+      };
+    }
+
+    const problem = (problemsQuery.data ?? []).find(
+      (p) => Number(p.ProblemAndActionId) === incidentId
+    );
+    if (problem) {
+      const fallback = formatDateTime(problem.CreatedOn ?? problem.Date ?? null);
+      return {
+        id: Number(problem.ProblemAndActionId),
+        type: "Issue",
+        name: (problem.MemberName ?? problem.FullName ?? "Unknown").toString(),
+        idNumber: (problem.PassportNumber ?? "").toString(),
+        workerId: null,
+        description: (problem.Description ?? problem.Title ?? "").toString(),
+        employer: problem.EmployerName ?? null,
+        date: problem.Date ?? fallback.date,
+        time: problem.Time ?? fallback.time,
+        by: (problem.FullName ?? problem.MemberName ?? "System").toString(),
+        resolved: isResolved(problem),
+      };
+    }
+
+    return null;
+  }, [incidentId, panicAlerts, problemsQuery.data]);
+
+  const [status, setStatus] = useState<string>("open");
+  const [newComment, setNewComment] = useState("");
+  const [responses, setResponses] = useState<ResponseLog[]>([]);
+  const [actioning, setActioning] = useState(false);
+
+  // Keep the status selector in sync with the loaded incident on first hit.
+  useMemo(() => {
+    if (incident?.resolved) setStatus("resolved");
+  }, [incident?.resolved]);
+
+  const smartSummary = useMemo(() => {
+    if (!incident) return "";
+    if (incident.type === "Panic Alert") {
+      return `Automated Risk Assessment: High. Live panic alert from ${incident.name}${incident.employer ? ` at ${incident.employer}` : ""}.`;
+    }
+    const openCount = (problemsQuery.data ?? []).filter(
+      (p) => !isResolved(p) && incident.employer && (p.EmployerName ?? "").toString().toLowerCase() === incident.employer.toLowerCase()
+    ).length;
+    const risk = openCount > 2 ? "High" : openCount > 0 ? "Medium" : "Low";
+    return `Automated Risk Assessment: ${risk}. Employer has ${openCount} open issue${openCount === 1 ? "" : "s"}.`;
+  }, [incident, problemsQuery.data]);
+
+  const loading = problemsQuery.isLoading && (panicAlerts ?? []).length === 0;
+
+  if (!Number.isFinite(incidentId)) {
     return (
       <DashboardLayout>
         <div className="flex flex-col items-center justify-center py-20">
           <AlertTriangle className="w-12 h-12 text-muted-foreground mb-4" />
-          <h2 className="text-lg font-bold text-foreground mb-2">Incident Not Found</h2>
-          <p className="text-sm text-muted-foreground mb-4">The incident you're looking for doesn't exist.</p>
+          <h2 className="text-lg font-bold text-foreground mb-2">Invalid Incident</h2>
           <button onClick={() => navigate("/")} className="text-sm text-primary hover:underline">Return to Dashboard</button>
         </div>
       </DashboardLayout>
     );
   }
 
-  const worker = workersData.find(w => w.passportNo === alert.idNumber || w.name.toLowerCase() === alert.name.toLowerCase());
-  const isPanic = alert.type === "Panic Alert";
-  const currentStatus = statusOptions.find(s => s.value === status)!;
-  const smartSummary = generateSmartSummary({ incident: alert, workerEmployer: worker?.employer, allIncidents: allIncidents as typeof alertsData });
+  if (loading && !incident) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-24 w-full" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Skeleton className="h-48" />
+            <Skeleton className="h-48" />
+            <Skeleton className="h-48" />
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!incident) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center py-20">
+          <AlertTriangle className="w-12 h-12 text-muted-foreground mb-4" />
+          <h2 className="text-lg font-bold text-foreground mb-2">Incident Not Found</h2>
+          <p className="text-sm text-muted-foreground mb-4">This incident is no longer active or you do not have access to it.</p>
+          <button onClick={() => navigate("/")} className="text-sm text-primary hover:underline">Return to Dashboard</button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const isPanic = incident.type === "Panic Alert";
+  const currentStatus = statusOptions.find(s => s.value === status) ?? statusOptions[0];
 
   const handleAddResponse = () => {
     if (!newComment.trim()) return;
-    setResponses(prev => [...prev, {
-      id: Date.now(),
-      author: "FWWMC SEELAAN",
-      action: "Comment Added",
-      comment: newComment,
-      timestamp: "Just now",
-    }]);
+    setResponses(prev => [
+      ...prev,
+      {
+        id: Date.now(),
+        author: "You",
+        action: "Comment Added",
+        comment: newComment,
+        timestamp: new Date().toLocaleString(),
+      },
+    ]);
     setNewComment("");
-    toast.success("Response logged successfully");
+    toast.success("Response logged");
   };
 
-  const handleStatusChange = (newStatus: string) => {
-    const label = statusOptions.find(s => s.value === newStatus)?.label;
+  const handleStatusChange = async (newStatus: string) => {
+    const label = statusOptions.find(s => s.value === newStatus)?.label ?? newStatus;
+
+    if (newStatus === "resolved" && !actioning) {
+      setActioning(true);
+      try {
+        if (isPanic) {
+          await resolvePanic(incident.id);
+        } else {
+          await resolveProblem(incident.id);
+          await problemsQuery.refetch();
+        }
+        setStatus("resolved");
+        setResponses(prev => [
+          ...prev,
+          {
+            id: Date.now(),
+            author: "You",
+            action: "Status → Resolved",
+            comment: "Incident marked as resolved.",
+            timestamp: new Date().toLocaleString(),
+          },
+        ]);
+        toast.success("Incident resolved");
+      } catch (e: any) {
+        toast.error(e?.response?.data?.error ?? "Failed to resolve incident");
+      } finally {
+        setActioning(false);
+      }
+      return;
+    }
+
     setStatus(newStatus);
-    setResponses(prev => [...prev, {
-      id: Date.now(),
-      author: "FWWMC SEELAAN",
-      action: `Status → ${label}`,
-      comment: `Incident status changed to "${label}"`,
-      timestamp: "Just now",
-    }]);
-    toast.success(`Status updated to ${label}`);
+    setResponses(prev => [
+      ...prev,
+      {
+        id: Date.now(),
+        author: "You",
+        action: `Status → ${label}`,
+        comment: `Incident status changed to "${label}".`,
+        timestamp: new Date().toLocaleString(),
+      },
+    ]);
   };
 
   return (
@@ -124,10 +253,10 @@ export default function IncidentPage() {
             <div>
               <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg mb-3 ${isPanic ? "bg-destructive/20 text-[hsl(0,80%,70%)]" : "bg-warning/20 text-[hsl(38,80%,70%)]"}`}>
                 <AlertTriangle className="w-3 h-3" />
-                {alert.type} · #{alert.id}
+                {incident.type} · #{incident.id}
               </span>
-              <h1 className="text-xl font-bold text-[hsl(0,0%,100%)] mb-1">{alert.description || alert.type}</h1>
-              <p className="text-[hsl(210,20%,75%)] text-sm">Reported by {alert.by} on {alert.date} at {alert.time}</p>
+              <h1 className="text-xl font-bold text-[hsl(0,0%,100%)] mb-1">{incident.description || incident.type}</h1>
+              <p className="text-[hsl(210,20%,75%)] text-sm">Reported by {incident.by} on {incident.date} at {incident.time}</p>
             </div>
             <span className={`px-3 py-1.5 rounded-xl text-xs font-semibold ${currentStatus.color}`}>
               {currentStatus.label}
@@ -155,18 +284,23 @@ export default function IncidentPage() {
           </h3>
           <div className="space-y-3">
             {[
-              { label: "Name", value: alert.name },
-              { label: "ID/Passport", value: alert.idNumber },
-              { label: "Country", value: worker?.country || "—" },
-              { label: "DOB", value: worker?.dob || "—" },
-              { label: "Phone", value: worker?.phone || "—" },
-              { label: "Status", value: worker?.status || "—" },
+              { label: "Name", value: incident.name },
+              { label: "Worker Id", value: incident.workerId ?? "—" },
+              { label: "Passport", value: incident.idNumber || "—" },
             ].map(item => (
               <div key={item.label}>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">{item.label}</p>
                 <p className="text-sm font-medium text-foreground">{item.value}</p>
               </div>
             ))}
+            {isPanic && incident.workerId ? (
+              <button
+                onClick={() => navigate(`/map?focus=${encodeURIComponent(incident.workerId!)}&alertId=${incident.id}`)}
+                className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-primary hover:underline"
+              >
+                Open on live map →
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -177,30 +311,17 @@ export default function IncidentPage() {
             Employer Details
           </h3>
           <div className="space-y-3">
-            {alert.employer ? (
-              <>
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Company</p>
-                  <p className="text-sm font-medium text-foreground">{alert.employer}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Worker's Employer</p>
-                  <p className="text-sm font-medium text-foreground">{worker?.employer || alert.employer}</p>
-                </div>
-              </>
-            ) : (
-              <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Employer</p>
-                <p className="text-sm font-medium text-foreground">{worker?.employer || "Not specified"}</p>
-              </div>
-            )}
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Permit Expiry</p>
-              <p className="text-sm font-medium text-foreground">{worker?.permitExpiry || "—"}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Company</p>
+              <p className="text-sm font-medium text-foreground">{incident.employer || "Not specified"}</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Insurance Expiry</p>
-              <p className="text-sm font-medium text-foreground">{worker?.insuranceExpiry || "—"}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Type</p>
+              <p className="text-sm font-medium text-foreground">{incident.type}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Reported</p>
+              <p className="text-sm font-medium text-foreground">{incident.date} · {incident.time}</p>
             </div>
           </div>
         </div>
@@ -216,7 +337,8 @@ export default function IncidentPage() {
               <button
                 key={opt.value}
                 onClick={() => handleStatusChange(opt.value)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${status === opt.value ? opt.color + " ring-1 ring-current/20" : "text-muted-foreground hover:bg-muted/40"}`}
+                disabled={actioning}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all disabled:opacity-50 ${status === opt.value ? opt.color + " ring-1 ring-current/20" : "text-muted-foreground hover:bg-muted/40"}`}
               >
                 {opt.value === "open" && <Clock className="w-4 h-4" />}
                 {opt.value === "investigating" && <FileText className="w-4 h-4" />}
@@ -237,21 +359,25 @@ export default function IncidentPage() {
         </h3>
 
         <div className="space-y-4 mb-6">
-          {responses.map(r => (
-            <div key={r.id} className="flex gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-[10px] font-bold text-primary">{r.author.charAt(0)}</span>
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-sm font-semibold text-foreground">{r.author}</span>
-                  <span className="text-[11px] text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md">{r.action}</span>
+          {responses.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No responses yet. Add the first note below.</p>
+          ) : (
+            responses.map(r => (
+              <div key={r.id} className="flex gap-3">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-[10px] font-bold text-primary">{r.author.charAt(0)}</span>
                 </div>
-                <p className="text-sm text-muted-foreground">{r.comment}</p>
-                <p className="text-[11px] text-muted-foreground/60 mt-1">{r.timestamp}</p>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-sm font-semibold text-foreground">{r.author}</span>
+                    <span className="text-[11px] text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md">{r.action}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{r.comment}</p>
+                  <p className="text-[11px] text-muted-foreground/60 mt-1">{r.timestamp}</p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
 
         {/* Add Comment */}

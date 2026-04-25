@@ -24,9 +24,11 @@ export default function Signup() {
       | "labour"
       | "admin",
   });
+  const [submitting, setSubmitting] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!form.userId.trim() || !form.emailId.trim() || !form.password.trim()) {
       toast.error("Please fill in all fields");
       return;
@@ -37,6 +39,7 @@ export default function Signup() {
       return;
     }
 
+    setSubmitting(true);
     try {
       const res = await apiClient.post("/signup", {
         userId: form.userId.trim(),
@@ -54,6 +57,8 @@ export default function Signup() {
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? "Signup failed";
       toast.error(msg);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -132,8 +137,8 @@ export default function Signup() {
           <Button type="button" variant="outline" className="flex-1" onClick={() => navigate("/login")}>
             Back to Login
           </Button>
-          <Button type="submit" className="flex-1">
-            Create Account
+          <Button type="submit" className="flex-1" disabled={submitting}>
+            {submitting ? "Creating…" : "Create Account"}
           </Button>
         </div>
       </form>

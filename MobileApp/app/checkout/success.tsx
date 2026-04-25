@@ -1,8 +1,10 @@
 import React, { useEffect } from "react";
-import { StyleSheet, TouchableOpacity } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
 
-import { Text, View } from "@/components/Themed";
+import { Screen, PrimaryButton, GhostButton } from "@/components/ui";
 
 export default function CheckoutSuccessScreen() {
   const router = useRouter();
@@ -10,38 +12,31 @@ export default function CheckoutSuccessScreen() {
   useEffect(() => {
     const t = setTimeout(() => {
       router.replace("/(tabs)/pricing" as any);
-    }, 900);
+    }, 1600);
     return () => clearTimeout(t);
   }, []);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Payment Successful</Text>
-      <Text style={styles.subtitle}>Your subscription will be activated shortly.</Text>
-
-      <TouchableOpacity style={styles.primaryBtn} onPress={() => router.replace("/(tabs)/pricing" as any)}>
-        <Text style={styles.primaryText}>Go to Pricing</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.ghostBtn} onPress={() => router.replace("/(tabs)" as any)}>
-        <Text style={styles.ghostText}>Go to Dashboard</Text>
-      </TouchableOpacity>
-    </View>
+    <Screen title="Payment complete" subtitle="Your subscription is activating now" gradient={["#10b981", "#06b6d4", "#6366f1"]}>
+      <View style={styles.center}>
+        <LinearGradient colors={["#10b981", "#06b6d4"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.badge}>
+          <FontAwesome name="check" size={48} color="#ffffff" />
+        </LinearGradient>
+        <Text style={styles.h1}>Thank you!</Text>
+        <Text style={styles.sub}>Your plan will unlock in a few seconds. You will be redirected automatically.</Text>
+        <PrimaryButton title="Go to pricing" variant="success" style={{ marginTop: 18, alignSelf: "stretch" }} onPress={() => router.replace("/(tabs)/pricing" as any)} />
+        <GhostButton title="Go to dashboard" style={{ marginTop: 10, alignSelf: "stretch" }} onPress={() => router.replace("/(tabs)" as any)} />
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18, justifyContent: "center" },
-  title: { fontSize: 22, fontWeight: "800", textAlign: "center" },
-  subtitle: { marginTop: 8, opacity: 0.7, textAlign: "center" },
-  primaryBtn: {
-    marginTop: 18,
-    paddingVertical: 12,
-    borderRadius: 14,
-    alignItems: "center",
-    backgroundColor: "#111",
+  center: { alignItems: "center", paddingVertical: 30 },
+  badge: {
+    width: 110, height: 110, borderRadius: 55, alignItems: "center", justifyContent: "center",
+    shadowColor: "#10b981", shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.3, shadowRadius: 22, elevation: 8,
   },
-  primaryText: { color: "#fff", fontWeight: "900" },
-  ghostBtn: { marginTop: 10, paddingVertical: 12, borderRadius: 14, alignItems: "center" },
-  ghostText: { fontWeight: "800", opacity: 0.8 },
+  h1: { marginTop: 22, fontSize: 24, fontWeight: "900", color: "#0f172a" },
+  sub: { marginTop: 8, fontSize: 13, color: "rgba(15,23,42,0.65)", textAlign: "center", paddingHorizontal: 20, lineHeight: 18 },
 });

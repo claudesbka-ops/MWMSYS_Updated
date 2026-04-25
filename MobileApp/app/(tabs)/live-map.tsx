@@ -3,9 +3,10 @@ import { Alert, StyleSheet } from "react-native";
 import { io, type Socket } from "socket.io-client";
 import MapView, { Callout, Marker, PROVIDER_GOOGLE, type Region } from "react-native-maps";
 
-import { Text, View } from "@/components/Themed";
+import { Text, View } from "react-native";
 import { useApiClient } from "@/services/apiClient";
 import { useSession } from "@/contexts/SessionContext";
+import { Screen } from "@/components/ui";
 
 type WorkerLocationRow = {
   workerId: string;
@@ -138,10 +139,13 @@ export default function LiveMapScreen() {
   }, [markers, selectedId]);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Live Map</Text>
-      <Text style={styles.subtitle}>Live worker locations (real-time)</Text>
-
+    <Screen
+      title="Live Map"
+      subtitle={`${markers.length} worker${markers.length === 1 ? '' : 's'} on map`}
+      gradient={["#ec4899", "#8b5cf6", "#6366f1"]}
+      scroll={false}
+      contentStyle={{ flex: 1, paddingBottom: 18 }}
+    >
       <View style={styles.mapCard}>
         <MapView
           ref={(r) => {
@@ -180,23 +184,39 @@ export default function LiveMapScreen() {
 
         {!markers.length ? (
           <View style={styles.emptyOverlay}>
-            <Text style={styles.empty}>No locations yet</Text>
+            <Text style={styles.empty}>Waiting for location pings…</Text>
           </View>
         ) : null}
       </View>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18 },
-  title: { fontSize: 22, fontWeight: "700" },
-  subtitle: { marginTop: 6, fontSize: 14, opacity: 0.7 },
-  empty: { opacity: 0.7 },
-  mapCard: { marginTop: 14, borderRadius: 16, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", overflow: "hidden", flex: 1 },
+  empty: { color: 'white', fontWeight: '700', fontSize: 13, textAlign: 'center' },
+  mapCard: {
+    borderRadius: 22,
+    overflow: 'hidden',
+    flex: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(79,70,229,0.12)',
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 5,
+  },
   map: { flex: 1 },
-  emptyOverlay: { position: "absolute", top: 16, left: 16, right: 16, padding: 12, borderRadius: 14, backgroundColor: "rgba(0,0,0,0.35)" },
+  emptyOverlay: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    right: 16,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: 'rgba(15,23,42,0.85)',
+  },
   callout: { width: 220, paddingVertical: 6 },
-  calloutTitle: { fontSize: 14, fontWeight: "800" },
-  calloutMeta: { marginTop: 4, fontSize: 12, opacity: 0.8 },
+  calloutTitle: { fontSize: 14, fontWeight: '800' },
+  calloutMeta: { marginTop: 4, fontSize: 12, color: 'rgba(15,23,42,0.7)' },
 });

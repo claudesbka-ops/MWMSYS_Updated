@@ -366,8 +366,8 @@ export default function PlaceholderPage({ title }: { title: string }) {
                 </div>
               </div>
               <div className="space-y-3 mt-4">
-                <input className="w-full px-4 py-2.5 rounded-xl border border-border/60 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" defaultValue="FWWMC SEELAAN" />
-                <input className="w-full px-4 py-2.5 rounded-xl border border-border/60 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" defaultValue="support@mwmsys.local" />
+                <input className="w-full px-4 py-2.5 rounded-xl border border-border/60 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="Full name" />
+                <input className="w-full px-4 py-2.5 rounded-xl border border-border/60 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="Email address" />
                 <button
                   onClick={notImplemented}
                   disabled

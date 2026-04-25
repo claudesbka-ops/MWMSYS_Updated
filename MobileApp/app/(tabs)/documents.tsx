@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 
-import { Text, View } from "@/components/Themed";
 import { useApiClient } from "@/services/apiClient";
 import { useSession } from "@/contexts/SessionContext";
+import { Screen, Card, PrimaryButton, GhostButton, SectionTitle, ListItemCard } from "@/components/ui";
 
 type DocRow = { type: string; name: string; url: string; hasFile: boolean };
 
@@ -90,88 +90,70 @@ export default function DocumentsScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>My Documents</Text>
-      <Text style={styles.subtitle}>Passport, permit, insurance and contract files</Text>
-
-      <View style={styles.uploadCard}>
-        <Text style={styles.label}>Doc Type</Text>
-        <TextInput value={docType} onChangeText={setDocType} style={styles.input} autoCapitalize="none" />
+    <Screen
+      title="My Documents"
+      subtitle="Passport, permit, insurance & contract files"
+      gradient={["#6366f1", "#8b5cf6", "#0ea5e9"]}
+      refreshing={loading}
+      onRefresh={refresh}
+    >
+      <Card>
+        <Text style={styles.label}>Document type</Text>
+        <TextInput
+          value={docType}
+          onChangeText={setDocType}
+          placeholder="passport, permit, insurance, contract, demand_letter"
+          placeholderTextColor="rgba(15,23,42,0.4)"
+          style={styles.input}
+          autoCapitalize="none"
+        />
         <View style={styles.row}>
-          <TouchableOpacity style={[styles.primaryBtn, busy && styles.disabledBtn]} onPress={upload} disabled={busy}>
-            <Text style={styles.primaryText}>{busy ? "Working..." : "Upload"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.refreshBtn, busy && styles.disabledBtn]} onPress={refresh} disabled={busy}>
-            <Text style={styles.refreshText}>Refresh</Text>
-          </TouchableOpacity>
+          <PrimaryButton title={busy ? "Working…" : "Upload file"} loading={busy} onPress={upload} style={{ flex: 1 }} />
+          <GhostButton title="Refresh" onPress={refresh} disabled={busy} />
         </View>
-        <Text style={styles.hint}>docType values: passport, permit, insurance, contract, demand_letter</Text>
-      </View>
+      </Card>
 
-      {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator />
+      <SectionTitle title={`Files (${docs.length})`} />
+
+      {loading && docs.length === 0 ? (
+        <ActivityIndicator color="#6366f1" />
+      ) : docs.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyText}>No documents uploaded yet.</Text>
         </View>
       ) : (
-        <FlatList
-          data={docs}
-          keyExtractor={(d) => d.type}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>{item.name}</Text>
-              <Text style={styles.cardDesc}>{item.hasFile ? "Available" : "Not uploaded"}</Text>
-              {item.hasFile ? <Text style={styles.cardLink}>{item.url}</Text> : null}
-              <View style={styles.rowTight}>
-                <TouchableOpacity
-                  style={[styles.dangerBtn, busy && styles.disabledBtn]}
-                  onPress={() => remove(item.type)}
-                  disabled={busy}
-                >
-                  <Text style={styles.dangerText}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>No documents found</Text>
-            </View>
-          }
-        />
+        <View style={{ gap: 10 }}>
+          {docs.map((item) => (
+            <ListItemCard
+              key={item.type}
+              title={item.name}
+              subtitle={item.hasFile ? "Available" : "Not uploaded"}
+              meta={item.hasFile ? item.url : undefined}
+              icon={item.hasFile ? "file-text" : "file-o"}
+              iconGradient={item.hasFile ? ["#10b981", "#06b6d4"] : ["#94a3b8", "#64748b"]}
+              badge={item.hasFile ? { label: "Ready", tone: "emerald" } : { label: "Missing", tone: "slate" }}
+              onPress={item.hasFile ? () => remove(item.type) : undefined}
+            />
+          ))}
+        </View>
       )}
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18 },
-  title: { fontSize: 22, fontWeight: "700" },
-  subtitle: { marginTop: 6, fontSize: 14, opacity: 0.7 },
-  uploadCard: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  label: { fontSize: 12, fontWeight: "700", opacity: 0.8 },
-  input: { height: 44, borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", paddingHorizontal: 12, marginTop: 8, color: "inherit" as any },
-  row: { marginTop: 12, flexDirection: "row", gap: 10, flexWrap: "wrap" },
-  rowTight: { marginTop: 10, flexDirection: "row", gap: 10 },
-  primaryBtn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: "#2563eb" },
-  primaryText: { color: "white", fontWeight: "800" },
-  refreshBtn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  refreshText: { fontWeight: "800", opacity: 0.8 },
-  hint: { marginTop: 10, fontSize: 11, opacity: 0.65 },
-  disabledBtn: { opacity: 0.6 },
-  loadingWrap: { padding: 18 },
-  list: { paddingVertical: 14, gap: 10 },
-  card: {
-    padding: 14,
-    borderRadius: 14,
+  label: { fontSize: 11, fontWeight: '800', color: 'rgba(15,23,42,0.6)', letterSpacing: 0.4, textTransform: 'uppercase' },
+  input: {
+    height: 46,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(120,120,120,0.25)",
+    borderColor: 'rgba(79,70,229,0.15)',
+    paddingHorizontal: 14,
+    marginTop: 8,
+    backgroundColor: '#ffffff',
+    color: '#0f172a',
   },
-  cardTitle: { fontSize: 14, fontWeight: "700" },
-  cardDesc: { marginTop: 6, fontSize: 12, opacity: 0.75 },
-  cardLink: { marginTop: 8, fontSize: 11, opacity: 0.65 },
-  dangerBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "rgba(220,38,38,0.12)", borderWidth: 1, borderColor: "rgba(220,38,38,0.25)" },
-  dangerText: { fontWeight: "800" },
-  emptyWrap: { paddingVertical: 30, alignItems: "center" },
-  emptyText: { opacity: 0.7 },
+  row: { marginTop: 14, flexDirection: 'row', gap: 10, alignItems: 'stretch' },
+  empty: { alignItems: 'center', paddingVertical: 40 },
+  emptyText: { color: 'rgba(15,23,42,0.55)', fontSize: 13 },
 });

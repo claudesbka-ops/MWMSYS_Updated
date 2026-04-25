@@ -5,7 +5,7 @@ import { useRole } from "@/contexts/RoleContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/services/apiClient";
 import { logout } from "@/services/authService";
-import { alertsData } from "@/data/alertsData";
+import type { AlertData } from "@/components/AlertCard";
 import { useTheme } from "next-themes";
 import { useQuery } from "@tanstack/react-query";
 import { getSubscriptionMe } from "@/services/subscriptionService";
@@ -24,13 +24,13 @@ const LOCAL_INCIDENTS_KEY = "mwmsys_local_incidents";
 const LAST_NOTIF_SEEN_KEY = "mwmsys_last_notif_seen";
 const LAST_BROADCAST_SEEN_KEY = "mwmsys_last_broadcast_seen";
 
-function readLocalIncidents() {
+function readLocalIncidents(): AlertData[] {
   try {
     const raw = localStorage.getItem(LOCAL_INCIDENTS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed as typeof alertsData;
+    return parsed as AlertData[];
   } catch {
     return [];
   }
@@ -82,7 +82,7 @@ export default function TopHeader() {
   const { user } = useAuth();
   const userName = user?.name ?? "User";
   const localIncidents = readLocalIncidents();
-  const allIncidents = [...localIncidents, ...alertsData].sort((a, b) => b.id - a.id);
+  const allIncidents = [...localIncidents].sort((a, b) => b.id - a.id);
   const lastSeenId = readLastSeenId();
   const lastBroadcastSeenId = readLastBroadcastSeenId();
   const broadcastUnread = (broadcastRows ?? []).filter((b) => (Number(b.id ?? 0) || 0) > lastBroadcastSeenId).length;

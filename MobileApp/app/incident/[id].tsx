@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { Text, View } from "@/components/Themed";
 import { useApiClient } from "@/services/apiClient";
+import { Screen, Card } from "@/components/ui";
 
 export default function IncidentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -35,52 +35,59 @@ export default function IncidentDetailScreen() {
     load().catch(() => undefined);
   }, [id]);
 
+  const status = String(row?.ProbStatus ?? "").toLowerCase();
+  const type = String(row?.Type ?? "").toLowerCase();
+  const gradient = (type === "panic" ? ["#ef4444", "#f59e0b", "#ec4899"] : ["#6366f1", "#8b5cf6", "#ec4899"]) as [string, string, ...string[]];
+
   return (
-    <View style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-        <Text style={styles.backText}>Back</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.title}>Incident Detail</Text>
-
-      {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator />
-        </View>
+    <Screen title="Incident" subtitle={row ? String(row?.Title ?? row?.Type ?? `Incident #${id}`) : `Incident #${id}`} gradient={gradient} refreshing={loading} onRefresh={load}>
+      {loading && !row ? (
+        <ActivityIndicator color="#6366f1" />
       ) : !row ? (
-        <View style={styles.loadingWrap}>
-          <Text style={styles.subtitle}>No data</Text>
-        </View>
+        <Card>
+          <Text style={styles.muted}>No data for this incident.</Text>
+        </Card>
       ) : (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>{String(row?.Title ?? row?.Type ?? "Incident")}</Text>
-          <Text style={styles.line}>Type: {String(row?.Type ?? "—")}</Text>
-          <Text style={styles.line}>Worker: {String(row?.worker_ID ?? "—")}</Text>
-          <Text style={styles.line}>Company: {String(row?.Company_Name ?? "—")}</Text>
-          <Text style={styles.line}>Status: {String(row?.ProbStatus ?? "—")}</Text>
-          <Text style={styles.desc}>{String(row?.Description ?? "")}</Text>
-        </View>
+        <Card>
+          <View style={styles.headerRow}>
+            <Text style={styles.title}>{String(row?.Title ?? row?.Type ?? "Incident")}</Text>
+            {row?.ProbStatus ? (
+              <View style={[styles.statusPill, status === "approved" ? styles.statusApproved : status === "rejected" ? styles.statusRejected : styles.statusPending]}>
+                <Text style={styles.statusText}>{String(row.ProbStatus)}</Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.metaRow}><Text style={styles.label}>Type</Text><Text style={styles.value}>{String(row?.Type ?? "—")}</Text></View>
+          <View style={styles.metaRow}><Text style={styles.label}>Worker</Text><Text style={styles.value}>{String(row?.worker_ID ?? "—")}</Text></View>
+          <View style={styles.metaRow}><Text style={styles.label}>Company</Text><Text style={styles.value}>{String(row?.Company_Name ?? "—")}</Text></View>
+          {row?.Description ? (
+            <>
+              <View style={styles.divider} />
+              <Text style={styles.descLabel}>Description</Text>
+              <Text style={styles.desc}>{String(row.Description)}</Text>
+            </>
+          ) : null}
+        </Card>
       )}
-    </View>
+      <Text style={styles.back} onPress={() => router.back()}>Back</Text>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18 },
-  backBtn: {
-    alignSelf: "flex-start",
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(120,120,120,0.25)",
-  },
-  backText: { fontWeight: "800", opacity: 0.8 },
-  title: { marginTop: 12, fontSize: 22, fontWeight: "700" },
-  subtitle: { marginTop: 6, fontSize: 14, opacity: 0.7 },
-  loadingWrap: { padding: 18 },
-  card: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  cardTitle: { fontSize: 14, fontWeight: "700" },
-  line: { marginTop: 8, fontSize: 12, opacity: 0.8 },
-  desc: { marginTop: 12, fontSize: 13, opacity: 0.9 },
+  muted: { color: "rgba(15,23,42,0.55)", fontSize: 13 },
+  headerRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  title: { flex: 1, fontSize: 18, fontWeight: "900", color: "#0f172a" },
+  statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  statusPending: { backgroundColor: "rgba(245,158,11,0.14)" },
+  statusApproved: { backgroundColor: "rgba(16,185,129,0.14)" },
+  statusRejected: { backgroundColor: "rgba(239,68,68,0.14)" },
+  statusText: { fontSize: 10, fontWeight: "900", color: "#0f172a", letterSpacing: 0.3, textTransform: "uppercase" },
+  metaRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 12 },
+  label: { fontSize: 11, fontWeight: "800", color: "rgba(15,23,42,0.55)", letterSpacing: 0.4, textTransform: "uppercase" },
+  value: { fontSize: 13, fontWeight: "700", color: "#0f172a" },
+  divider: { marginTop: 14, height: 1, backgroundColor: "rgba(15,23,42,0.08)" },
+  descLabel: { marginTop: 14, fontSize: 11, fontWeight: "800", color: "rgba(15,23,42,0.55)", letterSpacing: 0.4, textTransform: "uppercase" },
+  desc: { marginTop: 8, fontSize: 13, color: "rgba(15,23,42,0.8)", lineHeight: 19 },
+  back: { marginTop: 18, textAlign: "center", color: "rgba(15,23,42,0.55)", fontSize: 13, fontWeight: "700" },
 });

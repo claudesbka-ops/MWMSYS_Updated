@@ -6,10 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AuthLayout from "@/components/AuthLayout";
 import { resendOtp, verifyEmail } from "@/services/otpService";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function VerifyEmailPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { refresh: refreshAuth } = useAuth();
 
   const initialUserId = searchParams.get("userId") ?? "";
   const initialEmail = searchParams.get("email") ?? "";
@@ -45,6 +47,7 @@ export default function VerifyEmailPage() {
         return;
       }
       toast.success("Email verified. Welcome aboard.");
+      await refreshAuth();
       navigate("/");
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? "Invalid or expired code";

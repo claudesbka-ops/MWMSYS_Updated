@@ -1,12 +1,24 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
-import { agenciesData, type Agency } from "@/data/agenciesData";
 import { Building2, Mail, MapPin, Phone, Search, ChevronLeft, Users, BriefcaseBusiness, Link2 } from "lucide-react";
 import { useRole } from "@/contexts/RoleContext";
 import LinkEntityModal, { type LinkSearchRow } from "@/components/LinkEntityModal";
 import { agencyLinkEmployer, searchEmployers } from "@/services/relationshipService";
+import { getAgenciesList } from "@/services/agencyService";
+import { Skeleton } from "@/components/ui/skeleton";
+
+type Agency = {
+  id: string;
+  name: string;
+  contact: string;
+  phone: string;
+  email: string;
+  address: string;
+  employerCount: number;
+  workerCount: number;
+};
 
 export default function AgenciesPage() {
   const navigate = useNavigate();
@@ -16,8 +28,27 @@ export default function AgenciesPage() {
   const [selectedAgency, setSelectedAgency] = useState<Agency | null>(null);
   const [linkEmployerOpen, setLinkEmployerOpen] = useState(false);
 
-  const filtered = agenciesData.filter((a) =>
-    a.name.toLowerCase().includes(search.toLowerCase()) || a.contact.toLowerCase().includes(search.toLowerCase())
+  const { data: agenciesRows = [], isLoading } = useQuery({
+    queryKey: ["agencies_list"],
+    queryFn: getAgenciesList,
+  });
+
+  const agencies: Agency[] = useMemo(() => {
+    return (agenciesRows ?? []).map((a) => ({
+      id: (a.User_Id ?? "").toString(),
+      name: (a.Agent_Organization_Name ?? a.Agent_Name ?? a.User_Id ?? "Agency").toString(),
+      contact: (a.Agent_Name ?? "").toString(),
+      phone: (a.Agent_ContactNumber ?? "").toString(),
+      email: (a.Agent_EmailID ?? "").toString(),
+      address: (a.Agent_CountryCode ?? "").toString(),
+      employerCount: 0,
+      workerCount: 0,
+    }));
+  }, [agenciesRows]);
+
+  const q = search.trim().toLowerCase();
+  const filtered = agencies.filter(
+    (a) => !q || a.name.toLowerCase().includes(q) || a.contact.toLowerCase().includes(q)
   );
 
   const canLinkEmployer = currentRole === "agency";
@@ -148,7 +179,28 @@ export default function AgenciesPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filtered.map((agency) => (
+        {isLoading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="bg-card rounded-2xl border border-border/60 p-5">
+              <div className="flex items-start gap-3 mb-4">
+                <Skeleton className="h-11 w-11 rounded-xl" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-32" />
+                <Skeleton className="h-3 w-40" />
+              </div>
+            </div>
+          ))
+        ) : filtered.length === 0 ? (
+          <div className="col-span-full text-center py-12 text-sm text-muted-foreground">
+            No agencies registered yet.
+          </div>
+        ) : (
+        filtered.map((agency) => (
           <button
             type="button"
             key={agency.id}
@@ -191,7 +243,8 @@ export default function AgenciesPage() {
               </div>
             </div>
           </button>
-        ))}
+        ))
+        )}
       </div>
 
       <LinkEntityModal

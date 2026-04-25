@@ -1,12 +1,44 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Linking, StyleSheet, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Alert, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
 
-import { Text, View } from "@/components/Themed";
 import { useApiClient } from "@/services/apiClient";
+import { Screen, PrimaryButton } from "@/components/ui";
 
-const PLANS = ["Free", "Pro", "Enterprise"];
+type PlanDef = {
+  key: string;
+  price: string;
+  gradient: readonly [string, string, ...string[]];
+  features: string[];
+  tagline: string;
+};
+
+const PLANS: PlanDef[] = [
+  {
+    key: "Free",
+    price: "$0",
+    gradient: ["#64748b", "#334155"],
+    tagline: "Basic access",
+    features: ["View scoped workers", "Receive panic alerts", "No write actions"],
+  },
+  {
+    key: "Pro",
+    price: "$49/mo",
+    gradient: ["#6366f1", "#8b5cf6", "#ec4899"],
+    tagline: "Everything a growing team needs",
+    features: ["All Free features", "Approve leave & attendance", "Create incidents", "Live map + alerts", "Priority support"],
+  },
+  {
+    key: "Enterprise",
+    price: "Contact us",
+    gradient: ["#0f172a", "#6366f1"],
+    tagline: "Custom SLAs and integrations",
+    features: ["All Pro features", "Multi-branch scoping", "API access", "Dedicated onboarding", "Custom reports"],
+  },
+];
 
 export default function PricingScreen() {
   const router = useRouter();
@@ -71,43 +103,99 @@ export default function PricingScreen() {
   );
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Pricing</Text>
-      <Text style={styles.subtitle}>Current plan: {plan}</Text>
-
-      {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator />
-        </View>
+    <Screen
+      title="Pricing"
+      subtitle={`Your current plan: ${plan}`}
+      gradient={["#a855f7", "#ec4899", "#f97316"]}
+      refreshing={loading}
+      onRefresh={refresh}
+    >
+      {loading && plan === "Free" ? (
+        <ActivityIndicator color="#6366f1" />
       ) : (
-        <FlatList
-          data={PLANS}
-          keyExtractor={(p) => p}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.planCard} onPress={() => choose(item)}>
-              <Text style={styles.planName}>{item}</Text>
-              <Text style={styles.planDesc}>{item === plan ? "Active plan" : "Tap to buy"}</Text>
-            </TouchableOpacity>
-          )}
-        />
+        <View style={{ gap: 14 }}>
+          {PLANS.map((p) => {
+            const active = p.key === plan;
+            return (
+              <View key={p.key} style={[styles.planCard, active && styles.planCardActive]}>
+                <LinearGradient colors={p.gradient as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.planName}>{p.key}</Text>
+                    <Text style={styles.planTagline}>{p.tagline}</Text>
+                  </View>
+                  <View style={styles.priceWrap}>
+                    <Text style={styles.priceText}>{p.price}</Text>
+                  </View>
+                </LinearGradient>
+                <View style={styles.planBody}>
+                  {p.features.map((f) => (
+                    <View key={f} style={styles.featureRow}>
+                      <FontAwesome name="check-circle" size={14} color="#10b981" />
+                      <Text style={styles.featureText}>{f}</Text>
+                    </View>
+                  ))}
+                  {active ? (
+                    <View style={styles.currentBadge}>
+                      <FontAwesome name="star" size={12} color="#047857" />
+                      <Text style={styles.currentText}>Current plan</Text>
+                    </View>
+                  ) : (
+                    <PrimaryButton
+                      title={p.key === 'Enterprise' ? 'Contact sales' : `Choose ${p.key}`}
+                      onPress={() => choose(p.key)}
+                      style={{ marginTop: 14 }}
+                    />
+                  )}
+                </View>
+              </View>
+            );
+          })}
+        </View>
       )}
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18 },
-  title: { fontSize: 22, fontWeight: "700" },
-  subtitle: { marginTop: 6, fontSize: 14, opacity: 0.7 },
-  loadingWrap: { padding: 18 },
-  list: { paddingVertical: 14, gap: 10 },
-  planCard: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  planName: { fontSize: 16, fontWeight: "800" },
-  planDesc: { marginTop: 4, fontSize: 12, opacity: 0.7 },
-  card: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  cardTitle: { fontSize: 14, fontWeight: "700" },
-  primaryBtn: { marginTop: 12, paddingVertical: 12, borderRadius: 12, backgroundColor: "#2563eb", alignItems: "center" },
-  primaryBtnText: { color: "white", fontWeight: "800" },
-  disabled: { opacity: 0.6 },
+  planCard: {
+    borderRadius: 22,
+    overflow: 'hidden',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(79,70,229,0.1)',
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  planCardActive: {
+    borderColor: 'rgba(99,102,241,0.55)',
+    shadowOpacity: 0.18,
+  },
+  planHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 18,
+    gap: 10,
+  },
+  planName: { fontSize: 22, fontWeight: '900', color: 'white', letterSpacing: 0.3 },
+  planTagline: { marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
+  priceWrap: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.22)' },
+  priceText: { color: 'white', fontSize: 14, fontWeight: '800' },
+  planBody: { padding: 18 },
+  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 },
+  featureText: { fontSize: 13, color: 'rgba(15,23,42,0.78)', fontWeight: '600' },
+  currentBadge: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: 'rgba(16,185,129,0.14)',
+  },
+  currentText: { fontSize: 12, fontWeight: '800', color: '#047857', letterSpacing: 0.3 },
 });

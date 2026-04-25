@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, StyleSheet, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
 
-import { Text, View } from "@/components/Themed";
 import { useApiClient } from "@/services/apiClient";
 import { useSession } from "@/contexts/SessionContext";
+import { Screen, ListItemCard, PrimaryButton, SectionTitle } from "@/components/ui";
 
 export default function WorkersScreen() {
   const router = useRouter();
@@ -13,6 +14,7 @@ export default function WorkersScreen() {
   const session = useSession();
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<any[]>([]);
+  const [query, setQuery] = useState("");
 
   const appRole = (session.claims?.appRole ?? "").toString();
   const canCreate = appRole === "admin" || appRole === "agency" || appRole === "employer";
@@ -40,68 +42,85 @@ export default function WorkersScreen() {
     }, [])
   );
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Workers</Text>
-      <Text style={styles.subtitle}>Scoped worker list</Text>
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? rows.filter((r) =>
+        [r?.Worker_Id, r?.Passport_Number, r?.Company_Name, r?.Name]
+          .map((x) => String(x ?? "").toLowerCase())
+          .some((x) => x.includes(q))
+      )
+    : rows;
 
+  return (
+    <Screen
+      title="Workers"
+      subtitle={`${rows.length} in your scope`}
+      gradient={["#6366f1", "#8b5cf6", "#ec4899"]}
+      refreshing={loading}
+      onRefresh={refresh}
+    >
       {canCreate ? (
-        <TouchableOpacity style={styles.createBtn} onPress={() => router.push('/(tabs)/new-worker' as any)}>
-          <Text style={styles.createText}>Create Worker</Text>
-        </TouchableOpacity>
+        <PrimaryButton title="+ Add new worker" onPress={() => router.push('/(tabs)/new-worker' as any)} />
       ) : null}
 
-      {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator />
+      <View style={styles.searchWrap}>
+        <FontAwesome name="search" size={13} color="rgba(15,23,42,0.4)" />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search by ID, passport, company…"
+          placeholderTextColor="rgba(15,23,42,0.35)"
+          style={styles.searchInput}
+          autoCapitalize="none"
+        />
+      </View>
+
+      <SectionTitle title={`Results (${filtered.length})`} />
+
+      {loading && rows.length === 0 ? (
+        <ActivityIndicator color="#6366f1" style={{ marginTop: 16 }} />
+      ) : filtered.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyText}>No workers match your filter.</Text>
         </View>
       ) : (
-        <FlatList
-          data={rows}
-          keyExtractor={(item, idx) => String(item?.Worker_Id ?? idx)}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() => {
-                const wid = String(item?.Worker_Id ?? "").trim();
-                if (wid) router.push(`/worker/${encodeURIComponent(wid)}` as any);
-              }}
-            >
-              <Text style={styles.cardTitle}>{String(item?.Worker_Id ?? "")}</Text>
-              <Text style={styles.cardDesc}>Passport: {String(item?.Passport_Number ?? "—")}</Text>
-              <Text style={styles.cardDesc}>Company: {String(item?.Company_Name ?? "—")}</Text>
-            </TouchableOpacity>
-          )}
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>No workers</Text>
-            </View>
-          }
-        />
+        <View style={{ gap: 10 }}>
+          {filtered.map((item, idx) => {
+            const wid = String(item?.Worker_Id ?? "").trim();
+            return (
+              <ListItemCard
+                key={wid || idx}
+                title={String(item?.Name ?? item?.Worker_Id ?? "Worker")}
+                subtitle={`Passport: ${String(item?.Passport_Number ?? "—")}`}
+                meta={`Company: ${String(item?.Company_Name ?? item?.Employer_Name ?? "—")}`}
+                icon="user"
+                iconGradient={["#6366f1", "#8b5cf6"]}
+                onPress={() => {
+                  if (wid) router.push(`/worker/${encodeURIComponent(wid)}` as any);
+                }}
+              />
+            );
+          })}
+        </View>
       )}
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18 },
-  title: { fontSize: 22, fontWeight: "700" },
-  subtitle: { marginTop: 6, fontSize: 14, opacity: 0.7 },
-  createBtn: {
+  searchWrap: {
     marginTop: 12,
-    alignSelf: 'flex-start',
-    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: '#2563eb',
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "rgba(79,70,229,0.12)",
   },
-  createText: { color: 'white', fontWeight: '800' },
-  loadingWrap: { padding: 18 },
-  list: { paddingVertical: 14, gap: 10 },
-  card: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  cardTitle: { fontSize: 14, fontWeight: "700" },
-  cardDesc: { marginTop: 6, fontSize: 12, opacity: 0.75 },
-  emptyWrap: { paddingVertical: 30, alignItems: "center" },
-  emptyText: { opacity: 0.7 },
+  searchInput: { flex: 1, fontSize: 14, color: "#0f172a" },
+  empty: { alignItems: "center", paddingVertical: 40 },
+  emptyText: { color: "rgba(15,23,42,0.55)", fontSize: 13 },
 });

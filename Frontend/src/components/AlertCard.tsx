@@ -5,6 +5,7 @@ export interface AlertData {
   id: number;
   name: string;
   idNumber: string;
+  workerId?: string;
   type: string;
   description?: string;
   employer?: string;
@@ -22,9 +23,22 @@ export default function AlertCard({ alert, onDismiss }: { alert: AlertData; onDi
   const isPanic = alert.type === "Panic Alert";
   const status = alert.status ?? "active";
 
+  const handleOpen = () => {
+    if (isPanic) {
+      // Panic alerts jump straight to the live map focused on the worker.
+      const workerId = (alert.workerId || alert.name || alert.idNumber || String(alert.id)).toString().trim();
+      const qs = new URLSearchParams();
+      if (workerId) qs.set("focus", workerId);
+      qs.set("alertId", String(alert.id));
+      navigate(`/map?${qs.toString()}`);
+      return;
+    }
+    navigate(`/incident/${alert.id}`);
+  };
+
   return (
     <div
-      onClick={() => navigate(`/incident/${alert.id}`)}
+      onClick={handleOpen}
       className="group relative rounded-2xl overflow-hidden cursor-pointer glass-surface premium-ring premium-hover active:translate-y-0"
     >
       <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">

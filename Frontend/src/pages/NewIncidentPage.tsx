@@ -1,11 +1,20 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
-import { workersData } from "@/data/workersData";
 import type { AlertData } from "@/components/AlertCard";
 import { AlertTriangle, ChevronLeft, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from "@/contexts/AuthContext";
+import { getWorkersList } from "@/services/workerService";
+
+type WorkerOption = {
+  id: string;
+  name: string;
+  passportNo: string;
+  employer: string;
+};
 
 const LOCAL_INCIDENTS_KEY = "mwmsys_local_incidents";
 
@@ -28,20 +37,51 @@ function writeLocalIncidents(items: AlertData[]) {
 export default function NewIncidentPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const workerId = Number(params.get("worker") ?? "");
+  const { user } = useAuth();
+  const preselectWorkerId = (params.get("worker") ?? "").toString().trim();
 
-  const defaultWorker = useMemo(() => workersData.find((w) => w.id === workerId), [workerId]);
+  const workersQuery = useQuery({
+    queryKey: ["workers_list"],
+    queryFn: getWorkersList,
+  });
 
-  const [workerPassport, setWorkerPassport] = useState(defaultWorker?.passportNo ?? "");
+  const workerOptions: WorkerOption[] = useMemo(() => {
+    return (workersQuery.data ?? [])
+      .map((w) => ({
+        id: (w.Worker_Id ?? "").toString(),
+        name: ((w.Name ?? "").toString().trim() || (w.Worker_Id ?? "").toString()),
+        passportNo: (w.Passport_Number ?? "").toString(),
+        employer: (w.Company_Name ?? "").toString(),
+      }))
+      .filter((w) => !!w.id);
+  }, [workersQuery.data]);
+
+  // Treat ?worker=<id|passport> as either a Worker_Id or a passport number.
+  const defaultWorker = useMemo(() => {
+    if (!preselectWorkerId) return undefined;
+    const lower = preselectWorkerId.toLowerCase();
+    return workerOptions.find(
+      (w) => w.id.toLowerCase() === lower || w.passportNo.toLowerCase() === lower
+    );
+  }, [preselectWorkerId, workerOptions]);
+
+  const [workerPassport, setWorkerPassport] = useState("");
   const [incidentType, setIncidentType] = useState<"Issue" | "Panic Alert">("Issue");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
 
+  // When workers load, auto-fill the dropdown from the ?worker= param.
+  useEffect(() => {
+    if (!workerPassport && defaultWorker?.passportNo) {
+      setWorkerPassport(defaultWorker.passportNo);
+    }
+  }, [defaultWorker, workerPassport]);
+
   const worker = useMemo(() => {
     const passport = workerPassport.trim().toLowerCase();
     if (!passport) return undefined;
-    return workersData.find((w) => w.passportNo.toLowerCase() === passport);
-  }, [workerPassport]);
+    return workerOptions.find((w) => w.passportNo.toLowerCase() === passport);
+  }, [workerPassport, workerOptions]);
 
   const createIncident = () => {
     if (!worker) {
@@ -63,7 +103,7 @@ export default function NewIncidentPage() {
       employer: worker.employer,
       date,
       time,
-      by: "FWWMC SEELAAN",
+      by: user?.name ?? user?.id ?? "System",
       comments: 0,
     };
 
@@ -105,11 +145,17 @@ export default function NewIncidentPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__select__">Select worker</SelectItem>
-                  {workersData.map((w) => (
-                    <SelectItem key={w.id} value={w.passportNo}>
-                      {w.name} ({w.passportNo})
+                  {workerOptions.length === 0 && !workersQuery.isLoading ? (
+                    <SelectItem value="__none__" disabled>
+                      No workers available
                     </SelectItem>
-                  ))}
+                  ) : (
+                    workerOptions.map((w) => (
+                      <SelectItem key={w.id} value={w.passportNo || w.id}>
+                        {w.name}{w.passportNo ? ` (${w.passportNo})` : ""}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -177,7 +223,7 @@ export default function NewIncidentPage() {
 
           {worker ? (
             <div className="space-y-3">
-              {[{ l: "Name", v: worker.name }, { l: "Passport", v: worker.passportNo }, { l: "Country", v: worker.country }, { l: "Employer", v: worker.employer ?? "—" }].map(
+              {[{ l: "Name", v: worker.name }, { l: "Passport", v: worker.passportNo || "—" }, { l: "Employer", v: worker.employer || "—" }].map(
                 (x) => (
                   <div key={x.l}>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">{x.l}</p>

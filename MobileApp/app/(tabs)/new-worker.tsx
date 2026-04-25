@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { Alert, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 
-import { Text, View } from "@/components/Themed";
 import { useApiClient } from "@/services/apiClient";
 import { useSession } from "@/contexts/SessionContext";
+import { Screen, Card, PrimaryButton } from "@/components/ui";
 
 export default function NewWorkerScreen() {
   const router = useRouter();
@@ -54,55 +54,49 @@ export default function NewWorkerScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-        <Text style={styles.backText}>Back</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.title}>New Worker</Text>
-      <Text style={styles.subtitle}>Create worker login + profile</Text>
-
-      <View style={styles.card}>
+    <Screen title="New Worker" subtitle="Create worker login and profile" gradient={["#6366f1", "#8b5cf6", "#ec4899"]}>
+      <Card>
         <Text style={styles.label}>Worker ID</Text>
-        <TextInput value={workerId} onChangeText={setWorkerId} style={styles.input} autoCapitalize="none" />
+        <TextInput value={workerId} onChangeText={setWorkerId} style={styles.input} autoCapitalize="none" placeholder="W-001" placeholderTextColor="rgba(15,23,42,0.4)" />
 
-        <Text style={[styles.label, { marginTop: 12 }]}>Passport No</Text>
-        <TextInput value={passportNo} onChangeText={setPassportNo} style={styles.input} autoCapitalize="characters" />
+        <Text style={styles.label}>Passport No</Text>
+        <TextInput value={passportNo} onChangeText={setPassportNo} style={styles.input} autoCapitalize="characters" placeholder="A1234567" placeholderTextColor="rgba(15,23,42,0.4)" />
 
-        <Text style={[styles.label, { marginTop: 12 }]}>Full Name (optional)</Text>
-        <TextInput value={fullName} onChangeText={setFullName} style={styles.input} />
+        <Text style={styles.label}>Full Name (optional)</Text>
+        <TextInput value={fullName} onChangeText={setFullName} style={styles.input} placeholder="John Doe" placeholderTextColor="rgba(15,23,42,0.4)" />
 
-        <Text style={[styles.label, { marginTop: 12 }]}>Email (optional)</Text>
-        <TextInput value={emailId} onChangeText={setEmailId} style={styles.input} autoCapitalize="none" />
+        <Text style={styles.label}>Email (optional)</Text>
+        <TextInput value={emailId} onChangeText={setEmailId} style={styles.input} autoCapitalize="none" keyboardType="email-address" placeholder="john@example.com" placeholderTextColor="rgba(15,23,42,0.4)" />
 
-        <Text style={[styles.label, { marginTop: 12 }]}>Password</Text>
-        <TextInput value={password} onChangeText={setPassword} style={styles.input} secureTextEntry autoCapitalize="none" />
+        <Text style={styles.label}>Password</Text>
+        <TextInput value={password} onChangeText={setPassword} style={styles.input} secureTextEntry autoCapitalize="none" placeholder="••••••••" placeholderTextColor="rgba(15,23,42,0.4)" />
 
         {canSetEmployerId ? (
           <>
-            <Text style={[styles.label, { marginTop: 12 }]}>Employer ID{needsEmployerId ? "" : " (optional)"}</Text>
-            <TextInput value={employerId} onChangeText={setEmployerId} style={styles.input} autoCapitalize="none" />
+            <Text style={styles.label}>{needsEmployerId ? "Employer ID" : "Employer ID (optional)"}</Text>
+            <TextInput value={employerId} onChangeText={setEmployerId} style={styles.input} autoCapitalize="none" placeholder="EMP-001" placeholderTextColor="rgba(15,23,42,0.4)" />
           </>
         ) : null}
 
-        <TouchableOpacity style={[styles.primaryBtn, busy && styles.disabled]} onPress={create} disabled={busy}>
-          <Text style={styles.primaryBtnText}>{busy ? "Creating..." : "Create Worker"}</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+        <PrimaryButton title={busy ? "Creating…" : "Create worker"} loading={busy} onPress={create} style={{ marginTop: 18 }} />
+      </Card>
+
+      <Text style={styles.cancel} onPress={() => router.back()}>Cancel</Text>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18 },
-  backBtn: { alignSelf: "flex-start", paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  backText: { fontWeight: "800", opacity: 0.8 },
-  title: { marginTop: 12, fontSize: 22, fontWeight: "700" },
-  subtitle: { marginTop: 6, fontSize: 14, opacity: 0.7 },
-  card: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)" },
-  label: { fontSize: 12, fontWeight: "700", opacity: 0.8 },
-  input: { height: 44, borderRadius: 12, borderWidth: 1, borderColor: "rgba(120,120,120,0.25)", paddingHorizontal: 12, marginTop: 8, color: "inherit" as any },
-  primaryBtn: { marginTop: 14, paddingVertical: 12, borderRadius: 12, backgroundColor: "#2563eb", alignItems: "center" },
-  primaryBtnText: { color: "white", fontWeight: "800" },
-  disabled: { opacity: 0.6 },
+  label: { marginTop: 12, fontSize: 11, fontWeight: '800', color: 'rgba(15,23,42,0.6)', letterSpacing: 0.4, textTransform: 'uppercase' },
+  input: {
+    height: 46, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(79,70,229,0.15)',
+    paddingHorizontal: 14, marginTop: 8, backgroundColor: '#ffffff', color: '#0f172a',
+  },
+  cancel: {
+    marginTop: 18,
+    textAlign: 'center',
+    color: 'rgba(15,23,42,0.55)',
+    fontSize: 13,
+    fontWeight: '700',
+  },
 });

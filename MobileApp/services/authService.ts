@@ -1,6 +1,5 @@
 import { useSession } from "@/contexts/SessionContext";
-
-const PROD_API_BASE_URL = "http://173.233.72.39:3000";
+import { resolveApiBaseUrl } from "@/services/apiBase";
 
 export type LoginResponse = {
   access_token: string;
@@ -10,7 +9,7 @@ export type LoginResponse = {
 };
 
 export function useAuthService() {
-  useSession();
+  const session = useSession();
 
   return {
     login: async (params: { userName: string; password: string; passportNo?: string }) => {
@@ -20,7 +19,8 @@ export function useAuthService() {
       body.set("password", params.password);
       if (params.passportNo) body.set("passportNo", params.passportNo);
 
-      const url = PROD_API_BASE_URL.replace(/\/+$/, "") + "/Api/token";
+      const base = resolveApiBaseUrl(session.apiBaseUrl);
+      const url = base.replace(/\/+$/, "") + "/Api/token";
       const res = await fetch(url, {
         method: "POST",
         headers: {

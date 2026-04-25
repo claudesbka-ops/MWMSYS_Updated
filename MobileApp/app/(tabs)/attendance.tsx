@@ -1,14 +1,14 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, StyleSheet, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 
-import { Text, View } from "@/components/Themed";
 import type { AttendanceRow } from "@/services/hrmsService";
 import { useSession } from "@/contexts/SessionContext";
 import { useApiClient } from "@/services/apiClient";
 import { useAttendance } from "@/hooks/useAttendance";
 import { useGeoFix } from "@/hooks/useGeoFix";
 import { captureSelfie } from "@/services/mediaService";
+import { Screen, PrimaryButton, GhostButton, Card, SectionTitle, ListItemCard } from "@/components/ui";
 
 export default function AttendanceScreen() {
   const session = useSession();
@@ -67,57 +67,61 @@ function WorkerView() {
     Alert.alert("Sync", `Processed ${r.processed}, remaining ${r.remaining}.`);
   }, [attendance.queue]);
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Attendance</Text>
-      <Text style={styles.subtitle}>
-        {geo.loading
-          ? "Acquiring location..."
-          : geo.fix
-          ? `Location ready (±${Math.round(geo.fix.accuracy ?? 0)}m)`
-          : "Clock in/out and view your records"}
-      </Text>
+  const subtitle = geo.loading
+    ? "Acquiring location…"
+    : geo.fix
+    ? `Location ready (±${Math.round(geo.fix.accuracy ?? 0)}m)`
+    : "Clock in/out and view your records";
 
-      <View style={styles.actionsRow}>
-        <TouchableOpacity
-          style={[styles.primaryBtn, (busy || openExists) && styles.disabledBtn]}
-          onPress={handleClockIn}
-          disabled={busy || openExists}
-        >
-          <Text style={styles.primaryBtnText}>{busy ? "Working..." : "Clock In"}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.secondaryBtn, (busy || !openExists) && styles.disabledBtn]}
-          onPress={handleClockOut}
-          disabled={busy || !openExists}
-        >
-          <Text style={styles.secondaryBtnText}>Clock Out</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.ghostBtn, busy && styles.disabledBtn]}
-          onPress={() => attendance.query.refetch()}
-          disabled={busy}
-        >
-          <Text style={styles.ghostBtnText}>Refresh</Text>
-        </TouchableOpacity>
-      </View>
+  return (
+    <Screen
+      title="Attendance"
+      subtitle={subtitle}
+      gradient={["#10b981", "#22d3ee", "#6366f1"]}
+      refreshing={loading}
+      onRefresh={() => attendance.query.refetch()}
+    >
+      <Card tight>
+        <Text style={styles.statusHint}>Today</Text>
+        <Text style={styles.statusValue}>
+          {openExists ? "You are clocked in" : "Not clocked in"}
+        </Text>
+        <View style={styles.actionsRow}>
+          {!openExists ? (
+            <PrimaryButton
+              title={busy ? "Working…" : "Clock In"}
+              variant="success"
+              loading={busy}
+              onPress={handleClockIn}
+              style={{ flex: 1 }}
+            />
+          ) : (
+            <PrimaryButton
+              title={busy ? "Working…" : "Clock Out"}
+              variant="danger"
+              loading={busy}
+              onPress={handleClockOut}
+              style={{ flex: 1 }}
+            />
+          )}
+        </View>
+      </Card>
 
       {queueCount > 0 && (
-        <TouchableOpacity style={styles.queueBanner} onPress={handleDrainQueue}>
+        <TouchableOpacity onPress={handleDrainQueue} style={styles.queueBanner} activeOpacity={0.85}>
           <Text style={styles.queueBannerText}>
             {queueCount} pending clock-in{queueCount > 1 ? "s" : ""} — tap to retry sync
           </Text>
         </TouchableOpacity>
       )}
 
-      {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator />
-        </View>
+      <SectionTitle title={`Recent records (${rows.length})`} />
+      {loading && rows.length === 0 ? (
+        <ActivityIndicator color="#6366f1" />
       ) : (
         <AttendanceList rows={rows} />
       )}
-    </View>
+    </Screen>
   );
 }
 
@@ -129,108 +133,72 @@ function SupervisorView() {
     staleTime: 30_000,
   });
 
+  const rows = query.data ?? [];
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Attendance</Text>
-      <Text style={styles.subtitle}>Team attendance records</Text>
-
-      <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.ghostBtn} onPress={() => query.refetch()}>
-          <Text style={styles.ghostBtnText}>Refresh</Text>
-        </TouchableOpacity>
-      </View>
-
+    <Screen
+      title="Attendance"
+      subtitle={`Team records • ${rows.length}`}
+      gradient={["#6366f1", "#8b5cf6", "#ec4899"]}
+      refreshing={query.isFetching}
+      onRefresh={() => query.refetch()}
+    >
+      <SectionTitle title="All entries" />
       {query.isLoading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator />
-        </View>
+        <ActivityIndicator color="#6366f1" />
       ) : (
-        <AttendanceList rows={query.data ?? []} />
+        <AttendanceList rows={rows} />
       )}
-    </View>
+    </Screen>
   );
 }
 
 function AttendanceList({ rows }: { rows: AttendanceRow[] }) {
+  if (!rows.length) {
+    return (
+      <View style={styles.empty}>
+        <Text style={styles.emptyText}>No attendance records yet.</Text>
+      </View>
+    );
+  }
   return (
-    <FlatList
-      data={rows}
-      keyExtractor={(item) => String(item?.id ?? Math.random())}
-      contentContainerStyle={styles.list}
-      renderItem={({ item }) => {
+    <View style={{ gap: 10 }}>
+      {rows.map((item, idx) => {
         const checkIn = item?.checkIn ? new Date(String(item.checkIn)).toLocaleString() : "";
-        const checkOut = item?.checkOut ? new Date(String(item.checkOut)).toLocaleString() : "—";
+        const checkOut = item?.checkOut ? new Date(String(item.checkOut)).toLocaleString() : null;
         const coords =
           item?.lat != null && item?.lng != null
-            ? `${Number(item.lat).toFixed(5)}, ${Number(item.lng).toFixed(5)}`
+            ? `${Number(item.lat).toFixed(4)}, ${Number(item.lng).toFixed(4)}`
             : null;
+        const open = !!item?.checkIn && !item?.checkOut;
         return (
-          <View style={styles.card}>
-            <Text style={styles.cardLine}>In: {checkIn}</Text>
-            <Text style={styles.cardLine}>Out: {checkOut}</Text>
-            {coords && <Text style={styles.cardMeta}>Geo: {coords}</Text>}
-            {item?.photoUrl && <Text style={styles.cardMeta}>Photo: yes</Text>}
-          </View>
+          <ListItemCard
+            key={String(item?.id ?? idx)}
+            title={`In: ${checkIn || '—'}`}
+            subtitle={checkOut ? `Out: ${checkOut}` : 'Still clocked in'}
+            meta={coords ? `Geo ${coords}${item?.photoUrl ? ' • selfie attached' : ''}` : item?.photoUrl ? 'Selfie attached' : undefined}
+            icon="clock-o"
+            iconGradient={open ? ['#10b981', '#22d3ee'] : ['#6366f1', '#8b5cf6']}
+            badge={open ? { label: 'Open', tone: 'emerald' } : { label: 'Closed', tone: 'slate' }}
+          />
         );
-      }}
-      ListEmptyComponent={
-        <View style={styles.emptyWrap}>
-          <Text style={styles.emptyText}>No attendance records</Text>
-        </View>
-      }
-    />
+      })}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 18 },
-  title: { fontSize: 22, fontWeight: "700" },
-  subtitle: { marginTop: 6, fontSize: 14, opacity: 0.7 },
-  actionsRow: { marginTop: 14, flexDirection: "row", gap: 10, flexWrap: "wrap" },
-  primaryBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: "#2563eb",
-  },
-  primaryBtnText: { color: "white", fontWeight: "700" },
-  secondaryBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: "rgba(37,99,235,0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(37,99,235,0.25)",
-  },
-  secondaryBtnText: { fontWeight: "700" },
-  ghostBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(120,120,120,0.25)",
-  },
-  ghostBtnText: { fontWeight: "600", opacity: 0.8 },
-  disabledBtn: { opacity: 0.5 },
-  loadingWrap: { padding: 18 },
-  list: { paddingVertical: 14, gap: 10 },
-  card: {
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(120,120,120,0.25)",
-  },
-  cardLine: { fontSize: 13, opacity: 0.85 },
-  cardMeta: { marginTop: 4, fontSize: 11, opacity: 0.6 },
-  emptyWrap: { paddingVertical: 40, alignItems: "center" },
-  emptyText: { opacity: 0.7 },
+  statusHint: { fontSize: 11, fontWeight: '800', color: 'rgba(15,23,42,0.55)', letterSpacing: 0.4, textTransform: 'uppercase' },
+  statusValue: { marginTop: 6, fontSize: 20, fontWeight: '800', color: '#0f172a' },
+  actionsRow: { marginTop: 14, flexDirection: 'row', gap: 10 },
+  empty: { paddingVertical: 40, alignItems: 'center' },
+  emptyText: { color: 'rgba(15,23,42,0.55)', fontSize: 13 },
   queueBanner: {
     marginTop: 12,
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: "rgba(245,158,11,0.15)",
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(245,158,11,0.12)',
     borderWidth: 1,
-    borderColor: "rgba(245,158,11,0.35)",
+    borderColor: 'rgba(245,158,11,0.35)',
   },
-  queueBannerText: { fontSize: 12, fontWeight: "700", color: "#92400e" },
+  queueBannerText: { fontSize: 12, fontWeight: '800', color: '#92400e' },
 });

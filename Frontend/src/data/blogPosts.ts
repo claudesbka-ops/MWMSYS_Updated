@@ -357,6 +357,372 @@ export const blogPosts: BlogPost[] = [
       },
     ],
   },
+  {
+    slug: "fomema-medical-screening-malaysia",
+    title: "FOMEMA Medical Screening — What Every Employer and Worker Must Know",
+    description:
+      "Full guide to FOMEMA screening in Malaysia — the tests, the costs, common reasons for 'unfit' results, and how to manage re-examinations.",
+    heroImage:
+      "https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=1600&q=80",
+    author: "MWMS Compliance Desk",
+    publishedAt: "2025-04-11",
+    readingMinutes: 7,
+    body: [
+      {
+        type: "p",
+        text: "FOMEMA (the Foreign Workers Medical Examination Monitoring Agency) screening is the mandatory health gate every migrant worker passes through before their PLKS is issued — and every year for renewal. A worker who does not hold a valid FOMEMA 'fit' certificate cannot legally be employed, regardless of any other permit being in order.",
+      },
+      { type: "h2", text: "When screening is required" },
+      {
+        type: "ul",
+        items: [
+          "Pre-departure screening in the source country (SC Screening)",
+          "First screening in Malaysia within 30 days of arrival",
+          "Annual renewal screening for every PLKS renewal",
+          "Ad-hoc screening on request after suspected infectious exposure",
+        ],
+      },
+      { type: "h2", text: "What tests are included" },
+      {
+        type: "p",
+        text: "The standard panel covers chest X-ray, full blood count, urine analysis, and serology for HIV, hepatitis B, VDRL (syphilis), and malaria. Pregnancy testing is part of the panel for female workers. The examining clinic uploads results directly to the FOMEMA system within three working days.",
+      },
+      { type: "h2", text: "Cost breakdown for 2025" },
+      {
+        type: "ul",
+        items: [
+          "Medical examination fee: RM 180 (male) / RM 190 (female)",
+          "FOMEMA administration fee: RM 5",
+          "SST and clinic-specific surcharges: up to RM 25",
+          "Re-examination fee (if applicable): RM 100",
+        ],
+      },
+      { type: "h2", text: "Common reasons for an 'unfit' result" },
+      {
+        type: "ul",
+        items: [
+          "Active pulmonary tuberculosis on chest X-ray",
+          "Positive HIV or active hepatitis B viraemia",
+          "Untreated syphilis (positive VDRL with confirmatory titre)",
+          "Pregnancy (for new arrivals; renewals are handled separately)",
+          "Severe uncontrolled hypertension or diabetes",
+        ],
+      },
+      { type: "h2", text: "What happens after an 'unfit' result" },
+      {
+        type: "p",
+        text: "An unfit result triggers a mandatory Special Pass request at the Immigration Department and repatriation within 30 days at the employer's cost. There is a narrow appeal window — the worker may request a re-examination at a second FOMEMA-panel clinic within 14 days if the result was borderline. The appeal must be lodged by the employer, not the worker.",
+      },
+      {
+        type: "quote",
+        text: "FOMEMA is a pass/fail gate, but its downstream effects are entirely within the employer's control — plan the medical calendar the same way you plan payroll.",
+        cite: "MWMS Compliance Desk",
+      },
+      { type: "h2", text: "Tracking FOMEMA inside MWMS" },
+      {
+        type: "p",
+        text: "The Document Expiry module pulls FOMEMA certificate dates alongside PLKS and insurance. Workers approaching their annual screening window receive in-app reminders in their native language, and employers see a consolidated calendar across the whole workforce so clinic appointments can be batched.",
+      },
+    ],
+  },
+  {
+    slug: "foreign-worker-levy-rates-malaysia-2025",
+    title: "Foreign Worker Levy Rates Malaysia 2025 — Sector-by-Sector Guide",
+    description:
+      "Updated 2025 levy schedule for migrant workers in Malaysia — who pays, how much per sector, and when the Multi-Tier Levy System kicks in.",
+    heroImage:
+      "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=1600&q=80",
+    author: "MWMS Editorial",
+    publishedAt: "2025-04-24",
+    readingMinutes: 6,
+    body: [
+      {
+        type: "p",
+        text: "The foreign worker levy is the single largest recurring government cost in hiring migrant labour. Rates are set by sector and paid annually in advance. Since 2020 the Federal Court has confirmed that the levy is the employer's liability — deducting it from worker wages is unlawful and a common source of JTKSM complaints.",
+      },
+      { type: "h2", text: "Levy rates by sector (2025)" },
+      {
+        type: "ul",
+        items: [
+          "Manufacturing — RM 1,850 per worker per year",
+          "Construction — RM 1,850 per worker per year",
+          "Services (Cat. 1 — restaurant, retail, cargo) — RM 1,850",
+          "Services (Cat. 2 — cleaning, welfare, wholesale) — RM 1,850",
+          "Plantation — RM 640",
+          "Agriculture — RM 640",
+          "Domestic worker — RM 410",
+        ],
+      },
+      { type: "h2", text: "The Multi-Tier Levy System (MTLS)" },
+      {
+        type: "p",
+        text: "Announced in Budget 2024 and phased in from 2025, MTLS layers a second tier on top of the base levy when an employer's foreign-worker headcount exceeds 15% of total employees. The surcharge starts at 20% of the base rate and scales up to 100% at the 40% dependency threshold. MTLS is designed to nudge sectors toward automation and Malaysian labour.",
+      },
+      { type: "h2", text: "Who pays and when" },
+      {
+        type: "ul",
+        items: [
+          "The employer pays the full levy directly to the Immigration Department",
+          "Payment is due in one lump sum before the VDR is issued",
+          "Renewal levy is due at least 30 days before PLKS expiry",
+          "Deduction from wages — partial or full — is prohibited under Section 24 of the Employment Act",
+        ],
+      },
+      { type: "h2", text: "Levy refunds and transfers" },
+      {
+        type: "p",
+        text: "If a worker leaves employment before the permit year ends, the employer can apply for a pro-rated levy refund through the MyEG or eKL system. Documented reasons — medical repatriation, contract expiry, death, worker absconding — are required. Refund timelines average 60 to 90 working days.",
+      },
+      { type: "h2", text: "Common compliance mistakes" },
+      {
+        type: "ul",
+        items: [
+          "Deducting levy from the worker's first few months of wages — illegal",
+          "Treating levy and PLKS fee as interchangeable — they are separate payments",
+          "Missing the renewal deadline and paying late-renewal surcharges (up to 100%)",
+          "Failing to apply for a refund when a worker leaves early",
+        ],
+      },
+      { type: "h2", text: "MWMS levy tracking" },
+      {
+        type: "p",
+        text: "Each worker record in MWMS stores the levy receipt, expiry date, and next renewal cost. Employers preparing annual budgets can export the consolidated levy forecast for the next 12 months in a single CSV.",
+      },
+    ],
+  },
+  {
+    slug: "worker-repatriation-process-malaysia",
+    title: "Worker Repatriation in Malaysia — Employer Duties and Legal Process",
+    description:
+      "Step-by-step guide to repatriating a foreign worker from Malaysia — documentation, costs, Special Pass procedures, and how to close the file cleanly.",
+    heroImage:
+      "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=1600&q=80",
+    author: "MWMS Compliance Desk",
+    publishedAt: "2025-05-08",
+    readingMinutes: 7,
+    body: [
+      {
+        type: "p",
+        text: "Every foreign worker in Malaysia must eventually be repatriated — at end of contract, at permit expiry, or after an early termination. The repatriation file is the last thing JTKSM looks at when assessing an employer's compliance history, and getting it wrong can block future quota approvals.",
+      },
+      { type: "h2", text: "When repatriation is triggered" },
+      {
+        type: "ul",
+        items: [
+          "Contract completion or the end of the ten-year maximum service window",
+          "FOMEMA 'unfit' result that cannot be appealed",
+          "Permit cancellation following termination with just cause",
+          "Voluntary resignation with at least 30 days' notice",
+          "Work stoppage by the authority (raids, business closure)",
+        ],
+      },
+      { type: "h2", text: "The employer's non-negotiable duties" },
+      {
+        type: "ul",
+        items: [
+          "Pay the return airfare to the worker's home country (not a third country)",
+          "Settle all outstanding wages, bonus, and unused annual leave before departure",
+          "Return the worker's passport and personal documents in full",
+          "Cancel the PLKS through MyEG within 14 days of departure",
+          "Submit the cancellation confirmation and boarding pass to JTKSM",
+        ],
+      },
+      { type: "h2", text: "The Special Pass scenario" },
+      {
+        type: "p",
+        text: "If the worker's permit has already lapsed, a Special Pass is required before they can legally remain in Malaysia while travel arrangements are made. It is issued for a maximum of 30 days at RM 100 per pass. During this period the worker cannot work. The employer remains legally responsible for accommodation and basic needs until departure.",
+      },
+      { type: "h2", text: "Runaway or absconding cases" },
+      {
+        type: "p",
+        text: "If a worker goes missing, the employer must file a Form G within 14 days at the Immigration Department. Failure to file the G form on time converts the case into an 'illegal employment' matter against the employer — even if the worker has clearly absconded. A filed Form G preserves the right to recover the remaining levy and to apply for a replacement worker under the same quota.",
+      },
+      { type: "h2", text: "Cost summary for a standard repatriation" },
+      {
+        type: "ul",
+        items: [
+          "One-way economy airfare — RM 700 to RM 1,800 depending on source country",
+          "Special Pass (if required) — RM 100 per 30-day pass",
+          "Outstanding wages and unused leave — variable, must be settled in full",
+          "Bond refund (where applicable) — released by Immigration after cancellation confirms",
+        ],
+      },
+      {
+        type: "quote",
+        text: "Close the repatriation file as carefully as you opened the hiring file — the audit trail is what allows next year's quota to be approved.",
+        cite: "MWMS Compliance Desk",
+      },
+      { type: "h2", text: "Repatriation workflow in MWMS" },
+      {
+        type: "p",
+        text: "Marking a worker as 'Offboarding' in MWMS triggers a checklist covering wage settlement, document return, PLKS cancellation, and airfare receipt upload. Once every item is checked, the worker record is archived with a clean compliance stamp that survives future audits.",
+      },
+    ],
+  },
+  {
+    slug: "atipsom-anti-trafficking-employer-compliance-malaysia",
+    title: "ATIPSOM Compliance for Employers — Avoiding Forced-Labour Liability",
+    description:
+      "What the Anti-Trafficking in Persons and Anti-Smuggling of Migrants Act means for employers — indicators, penalties, and practical safeguards.",
+    heroImage:
+      "https://images.unsplash.com/photo-1521791055366-0d553872125f?auto=format&fit=crop&w=1600&q=80",
+    author: "MWMS Legal",
+    publishedAt: "2025-05-22",
+    readingMinutes: 8,
+    body: [
+      {
+        type: "p",
+        text: "The Anti-Trafficking in Persons and Anti-Smuggling of Migrants Act 2007 (ATIPSOM), amended most recently in 2022, is the statute under which Malaysian employers can face criminal prosecution for forced-labour practices. Since Malaysia was downgraded to the US TIP Report Tier 2 Watchlist in 2021 and then partially upgraded in 2024, enforcement has sharpened significantly.",
+      },
+      { type: "h2", text: "What the Act covers" },
+      {
+        type: "p",
+        text: "ATIPSOM defines trafficking to include the recruitment, transport, harbouring or receipt of a person for the purpose of exploitation — whether through threat, coercion, deception, abuse of power, or debt bondage. A case under ATIPSOM does not require the worker to have been moved across borders; purely domestic exploitation also qualifies.",
+      },
+      { type: "h2", text: "The 11 ILO forced-labour indicators used by enforcement" },
+      {
+        type: "ul",
+        items: [
+          "Abuse of vulnerability",
+          "Deception about the nature of work or wages",
+          "Restriction of movement",
+          "Isolation from family or community",
+          "Physical and sexual violence",
+          "Intimidation and threats",
+          "Retention of identity documents",
+          "Withholding of wages",
+          "Debt bondage",
+          "Abusive working and living conditions",
+          "Excessive overtime",
+        ],
+      },
+      { type: "h2", text: "Penalties under ATIPSOM" },
+      {
+        type: "ul",
+        items: [
+          "Trafficking involving an adult — up to 15 years imprisonment and a fine",
+          "Trafficking involving a child — up to 20 years and a mandatory fine",
+          "Corporate officers deemed personally liable under Section 66",
+          "Confiscation of assets used in the offence",
+          "Ten-year ban on hiring foreign workers (administrative)",
+        ],
+      },
+      { type: "h2", text: "Practical safeguards every employer should run" },
+      { type: "h3", text: "On the paper trail" },
+      {
+        type: "ul",
+        items: [
+          "Written contracts in the worker's language, countersigned line by line",
+          "Wage payment exclusively through bank transfer with monthly payslips",
+          "Passport storage facility that the worker controls — never the employer",
+          "Documented grievance mechanism with timestamped responses",
+        ],
+      },
+      { type: "h3", text: "On the working conditions" },
+      {
+        type: "ul",
+        items: [
+          "Accommodation that meets Act 446 standards (see the separate housing guide)",
+          "Overtime logs that stay under the 104-hour monthly cap",
+          "Rest days honoured on a weekly cycle, not banked",
+          "Access to medical care without employer gate-keeping",
+        ],
+      },
+      { type: "h2", text: "What auditors ask for" },
+      {
+        type: "p",
+        text: "International brand audits now routinely request 36 months of wage records, attendance logs, dormitory inspection reports, and documented exit interviews for departed workers. The standard has moved from 'have a policy' to 'show evidence it was followed every month'.",
+      },
+      {
+        type: "quote",
+        text: "Forced labour is rarely a single dramatic act — it is the quiet accumulation of small compromises that each look defensible until an auditor strings them together.",
+        cite: "MWMS Legal",
+      },
+      { type: "h2", text: "How MWMS creates the evidence trail" },
+      {
+        type: "p",
+        text: "Every attendance punch, salary payout, complaint, attestation, and document return is timestamped and immutable in MWMS. Exit interviews are captured in the worker app in the worker's language. The full 36-month audit package for any worker can be exported as a signed PDF in a single click.",
+      },
+    ],
+  },
+  {
+    slug: "worker-housing-standards-act-446-malaysia",
+    title: "Act 446 Housing Standards — What Malaysian Employers Must Provide",
+    description:
+      "The Workers' Minimum Standards of Housing and Amenities Act (Act 446) after the 2019 amendment — practical requirements for dormitories and inspections.",
+    heroImage:
+      "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=80",
+    author: "MWMS Compliance Desk",
+    publishedAt: "2025-06-05",
+    readingMinutes: 8,
+    body: [
+      {
+        type: "p",
+        text: "The Workers' Minimum Standards of Housing and Amenities Act 1990 — known as Act 446 — was substantially amended in 2019 and came into force across all sectors on 1 June 2020. For the first time it set a national floor for migrant worker accommodation in manufacturing, construction, services, and plantations. Non-compliance now carries a fine of up to RM 50,000 per worker affected.",
+      },
+      { type: "h2", text: "Who is covered" },
+      {
+        type: "p",
+        text: "Any employer who provides or arranges accommodation for any employee — local or foreign — is caught by Act 446. This includes employer-owned dormitories, centralised labour quarters (CLQ), and accommodation rented by the employer on the worker's behalf. Self-arranged private rentals by the worker are out of scope, but the employer must still document that arrangement.",
+      },
+      { type: "h2", text: "Minimum standards, at a glance" },
+      {
+        type: "ul",
+        items: [
+          "Minimum 3.6 square metres of floor space per adult occupant",
+          "No more than four workers per bedroom",
+          "One toilet and one bathroom per fifteen occupants",
+          "Beds raised from the floor with individual mattress and linen",
+          "One lockable storage per worker for personal belongings",
+          "Continuous supply of clean water and 24-hour electricity",
+          "Separate quarters for men and women",
+          "Fire-fighting equipment inspected every 12 months",
+        ],
+      },
+      { type: "h2", text: "The Certificate for Accommodation" },
+      {
+        type: "p",
+        text: "Every accommodation site — whether owned or rented — must hold a valid Certificate for Accommodation (CFA) issued by JTKSM. The CFA is tied to the premises, not the employer; a change of site or a change of employer using the site requires a fresh application. The CFA is valid for 36 months and renewable after re-inspection.",
+      },
+      { type: "h2", text: "Inspection regime in 2025" },
+      {
+        type: "ul",
+        items: [
+          "Unannounced JTKSM site visits — frequency rising after the 2024 TIP Report",
+          "Joint inspections with Bomba (Fire and Rescue) for construction sites",
+          "Third-party audits required by brand customers — SMETA, Sedex, amfori BSCI",
+          "Local council (PBT) inspections where dormitories exceed 50 occupants",
+        ],
+      },
+      { type: "h2", text: "Common findings that fail inspections" },
+      {
+        type: "ul",
+        items: [
+          "Double-bunking beyond four workers per room",
+          "Shared toilets in excess of 1:15 ratio",
+          "Blocked fire exits or missing extinguishers",
+          "No lockable storage, forcing workers to hang belongings",
+          "Poor ventilation or lighting below 100 lux at bed level",
+          "Mould, leaking plumbing, or pest infestations",
+        ],
+      },
+      { type: "h2", text: "What to do when a CFA is rejected" },
+      {
+        type: "p",
+        text: "Rejection is not the end of the road. JTKSM issues a remediation notice specifying the failings and a correction window of 30 to 90 days. During this window the employer may continue to house workers provided the immediate safety issues (fire, electrical, water) are resolved first. Repeat rejections escalate the case to compounding fines.",
+      },
+      {
+        type: "quote",
+        text: "A dormitory that passes inspection is the quiet backbone of every ethical-audit report — get it right once and the next three years get materially easier.",
+        cite: "MWMS Compliance Desk",
+      },
+      { type: "h2", text: "Tracking accommodation inside MWMS" },
+      {
+        type: "p",
+        text: "MWMS stores each dormitory's CFA number, occupancy cap, last inspection date, and the next renewal date. Workers are linked to accommodation records so audit requests — 'show me where worker X slept on 12 March 2024' — can be answered in seconds instead of days. Expiry alerts mirror the PLKS and insurance cadence at 90, 60, and 30 days.",
+      },
+    ],
+  },
 ];
 
 export function findBlogPost(slug: string): BlogPost | undefined {

@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import AuthLayout from "@/components/AuthLayout";
 import { toast } from "sonner";
 import { useRole } from "@/contexts/RoleContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { login, EmailNotVerifiedError } from "@/services/authService";
 
 const WORKER_PASSPORT_KEY = "mwmsys_worker_passport";
@@ -14,6 +15,7 @@ const EMPLOYER_NAME_KEY = "mwmsys_employer_name";
 export default function AgencyLogin() {
   const navigate = useNavigate();
   const { setCurrentRole } = useRole();
+  const { refresh: refreshAuth } = useAuth();
   const [form, setForm] = useState({
     emailId: "",
     password: "",
@@ -37,6 +39,7 @@ export default function AgencyLogin() {
       localStorage.setItem("mwmsys_logged_in", "true");
       localStorage.removeItem(WORKER_PASSPORT_KEY);
       localStorage.removeItem(EMPLOYER_NAME_KEY);
+      await refreshAuth();
       navigate("/");
     } catch (err: any) {
       if (err instanceof EmailNotVerifiedError) {
