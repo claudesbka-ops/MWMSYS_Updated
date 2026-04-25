@@ -43,7 +43,7 @@
       ]
     ],
     "extra": {
-      "EXPO_PUBLIC_API_BASE_URL": "http://localhost:3000"
+      "EXPO_PUBLIC_API_BASE_URL": "http://192.168.100.180:3000"
     },
     "experiments": {
       "typedRoutes": true

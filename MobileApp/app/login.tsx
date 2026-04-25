@@ -28,6 +28,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [passportNo, setPassportNo] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showServer, setShowServer] = useState(false);
+  const [serverUrl, setServerUrl] = useState(session.apiBaseUrl);
 
   const doLogin = async () => {
     if (!userName.trim() || !password.trim()) {
