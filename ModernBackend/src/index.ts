@@ -2627,7 +2627,14 @@ app.get("/Api/ProblemList", requireAuth, requireAuthority, async (req, res, next
 app.use(errorHandler);
 
 const port = Number(process.env.PORT) || 3000;
-
+app.get("/", (req, res) => {
+  res.status(200).json({
+    status: "online",
+    system: "MWMSYS API Production",
+    version: "1.0.0",
+    serverTime: new Date().toISOString()
+  });
+});
 // Bootstrap schema bootstrappers up-front (idempotent, errors swallowed),
 // then start listening. Route-level `ensure*TableExists()` calls remain
 // in place as cheap no-ops after the initial run for defense-in-depth.
