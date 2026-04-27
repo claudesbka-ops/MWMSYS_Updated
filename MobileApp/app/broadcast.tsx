@@ -74,7 +74,7 @@ export default function BroadcastScreen() {
       const res = await api.get<{ rows: BroadcastMessage[] }>("/Api/Broadcast/Feed?limit=80");
       setRows(Array.isArray(res?.rows) ? res.rows : []);
     } catch (e: any) {
-      Alert.alert("Error", e?.error ?? "Unable to load broadcast feed");
+      Alert.alert("⚠️ Error", e?.error ?? "Unable to load broadcast feed");
     } finally {
       setLoading(false);
     }
@@ -138,7 +138,7 @@ export default function BroadcastScreen() {
     const next: PendingAttachment[] = [];
     for (const a of result.assets) {
       if (a.size && a.size > 10 * 1024 * 1024) {
-        Alert.alert("Too large", `${a.name ?? "File"} exceeds 10 MB and was skipped`);
+        Alert.alert("📁 Too large", `${a.name ?? "File"} exceeds 10 MB and was skipped`);
         continue;
       }
       next.push({
@@ -187,7 +187,7 @@ export default function BroadcastScreen() {
         ...prev,
       ]);
     } catch (e: any) {
-      Alert.alert("Error", e?.error ?? "Unable to send broadcast");
+      Alert.alert("⚠️ Error", e?.error ?? "Unable to send broadcast");
     } finally {
       setSending(false);
     }
@@ -195,7 +195,7 @@ export default function BroadcastScreen() {
 
   return (
     <Screen
-      title="Broadcast"
+      title="📣 Broadcast"
       subtitle="Announcements and updates scoped by role"
       gradient={["#6366f1", "#8b5cf6", "#ec4899"]}
       refreshing={loading}
@@ -203,14 +203,14 @@ export default function BroadcastScreen() {
     >
       <View style={styles.statusRow}>
         <View style={[styles.statusDot, connected ? styles.dotLive : styles.dotIdle]} />
-        <Text style={styles.statusText}>{connected ? "Live" : "Reconnecting…"}</Text>
+        <Text style={styles.statusText}>{connected ? "🟢 Live" : "⏳ Reconnecting…"}</Text>
         <View style={{ flex: 1 }} />
         <Text style={styles.statusMeta}>{rows.length} message{rows.length === 1 ? "" : "s"}</Text>
       </View>
 
       {canSend ? (
         <Card>
-          <Text style={styles.label}>Compose announcement</Text>
+          <Text style={styles.label}>✍️ Compose announcement</Text>
           <TextInput
             value={text}
             onChangeText={setText}
@@ -242,7 +242,7 @@ export default function BroadcastScreen() {
               style={styles.attachBtn}
             >
               <FontAwesome name="paperclip" size={13} color="#4f46e5" />
-              <Text style={styles.attachText}>{files.length === 0 ? "Attach" : `Add more (${files.length})`}</Text>
+              <Text style={styles.attachText}>{files.length === 0 ? "📎 Attach" : `➕ Add more (${files.length})`}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -255,7 +255,7 @@ export default function BroadcastScreen() {
               {sending ? <ActivityIndicator color="white" /> : (
                 <View style={styles.sendBtnInner}>
                   <FontAwesome name="send" size={13} color="white" />
-                  <Text style={styles.sendBtnText}>Broadcast</Text>
+                  <Text style={styles.sendBtnText}>🚀 Broadcast</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -263,13 +263,13 @@ export default function BroadcastScreen() {
         </Card>
       ) : null}
 
-      <SectionTitle title="Feed" />
+      <SectionTitle title="📡 Feed" />
       {loading && rows.length === 0 ? (
         <ActivityIndicator color="#6366f1" />
       ) : rows.length === 0 ? (
         <View style={styles.empty}>
           <FontAwesome name="bullhorn" size={28} color="rgba(15,23,42,0.25)" />
-          <Text style={styles.emptyText}>No announcements yet.</Text>
+          <Text style={styles.emptyText}>📬 No announcements yet.</Text>
         </View>
       ) : (
         <View style={{ gap: 10 }}>
@@ -300,7 +300,7 @@ export default function BroadcastScreen() {
         </View>
       )}
 
-      <Text style={styles.back} onPress={() => router.back()}>Back</Text>
+      <Text style={styles.back} onPress={() => router.back()}>← Back</Text>
     </Screen>
   );
 }

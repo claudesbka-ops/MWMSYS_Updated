@@ -1,14 +1,22 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 
 import { useApiClient } from "@/services/apiClient";
 import { useHrmsService } from "@/services/hrmsService";
-import { GradientBackground, ScreenHeader, PrimaryButton } from "@/components/ui";
+import { GradientBackground, ScreenHeader } from "@/components/ui";
 
 type ChatMessage = { senderType: string; message: string; createdOn: string };
+
+const STARTER_PROMPTS = [
+  "🌴 How do I apply for leave?",
+  "📄 What documents do I need?",
+  "💰 My salary is delayed — what should I do?",
+  "🚨 How do I report an emergency?",
+  "🔄 Can I switch employers?",
+];
 
 export default function ChatScreen() {
   const api = useApiClient();
@@ -60,7 +68,7 @@ export default function ChatScreen() {
         }))
       );
     } catch (e: any) {
-      Alert.alert("Error", e?.error ?? "Failed to load chat");
+      Alert.alert("⚠️ Error", e?.error ?? "Failed to load chat");
     } finally {
       setLoading(false);
     }
@@ -70,13 +78,12 @@ export default function ChatScreen() {
     refresh().catch(() => undefined);
   }, []);
 
-  const send = async () => {
-    const msg = text.trim();
+  const sendMessage = async (msg: string) => {
+    msg = msg.trim();
     if (!msg) return;
 
     const id = await ensureSession();
     if (!id) return;
-
     const wid = await ensureWorkerId();
     const numericWid = Number(wid);
 
@@ -84,21 +91,20 @@ export default function ChatScreen() {
     setText("");
     try {
       await api.post("/Api/Chat/Messages", { ChatSessionId: id, SenderType: "User", Message: msg });
-      const ai = await api.post<{ reply: string }>("/Api/Chat/AIReply", {
+      await api.post<{ reply: string }>("/Api/Chat/AIReply", {
         ChatSessionId: id,
         WorkerId: Number.isFinite(numericWid) ? numericWid : 0,
         Message: msg,
       });
       await refresh();
-      if ((ai as any)?.reply) {
-        // no-op; refresh shows it
-      }
     } catch (e: any) {
-      Alert.alert("Error", e?.error ?? "Failed to send message");
+      Alert.alert("⚠️ Error", e?.error ?? "Failed to send message");
     } finally {
       setBusy(false);
     }
   };
+
+  const send = () => sendMessage(text);
 
   const scrollRef = useRef<ScrollView>(null);
   useEffect(() => {
@@ -111,7 +117,7 @@ export default function ChatScreen() {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.headerWrap}>
             <ScreenHeader
-              title="MWMS AI Assistant"
+              title="🤖 MWMS AI Assistant"
               subtitle="Ask anything about your rights, documents or process"
               gradient={["#0ea5e9", "#6366f1", "#8b5cf6"]}
             />
@@ -130,13 +136,29 @@ export default function ChatScreen() {
             >
               {messages.length === 0 ? (
                 <View style={styles.emptyWrap}>
-                  <FontAwesome name="comments-o" size={40} color="rgba(99,102,241,0.4)" />
-                  <Text style={styles.emptyTitle}>Start a conversation</Text>
-                  <Text style={styles.emptyText}>Type below to ask about leave, salary, documents or emergencies.</Text>
+                  <LinearGradient colors={["#0ea5e9", "#6366f1", "#8b5cf6"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.emptyAvatar}>
+                    <FontAwesome name="magic" size={24} color="#fff" />
+                  </LinearGradient>
+                  <Text style={styles.emptyTitle}>👋 Hi! I'm MWMS AI</Text>
+                  <Text style={styles.emptyText}>Ask me anything about your rights, documents, salary or emergencies.</Text>
+                  <View style={styles.promptList}>
+                    {STARTER_PROMPTS.map((p) => (
+                      <Pressable
+                        key={p}
+                        onPress={() => sendMessage(p)}
+                        style={styles.promptChip}
+                        disabled={busy}
+                      >
+                        <FontAwesome name="lightbulb-o" size={12} color="#4f46e5" />
+                        <Text style={styles.promptText}>{p}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
                 </View>
               ) : (
                 messages.map((item, idx) => {
                   const isUser = item.senderType === "User";
+                  const ts = formatTime(item.createdOn);
                   return (
                     <View key={idx} style={[styles.row, isUser ? styles.rowUser : styles.rowAi]}>
                       {!isUser && (
@@ -144,18 +166,31 @@ export default function ChatScreen() {
                           <FontAwesome name="magic" size={12} color="white" />
                         </LinearGradient>
                       )}
-                      {isUser ? (
-                        <LinearGradient colors={["#6366f1", "#8b5cf6"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.bubble, styles.userBubble]}>
-                          <Text style={styles.userBubbleText}>{item.message}</Text>
-                        </LinearGradient>
-                      ) : (
-                        <View style={[styles.bubble, styles.aiBubble]}>
-                          <Text style={styles.aiBubbleText}>{item.message}</Text>
-                        </View>
-                      )}
+                      <View style={isUser ? styles.bubbleColUser : styles.bubbleColAi}>
+                        {isUser ? (
+                          <LinearGradient colors={["#6366f1", "#8b5cf6"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.bubble, styles.userBubble]}>
+                            <Text style={styles.userBubbleText}>{item.message}</Text>
+                          </LinearGradient>
+                        ) : (
+                          <View style={[styles.bubble, styles.aiBubble]}>
+                            <Text style={styles.aiBubbleText}>{item.message}</Text>
+                          </View>
+                        )}
+                        {ts ? <Text style={[styles.timestamp, isUser && styles.timestampUser]}>{ts}</Text> : null}
+                      </View>
                     </View>
                   );
                 })
+              )}
+              {busy && messages.length > 0 && (
+                <View style={[styles.row, styles.rowAi]}>
+                  <LinearGradient colors={["#0ea5e9", "#6366f1"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.avatar}>
+                    <FontAwesome name="magic" size={12} color="white" />
+                  </LinearGradient>
+                  <View style={[styles.bubble, styles.aiBubble]}>
+                    <Text style={styles.aiBubbleText}>💡 Thinking…</Text>
+                  </View>
+                </View>
               )}
             </ScrollView>
           )}
@@ -165,12 +200,21 @@ export default function ChatScreen() {
               value={text}
               onChangeText={setText}
               style={styles.input}
-              placeholder="Type a message…"
+              placeholder="✍️ Type a message…"
               placeholderTextColor="rgba(15,23,42,0.4)"
               autoCapitalize="sentences"
               multiline
             />
-            <PrimaryButton title={busy ? "…" : "Send"} loading={busy} onPress={send} style={{ height: 46 }} />
+            <TouchableOpacity onPress={send} disabled={busy || !text.trim()} activeOpacity={0.85}>
+              <LinearGradient
+                colors={text.trim() ? ["#6366f1", "#8b5cf6"] : ["#cbd5e1", "#94a3b8"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.sendBtn}
+              >
+                <FontAwesome name={busy ? "circle-o-notch" : "paper-plane"} size={16} color="#fff" />
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -195,9 +239,28 @@ const styles = StyleSheet.create({
   },
   userBubbleText: { color: 'white', fontSize: 14, lineHeight: 20 },
   aiBubbleText: { color: '#0f172a', fontSize: 14, lineHeight: 20 },
-  emptyWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 10 },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: '#0f172a' },
-  emptyText: { fontSize: 13, color: 'rgba(15,23,42,0.6)', textAlign: 'center', paddingHorizontal: 40 },
+  emptyWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 50, gap: 10 },
+  emptyAvatar: { width: 64, height: 64, borderRadius: 22, alignItems: 'center', justifyContent: 'center', shadowColor: '#6366f1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 14, elevation: 6 },
+  emptyTitle: { marginTop: 6, fontSize: 18, fontWeight: '900', color: '#0f172a' },
+  emptyText: { fontSize: 13, color: 'rgba(15,23,42,0.6)', textAlign: 'center', paddingHorizontal: 30 },
+  promptList: { marginTop: 14, gap: 8, alignSelf: 'stretch' },
+  promptChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(79,70,229,0.15)',
+  },
+  promptText: { flex: 1, fontSize: 13, fontWeight: '700', color: '#0f172a' },
+  bubbleColUser: { alignItems: 'flex-end', maxWidth: '82%' },
+  bubbleColAi: { alignItems: 'flex-start', maxWidth: '82%' },
+  timestamp: { marginTop: 4, fontSize: 10, fontWeight: '700', color: 'rgba(15,23,42,0.4)' },
+  timestampUser: { color: 'rgba(15,23,42,0.4)' },
+  sendBtn: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', shadowColor: '#6366f1', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 4 },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -222,3 +285,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
+
+function formatTime(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}

@@ -78,15 +78,27 @@ subscriptionRouter.post("/Api/subscription/checkout", requireAuth, async (req, r
     const planKey = planType.toLowerCase();
     if (planKey === "free") return res.status(400).json({ error: "Free plan does not require checkout" });
 
-    // Accept both naming conventions. Prefer the Batch D spec names
-    // (STRIPE_PRO_PRICE_ID / STRIPE_ENTERPRISE_PRICE_ID) and fall back to the
-    // legacy names (STRIPE_PRICE_PRO / STRIPE_PRICE_ENTERPRISE).
+    // Cycle defaults to monthly. Accept "monthly" | "yearly" (and a couple of
+    // common aliases) so the mobile app can pass either.
+    const rawCycle = (req.body?.cycle ?? req.body?.billingCycle ?? "").toString().trim().toLowerCase();
+    const cycle: "yearly" | "monthly" = rawCycle === "yearly" || rawCycle === "annual" || rawCycle === "annually" ? "yearly" : "monthly";
+
+    // Resolve the Stripe price ID. The lookup is cycle-aware: yearly first
+    // tries cycle-specific env vars, then falls back to the cycle-agnostic
+    // legacy names so deployments without separate yearly price IDs keep
+    // working unchanged.
+    const proCandidates =
+      cycle === "yearly"
+        ? ["STRIPE_PRO_PRICE_ID_YEARLY", "STRIPE_PRO_YEARLY_PRICE_ID", "STRIPE_PRICE_PRO_YEARLY", "STRIPE_PRO_PRICE_ID", "STRIPE_PRICE_PRO"]
+        : ["STRIPE_PRO_PRICE_ID_MONTHLY", "STRIPE_PRO_MONTHLY_PRICE_ID", "STRIPE_PRICE_PRO_MONTHLY", "STRIPE_PRO_PRICE_ID", "STRIPE_PRICE_PRO"];
+    const enterpriseCandidates =
+      cycle === "yearly"
+        ? ["STRIPE_ENTERPRISE_PRICE_ID_YEARLY", "STRIPE_ENTERPRISE_YEARLY_PRICE_ID", "STRIPE_PRICE_ENTERPRISE_YEARLY", "STRIPE_ENTERPRISE_PRICE_ID", "STRIPE_PRICE_ENTERPRISE"]
+        : ["STRIPE_ENTERPRISE_PRICE_ID_MONTHLY", "STRIPE_ENTERPRISE_MONTHLY_PRICE_ID", "STRIPE_PRICE_ENTERPRISE_MONTHLY", "STRIPE_ENTERPRISE_PRICE_ID", "STRIPE_PRICE_ENTERPRISE"];
+
     const priceEnvCandidates =
-      planKey === "pro"
-        ? ["STRIPE_PRO_PRICE_ID", "STRIPE_PRICE_PRO"]
-        : planKey === "enterprise"
-          ? ["STRIPE_ENTERPRISE_PRICE_ID", "STRIPE_PRICE_ENTERPRISE"]
-          : [];
+      planKey === "pro" ? proCandidates : planKey === "enterprise" ? enterpriseCandidates : [];
+
     let priceId: string | null = null;
     for (const key of priceEnvCandidates) {
       const v = (process.env as any)[key];
@@ -96,7 +108,7 @@ subscriptionRouter.post("/Api/subscription/checkout", requireAuth, async (req, r
       }
     }
     if (!priceId) {
-      return res.status(500).json({ error: "Stripe price is not configured" });
+      return res.status(500).json({ error: `Stripe ${cycle} price for ${planKey} is not configured` });
     }
 
     const origin = (req.header("origin") ?? "").toString().trim();
@@ -127,12 +139,14 @@ subscriptionRouter.post("/Api/subscription/checkout", requireAuth, async (req, r
         metadata: {
           entityId,
           planType,
+          cycle,
           roleId: roleId != null ? String(roleId) : "",
         },
       },
       metadata: {
         entityId,
         planType,
+        cycle,
         roleId: roleId != null ? String(roleId) : "",
       },
     });

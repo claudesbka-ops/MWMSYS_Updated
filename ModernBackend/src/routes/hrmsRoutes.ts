@@ -694,6 +694,27 @@ hrmsRouter.post("/Api/HRMS/Leave/Decision", requireAuth, requireActivePlanForWri
 
 // ---------- Payroll ----------
 
+// Worker-scoped read of own payroll history. Workers (roleId === 2) only see
+// their own rows.
+hrmsRouter.get("/Api/HRMS/Payroll/Mine", requireAuth, async (req, res, next) => {
+  try {
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    if (roleId !== 2) return res.status(403).json({ error: "Forbidden" });
+
+    const userKey = ((req as any).user?.userKey ?? "").toString().trim();
+    if (!userKey) return res.status(400).json({ error: "Missing worker id" });
+
+    const rows = await prisma.tbl_Payroll.findMany({
+      where: { workerId: userKey },
+      orderBy: [{ year: "desc" }, { month: "desc" }, { id: "desc" }],
+      take: 200,
+    });
+    return res.json(rows ?? []);
+  } catch (e) {
+    return next(e);
+  }
+});
+
 hrmsRouter.get("/Api/HRMS/Payroll", requireAuth, async (req, res, next) => {
   try {
     const roleId = Number((req as any).user?.roleId ?? 0);

@@ -142,7 +142,7 @@ export default function HrmsHubScreen() {
       description: "Consolidated attendance, overtime and expenses",
       icon: "bar-chart",
       gradient: ["#4f46e5", "#06b6d4"],
-      href: "/(tabs)/reports",
+      href: "/(tabs)/hrms-report",
       hidden: !isManager,
     },
   ], [isWorker, isManager, pendingOvertime, pendingExpenses, contracts.length]);

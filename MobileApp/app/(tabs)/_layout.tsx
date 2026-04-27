@@ -77,7 +77,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: '🏠 Home',
           tabBarIcon: ({ color, focused }) => <TabBarIcon name="home" color={color} focused={focused} />,
         }}
       />
@@ -85,7 +85,7 @@ export default function TabLayout() {
         name="attendance"
         options={{
           href: showAttendance ? undefined : null,
-          title: 'Attendance',
+          title: '⏰ Attendance',
           tabBarIcon: ({ color, focused }) => <TabBarIcon name="clock-o" color={color} focused={focused} />,
         }}
       />
@@ -93,7 +93,7 @@ export default function TabLayout() {
         name="requests"
         options={{
           href: showRequests ? undefined : null,
-          title: 'Requests',
+          title: '✅ Requests',
           tabBarIcon: ({ color, focused }) => <TabBarIcon name="check-circle" color={color} focused={focused} />,
         }}
       />
@@ -101,7 +101,7 @@ export default function TabLayout() {
         name="panic"
         options={{
           href: showPanic ? undefined : null,
-          title: 'Panic',
+          title: '🚨 Panic',
           tabBarIcon: ({ color, focused }) => <TabBarIcon name="exclamation-triangle" color={color} focused={focused} />,
           tabBarBadge: emergencyCount > 0 ? emergencyCount : undefined,
           tabBarBadgeStyle: styles.badge,
@@ -111,14 +111,14 @@ export default function TabLayout() {
         name="incidents"
         options={{
           href: showIncidents ? undefined : null,
-          title: 'Incidents',
+          title: '⚠️ Incidents',
           tabBarIcon: ({ color, focused }) => <TabBarIcon name="warning" color={color} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="more"
         options={{
-          title: 'More',
+          title: '✨ More',
           tabBarIcon: ({ color, focused }) => <TabBarIcon name="ellipsis-h" color={color} focused={focused} />,
         }}
       />
@@ -138,6 +138,7 @@ export default function TabLayout() {
       <Tabs.Screen name="new-incident" options={{ href: null, title: 'New Incident' }} />
       <Tabs.Screen name="attestation" options={{ href: null, title: 'Attest' }} />
       <Tabs.Screen name="reports" options={{ href: null, title: 'Reports' }} />
+      <Tabs.Screen name="hrms-report" options={{ href: null, title: 'HRMS Report' }} />
       <Tabs.Screen name="pricing" options={{ href: null, title: 'Pricing' }} />
       <Tabs.Screen name="settings" options={{ href: null, title: 'Settings' }} />
       <Tabs.Screen name="two" options={{ href: null }} />

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, StyleSheet } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 import { io, type Socket } from "socket.io-client";
 import MapView, { Callout, Marker, PROVIDER_GOOGLE, type Region } from "react-native-maps";
 
@@ -20,10 +21,13 @@ type WorkerLocationRow = {
 export default function LiveMapScreen() {
   const session = useSession();
   const api = useApiClient();
+  const params = useLocalSearchParams<{ focus?: string }>();
+  const focusId = useMemo(() => (params.focus ?? "").toString().trim() || null, [params.focus]);
   const socketRef = useRef<Socket | null>(null);
   const mapRef = useRef<MapView | null>(null);
+  const focusedOnceRef = useRef<boolean>(false);
   const [rows, setRows] = useState<WorkerLocationRow[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(focusId);
 
   const socketUrl = useMemo(() => session.apiBaseUrl.replace(/\/+$/, ""), [session.apiBaseUrl]);
 
@@ -67,7 +71,7 @@ export default function LiveMapScreen() {
         setRows(incoming);
       })
       .catch((e: any) => {
-        Alert.alert("Map", e?.error ?? "Unable to load locations");
+        Alert.alert("🗜️ Map", e?.error ?? "Unable to load locations");
       });
 
     const s = io(socketUrl, {
@@ -116,9 +120,36 @@ export default function LiveMapScreen() {
     };
   }, [api, session.token, socketUrl]);
 
+  // Focus an explicit worker passed via the `focus` route param. Runs once
+  // when that worker first appears on the map.
+  useEffect(() => {
+    if (!mapRef.current) return;
+    if (!focusId) return;
+    if (focusedOnceRef.current) return;
+    const target = markers.find((r) => r.workerId === focusId);
+    if (!target || target.lat == null || target.lng == null) return;
+
+    try {
+      mapRef.current.animateToRegion(
+        {
+          latitude: target.lat,
+          longitude: target.lng,
+          latitudeDelta: 0.04,
+          longitudeDelta: 0.04,
+        },
+        650
+      );
+      setSelectedId(target.workerId);
+      focusedOnceRef.current = true;
+    } catch {
+      // ignore
+    }
+  }, [markers, focusId]);
+
   useEffect(() => {
     if (!mapRef.current) return;
     if (selectedId) return;
+    if (focusId) return;
     if (!markers.length) return;
 
     const first = markers[0];
@@ -136,12 +167,12 @@ export default function LiveMapScreen() {
     } catch {
       // ignore
     }
-  }, [markers, selectedId]);
+  }, [markers, selectedId, focusId]);
 
   return (
     <Screen
-      title="Live Map"
-      subtitle={`${markers.length} worker${markers.length === 1 ? '' : 's'} on map`}
+      title="🗺️ Live Map"
+      subtitle={focusId ? `🎯 Focusing worker ${focusId}` : `👥 ${markers.length} worker${markers.length === 1 ? '' : 's'} on map`}
       gradient={["#ec4899", "#8b5cf6", "#6366f1"]}
       scroll={false}
       contentStyle={{ flex: 1, paddingBottom: 18 }}
@@ -158,20 +189,22 @@ export default function LiveMapScreen() {
         >
           {markers.map((r) => {
             const stale = isStale(r.updatedAt);
+            const isFocused = focusId === r.workerId;
             const title = r.name ? `${r.name}` : r.workerId;
             const subtitle = r.name ? r.workerId : "";
+            const pinColor = isFocused ? "#ef4444" : stale ? "#94a3b8" : "#22c55e";
             return (
               <Marker
                 key={r.workerId}
                 coordinate={{ latitude: r.lat as number, longitude: r.lng as number }}
-                pinColor={stale ? "#94a3b8" : "#22c55e"}
+                pinColor={pinColor}
                 onPress={() => setSelectedId(r.workerId)}
               >
                 <Callout>
                   <View style={styles.callout}>
-                    <Text style={styles.calloutTitle}>{title}</Text>
+                    <Text style={styles.calloutTitle}>{isFocused ? `🎯 ${title}` : title}</Text>
                     {subtitle ? <Text style={styles.calloutMeta}>{subtitle}</Text> : null}
-                    <Text style={styles.calloutMeta}>{stale ? "Stale" : "Live"}</Text>
+                    <Text style={styles.calloutMeta}>{stale ? "⚫ Stale" : "🟢 Live"}</Text>
                     <Text style={styles.calloutMeta}>
                       {r.updatedAt ? new Date(r.updatedAt).toLocaleString() : "—"}
                     </Text>
@@ -184,7 +217,11 @@ export default function LiveMapScreen() {
 
         {!markers.length ? (
           <View style={styles.emptyOverlay}>
-            <Text style={styles.empty}>Waiting for location pings…</Text>
+            <Text style={styles.empty}>⏳ Waiting for location pings…</Text>
+          </View>
+        ) : focusId && !markers.some((r) => r.workerId === focusId) ? (
+          <View style={styles.focusBanner}>
+            <Text style={styles.focusText}>🎯 Waiting for {focusId}’s next ping…</Text>
           </View>
         ) : null}
       </View>
@@ -219,4 +256,15 @@ const styles = StyleSheet.create({
   callout: { width: 220, paddingVertical: 6 },
   calloutTitle: { fontSize: 14, fontWeight: '800' },
   calloutMeta: { marginTop: 4, fontSize: 12, color: 'rgba(15,23,42,0.7)' },
+  focusBanner: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    right: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: 'rgba(239,68,68,0.92)',
+  },
+  focusText: { color: 'white', fontSize: 12, fontWeight: '800', textAlign: 'center' },
 });

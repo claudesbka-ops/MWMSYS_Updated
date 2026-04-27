@@ -20,7 +20,7 @@ export default function CheckoutResultScreen() {
     try {
       await sub.me();
     } catch (e: any) {
-      Alert.alert("Error", e?.error ?? "Unable to refresh subscription");
+      Alert.alert("⚠️ Error", e?.error ?? "Unable to refresh subscription");
     } finally {
       setBusy(false);
     }
@@ -35,28 +35,28 @@ export default function CheckoutResultScreen() {
   const iconGradient = (success ? ["#10b981", "#06b6d4"] : ["#64748b", "#0f172a"]) as [string, string];
 
   return (
-    <Screen title={success ? "Payment complete" : "Payment cancelled"} subtitle={success ? "We're activating your plan" : "No charges were made"} gradient={gradient}>
+    <Screen title={success ? "✅ Payment complete" : "❌ Payment cancelled"} subtitle={success ? "✨ We're activating your plan" : "No charges were made"} gradient={gradient}>
       <View style={styles.center}>
         <LinearGradient colors={iconGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.badge}>
           <FontAwesome name={success ? "check" : "times"} size={48} color="#ffffff" />
         </LinearGradient>
-        <Text style={styles.h1}>{success ? "Thank you!" : "Checkout cancelled"}</Text>
+        <Text style={styles.h1}>{success ? "🎉 Thank you!" : "🙏 Checkout cancelled"}</Text>
         <Text style={styles.sub}>
           {success
             ? "Your plan will unlock shortly. Tap Refresh if it does not activate within a minute."
             : "You can try again anytime. No charges were made to your card."}
         </Text>
         <PrimaryButton
-          title={busy ? "Refreshing…" : success ? "Refresh subscription" : "Back to pricing"}
+          title={busy ? "⏳ Refreshing…" : success ? "🔄 Refresh subscription" : "🔙 Back to pricing"}
           loading={busy}
           variant={success ? "success" : "primary"}
           style={{ marginTop: 18, alignSelf: "stretch" }}
           onPress={success ? refresh : () => router.replace("/(tabs)/pricing" as any)}
         />
         {success ? (
-          <GhostButton title="Back to pricing" style={{ marginTop: 10, alignSelf: "stretch" }} onPress={() => router.replace("/(tabs)/pricing" as any)} />
+          <GhostButton title="💰 Back to pricing" style={{ marginTop: 10, alignSelf: "stretch" }} onPress={() => router.replace("/(tabs)/pricing" as any)} />
         ) : (
-          <GhostButton title="Go to dashboard" style={{ marginTop: 10, alignSelf: "stretch" }} onPress={() => router.replace("/(tabs)" as any)} />
+          <GhostButton title="🏠 Go to dashboard" style={{ marginTop: 10, alignSelf: "stretch" }} onPress={() => router.replace("/(tabs)" as any)} />
         )}
       </View>
     </Screen>

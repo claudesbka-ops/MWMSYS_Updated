@@ -29,31 +29,31 @@ export default function SettingsScreen() {
   const handleStartLoc = async () => {
     const r = await startBackgroundLocation();
     if (!r.ok) {
-      Alert.alert("Location", r.error ?? "Unable to start background location");
+      Alert.alert("📍 Location", r.error ?? "Unable to start background location");
       return;
     }
     setLocRunning(true);
-    Alert.alert("Location", "Background live location started");
+    Alert.alert("✅ Location", "Background live location started");
   };
 
   const handleStopLoc = async () => {
     await stopBackgroundLocation();
     setLocRunning(false);
-    Alert.alert("Location", "Background live location stopped");
+    Alert.alert("📍 Location", "Background live location stopped");
   };
 
   const saveBaseUrl = async () => {
     const next = baseOverride.trim();
     try {
       session.setApiBaseUrl(next);
-      Alert.alert("API", next.length ? "Using custom API base URL" : "Reverted to default API base URL");
+      Alert.alert("✅ API", next.length ? "Using custom API base URL" : "Reverted to default API base URL");
     } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Unable to save");
+      Alert.alert("⚠️ Error", e?.message ?? "Unable to save");
     }
   };
 
   const signOut = async () => {
-    Alert.alert("Sign out", "Sign out of your account?", [
+    Alert.alert("👋 Sign out", "Sign out of your account?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Sign out",
@@ -67,41 +67,41 @@ export default function SettingsScreen() {
   };
 
   return (
-    <Screen title="Settings" subtitle="Preferences, location and account" gradient={["#64748b", "#0f172a", "#6366f1"]}>
+    <Screen title="⚙️ Settings" subtitle="Preferences, location and account" gradient={["#64748b", "#0f172a", "#6366f1"]}>
       <Card tight>
-        <Text style={styles.sectionLabel}>Signed in as</Text>
+        <Text style={styles.sectionLabel}>👤 Signed in as</Text>
         <Text style={styles.userName}>{userName}</Text>
         <Text style={styles.userRole}>Role: {appRole}</Text>
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-          <PrimaryButton title="Edit profile" onPress={() => router.push("/account" as any)} style={{ flex: 1 }} />
-          <PrimaryButton title="Sign out" variant="danger" onPress={signOut} style={{ flex: 1 }} />
+          <PrimaryButton title="✏️ Edit profile" onPress={() => router.push("/account" as any)} style={{ flex: 1 }} />
+          <PrimaryButton title="🚪 Sign out" variant="danger" onPress={signOut} style={{ flex: 1 }} />
         </View>
       </Card>
 
       {isWorker ? (
         <>
-          <SectionTitle title="Background location" />
+          <SectionTitle title="📍 Background location" />
           <Card tight>
             <Text style={styles.hint}>
-              Required for Live Map. Your employer and MWMSYS can see your position while this is on.
+              ℹ️ Required for Live Map. Your employer and MWMSYS can see your position while this is on.
             </Text>
             <View style={styles.actions}>
               {!locRunning ? (
-                <PrimaryButton title="Start sharing location" variant="success" onPress={handleStartLoc} style={{ flex: 1 }} />
+                <PrimaryButton title="🟢 Start sharing location" variant="success" onPress={handleStartLoc} style={{ flex: 1 }} />
               ) : (
-                <PrimaryButton title="Stop sharing location" variant="danger" onPress={handleStopLoc} style={{ flex: 1 }} />
+                <PrimaryButton title="⚫ Stop sharing location" variant="danger" onPress={handleStopLoc} style={{ flex: 1 }} />
               )}
             </View>
             <Text style={[styles.status, locRunning ? styles.statusOn : styles.statusOff]}>
-              {locRunning ? "●  Live sharing is ON" : "○  Live sharing is OFF"}
+              {locRunning ? "🟢  Live sharing is ON" : "⚫  Live sharing is OFF"}
             </Text>
           </Card>
         </>
       ) : null}
 
-      <SectionTitle title="Advanced" />
+      <SectionTitle title="🛠️ Advanced" />
       <Card tight>
-        <Text style={styles.sectionLabel}>API base URL</Text>
+        <Text style={styles.sectionLabel}>🔗 API base URL</Text>
         <Text style={styles.hint}>
           Point the app at a different backend (for QA). Leave blank to use the default.
         </Text>
@@ -115,9 +115,9 @@ export default function SettingsScreen() {
           autoCorrect={false}
         />
         <View style={styles.actions}>
-          <PrimaryButton title="Save" onPress={saveBaseUrl} style={{ flex: 1 }} />
+          <PrimaryButton title="💾 Save" onPress={saveBaseUrl} style={{ flex: 1 }} />
           <GhostButton
-            title="Reset"
+            title="↻ Reset"
             onPress={() => {
               setBaseOverride("");
             }}

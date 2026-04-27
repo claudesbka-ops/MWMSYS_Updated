@@ -1,19 +1,29 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { LinearGradient } from "expo-linear-gradient";
 
 import { useApiClient } from "@/services/apiClient";
 import { useSession } from "@/contexts/SessionContext";
-import { Screen, Card, PrimaryButton, GhostButton, SectionTitle, ListItemCard } from "@/components/ui";
+import { Screen, Card, PrimaryButton, GhostButton, SectionTitle } from "@/components/ui";
 
 type DocRow = { type: string; name: string; url: string; hasFile: boolean };
+
+const DOC_TYPES: { key: string; label: string; icon: keyof typeof FontAwesome.glyphMap; gradient: readonly [string, string] }[] = [
+  { key: "passport", label: "🛫 Passport", icon: "id-card-o", gradient: ["#0ea5e9", "#6366f1"] },
+  { key: "permit", label: "🆔 Work Permit", icon: "id-badge", gradient: ["#10b981", "#06b6d4"] },
+  { key: "insurance", label: "🛡️ Insurance", icon: "shield", gradient: ["#8b5cf6", "#ec4899"] },
+  { key: "contract", label: "📝 Contract", icon: "file-text-o", gradient: ["#f59e0b", "#fb7185"] },
+  { key: "demand_letter", label: "✉️ Demand Letter", icon: "envelope", gradient: ["#6366f1", "#a855f7"] },
+];
 
 export default function DocumentsScreen() {
   const api = useApiClient();
   const session = useSession();
   const [loading, setLoading] = useState(false);
   const [docs, setDocs] = useState<DocRow[]>([]);
-  const [docType, setDocType] = useState("passport");
+  const [docType, setDocType] = useState<string>("passport");
   const [busy, setBusy] = useState(false);
 
   const refresh = async () => {
@@ -22,7 +32,7 @@ export default function DocumentsScreen() {
       const res = await api.get<{ workerId: string; documents: DocRow[] }>("/Api/Worker/Documents");
       setDocs(Array.isArray(res?.documents) ? res.documents : []);
     } catch (e: any) {
-      Alert.alert("Error", e?.error ?? "Failed to load documents");
+      Alert.alert("⚠️ Error", e?.error ?? "Failed to load documents");
     } finally {
       setLoading(false);
     }
@@ -44,7 +54,7 @@ export default function DocumentsScreen() {
       if (picked.canceled) return;
       const asset = picked.assets?.[0];
       if (!asset?.uri) {
-        Alert.alert("Error", "No file selected");
+        Alert.alert("⚠️ Error", "No file selected");
         return;
       }
 
@@ -69,9 +79,9 @@ export default function DocumentsScreen() {
       if (!res.ok) throw new Error(data?.error ?? "Upload failed");
 
       await refresh();
-      Alert.alert("Uploaded", "Document uploaded");
+      Alert.alert("✅ Uploaded", "Your document is saved.");
     } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Upload failed");
+      Alert.alert("⚠️ Error", e?.message ?? "Upload failed");
     } finally {
       setBusy(false);
     }
@@ -83,56 +93,74 @@ export default function DocumentsScreen() {
       await api.delete(`/Api/Worker/Documents?docType=${encodeURIComponent(type)}`);
       await refresh();
     } catch (e: any) {
-      Alert.alert("Error", e?.error ?? "Delete failed");
+      Alert.alert("⚠️ Error", e?.error ?? "Delete failed");
     } finally {
       setBusy(false);
     }
   };
 
+  const merged = DOC_TYPES.map((meta) => {
+    const existing = docs.find((d) => d.type === meta.key);
+    return { ...meta, hasFile: !!existing?.hasFile, name: existing?.name ?? meta.label, url: existing?.url ?? "" };
+  });
+  const uploadedCount = merged.filter((m) => m.hasFile).length;
+
   return (
     <Screen
-      title="My Documents"
-      subtitle="Passport, permit, insurance & contract files"
+      title="📄 My Documents"
+      subtitle={`📁 ${uploadedCount} of ${DOC_TYPES.length} uploaded`}
       gradient={["#6366f1", "#8b5cf6", "#0ea5e9"]}
       refreshing={loading}
       onRefresh={refresh}
     >
       <Card>
-        <Text style={styles.label}>Document type</Text>
-        <TextInput
-          value={docType}
-          onChangeText={setDocType}
-          placeholder="passport, permit, insurance, contract, demand_letter"
-          placeholderTextColor="rgba(15,23,42,0.4)"
-          style={styles.input}
-          autoCapitalize="none"
-        />
+        <Text style={styles.sectionTitle}>📌 Document type</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          {DOC_TYPES.map((t) => (
+            <Pressable key={t.key} onPress={() => setDocType(t.key)} style={[styles.chip, docType === t.key && styles.chipActive]}>
+              {docType === t.key ? (
+                <LinearGradient colors={t.gradient as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.chipIconActive}>
+                  <FontAwesome name={t.icon} size={13} color="#fff" />
+                </LinearGradient>
+              ) : (
+                <View style={styles.chipIcon}>
+                  <FontAwesome name={t.icon} size={13} color="rgba(15,23,42,0.55)" />
+                </View>
+              )}
+              <Text style={[styles.chipText, docType === t.key && styles.chipTextActive]}>{t.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
         <View style={styles.row}>
-          <PrimaryButton title={busy ? "Working…" : "Upload file"} loading={busy} onPress={upload} style={{ flex: 1 }} />
-          <GhostButton title="Refresh" onPress={refresh} disabled={busy} />
+          <PrimaryButton title={busy ? "⏳ Working…" : "⬆️ Upload file"} loading={busy} onPress={upload} style={{ flex: 1 }} />
+          <GhostButton title="🔄 Refresh" onPress={refresh} disabled={busy} />
         </View>
+        <Text style={styles.help}>PDF or images up to 10MB. Pick a category above before uploading.</Text>
       </Card>
 
-      <SectionTitle title={`Files (${docs.length})`} />
+      <SectionTitle title="📁 Your files" />
 
       {loading && docs.length === 0 ? (
         <ActivityIndicator color="#6366f1" />
-      ) : docs.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>No documents uploaded yet.</Text>
-        </View>
       ) : (
-        <View style={{ gap: 10 }}>
-          {docs.map((item) => (
-            <ListItemCard
-              key={item.type}
-              title={item.name}
-              subtitle={item.hasFile ? "Available" : "Not uploaded"}
-              meta={item.hasFile ? item.url : undefined}
-              icon={item.hasFile ? "file-text" : "file-o"}
-              iconGradient={item.hasFile ? ["#10b981", "#06b6d4"] : ["#94a3b8", "#64748b"]}
-              badge={item.hasFile ? { label: "Ready", tone: "emerald" } : { label: "Missing", tone: "slate" }}
-              onPress={item.hasFile ? () => remove(item.type) : undefined}
+        <View style={styles.grid}>
+          {merged.map((doc) => (
+            <DocumentTile
+              key={doc.key}
+              icon={doc.icon}
+              gradient={doc.gradient}
+              label={doc.label}
+              hasFile={doc.hasFile}
+              onPress={
+                doc.hasFile
+                  ? () =>
+                      Alert.alert(doc.label, "Remove this document?", [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Remove", style: "destructive", onPress: () => remove(doc.key) },
+                      ])
+                  : () => setDocType(doc.key)
+              }
             />
           ))}
         </View>
@@ -141,19 +169,93 @@ export default function DocumentsScreen() {
   );
 }
 
+function DocumentTile({
+  icon,
+  gradient,
+  label,
+  hasFile,
+  onPress,
+}: {
+  icon: keyof typeof FontAwesome.glyphMap;
+  gradient: readonly [string, string];
+  label: string;
+  hasFile: boolean;
+  onPress?: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={styles.tile}>
+      <LinearGradient
+        colors={(hasFile ? gradient : ["#e2e8f0", "#cbd5e1"]) as any}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.tileIcon}
+      >
+        <FontAwesome name={icon} size={22} color={hasFile ? "#fff" : "rgba(15,23,42,0.55)"} />
+      </LinearGradient>
+      <Text style={styles.tileLabel} numberOfLines={1}>
+        {label}
+      </Text>
+      <View style={[styles.tileBadge, hasFile ? styles.tileBadgeReady : styles.tileBadgeMissing]}>
+        <FontAwesome
+          name={hasFile ? "check-circle" : "exclamation-circle"}
+          size={10}
+          color={hasFile ? "#047857" : "#92400e"}
+        />
+        <Text style={[styles.tileBadgeText, hasFile ? styles.tileBadgeTextReady : styles.tileBadgeTextMissing]}>
+          {hasFile ? "✅ Uploaded" : "⚠️ Missing"}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  label: { fontSize: 11, fontWeight: '800', color: 'rgba(15,23,42,0.6)', letterSpacing: 0.4, textTransform: 'uppercase' },
-  input: {
-    height: 46,
-    borderRadius: 12,
+  sectionTitle: { fontSize: 11, fontWeight: "800", color: "rgba(15,23,42,0.6)", letterSpacing: 0.4, textTransform: "uppercase" },
+  chipRow: { gap: 8, paddingTop: 10, paddingBottom: 4, paddingRight: 4 },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(79,70,229,0.15)',
-    paddingHorizontal: 14,
-    marginTop: 8,
-    backgroundColor: '#ffffff',
-    color: '#0f172a',
+    borderColor: "rgba(79,70,229,0.15)",
+    backgroundColor: "#ffffff",
   },
-  row: { marginTop: 14, flexDirection: 'row', gap: 10, alignItems: 'stretch' },
-  empty: { alignItems: 'center', paddingVertical: 40 },
-  emptyText: { color: 'rgba(15,23,42,0.55)', fontSize: 13 },
+  chipActive: { borderColor: "rgba(79,70,229,0.6)", shadowColor: "#6366f1", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 8, elevation: 3 },
+  chipIcon: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(99,102,241,0.08)" },
+  chipIconActive: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  chipText: { fontSize: 13, fontWeight: "700", color: "rgba(15,23,42,0.65)" },
+  chipTextActive: { color: "#0f172a" },
+
+  row: { marginTop: 14, flexDirection: "row", gap: 10, alignItems: "stretch" },
+  help: { marginTop: 10, fontSize: 11, color: "rgba(15,23,42,0.5)" },
+
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  tile: {
+    width: "47.5%",
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "rgba(79,70,229,0.08)",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  tileIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  tileLabel: { fontSize: 14, fontWeight: "800", color: "#0f172a" },
+  tileBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+  },
+  tileBadgeReady: { backgroundColor: "rgba(16,185,129,0.14)" },
+  tileBadgeMissing: { backgroundColor: "rgba(245,158,11,0.16)" },
+  tileBadgeText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.3, textTransform: "uppercase" },
+  tileBadgeTextReady: { color: "#047857" },
+  tileBadgeTextMissing: { color: "#92400e" },
 });

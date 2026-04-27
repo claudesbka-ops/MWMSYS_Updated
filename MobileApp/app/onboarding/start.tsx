@@ -18,9 +18,9 @@ type RoleDef = {
 };
 
 const ROLES: RoleDef[] = [
-  { key: "employer", title: "Employer", description: "Manage your workers and HRMS features", icon: "building", gradient: ["#6366f1", "#8b5cf6"] },
-  { key: "agency",   title: "Agency",   description: "Place workers with employers you work with", icon: "briefcase", gradient: ["#f59e0b", "#ef4444"] },
-  { key: "worker",   title: "Worker",   description: "Create your worker account", icon: "user", gradient: ["#10b981", "#06b6d4"] },
+  { key: "employer", title: "🏢 Employer", description: "Hire and manage your migrant workforce", icon: "building", gradient: ["#6366f1", "#8b5cf6"] },
+  { key: "agency",   title: "💼 Agency",   description: "Place workers with employers you work with", icon: "briefcase", gradient: ["#f59e0b", "#ef4444"] },
+  { key: "worker",   title: "👷 Worker",   description: "Create your worker account", icon: "user", gradient: ["#10b981", "#06b6d4"] },
 ];
 
 export default function OnboardingStartScreen() {

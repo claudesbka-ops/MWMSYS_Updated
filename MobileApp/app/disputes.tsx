@@ -30,10 +30,10 @@ type Dispute = {
 };
 
 const STATUS_FILTERS: Array<{ key: "All" | DisputeStatus; label: string }> = [
-  { key: "All", label: "All" },
-  { key: "Pending", label: "Pending" },
-  { key: "Accepted", label: "Accepted" },
-  { key: "Rejected", label: "Rejected" },
+  { key: "All", label: "📜 All" },
+  { key: "Pending", label: "⏳ Pending" },
+  { key: "Accepted", label: "✅ Accepted" },
+  { key: "Rejected", label: "❌ Rejected" },
 ];
 
 export default function DisputesScreen() {
@@ -43,7 +43,10 @@ export default function DisputesScreen() {
   const appRole = (session.claims?.appRole ?? session.claims?.role ?? "worker").toString();
 
   const isWorker = appRole === "worker";
-  const isReviewer = appRole === "employer" || appRole === "agency" || appRole === "admin" || appRole === "labour";
+  // Anyone non-worker can *view* disputes; only admin + employer can *act* on
+  // them (matches the backend role gate on /Api/Dispute/Review).
+  const isViewer = appRole === "employer" || appRole === "agency" || appRole === "admin" || appRole === "labour";
+  const canReview = appRole === "employer" || appRole === "admin";
 
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<Dispute[]>([]);
@@ -63,8 +66,10 @@ export default function DisputesScreen() {
 
   const loadEndpoint = useMemo(() => {
     if (isWorker) return "/Api/Dispute/MyDisputes";
-    if (appRole === "admin" || appRole === "labour") return "/Api/Dispute/All";
-    return "/Api/Dispute/Incoming";
+    // Employer is the only role with a personal inbox; agency, labour and
+    // admin all read /All (which the backend scopes for them).
+    if (appRole === "employer") return "/Api/Dispute/Incoming";
+    return "/Api/Dispute/All";
   }, [isWorker, appRole]);
 
   const load = useCallback(async () => {
@@ -73,7 +78,7 @@ export default function DisputesScreen() {
       const res = await api.get<Dispute[]>(loadEndpoint);
       setItems(Array.isArray(res) ? res : []);
     } catch (e: any) {
-      Alert.alert("Error", e?.error ?? "Unable to load disputes");
+      Alert.alert("⚠️ Error", e?.error ?? "Unable to load disputes");
     } finally {
       setLoading(false);
     }
@@ -97,7 +102,7 @@ export default function DisputesScreen() {
     if (result.canceled || !result.assets?.[0]) return;
     const a = result.assets[0];
     if (a.size && a.size > 5 * 1024 * 1024) {
-      Alert.alert("Too large", "Proof file must be 5 MB or smaller");
+      Alert.alert("📁 Too large", "Proof file must be 5 MB or smaller");
       return;
     }
     setProof({
@@ -111,11 +116,11 @@ export default function DisputesScreen() {
   const submit = async () => {
     const expectedNum = Number(expected);
     const receivedNum = Number(received);
-    if (!month.trim()) return Alert.alert("Missing", "Enter the dispute month");
+    if (!month.trim()) return Alert.alert("📅 Missing", "Enter the dispute month");
     if (!Number.isFinite(expectedNum) || !Number.isFinite(receivedNum)) {
-      return Alert.alert("Missing", "Amounts must be valid numbers");
+      return Alert.alert("💰 Missing", "Amounts must be valid numbers");
     }
-    if (!description.trim()) return Alert.alert("Missing", "Describe the dispute");
+    if (!description.trim()) return Alert.alert("📝 Missing", "Describe the dispute");
 
     setSubmitting(true);
     try {
@@ -134,10 +139,10 @@ export default function DisputesScreen() {
       setReceived("");
       setDescription("");
       setProof(null);
-      Alert.alert("Submitted", "Dispute sent for review");
+      Alert.alert("✅ Submitted", "Dispute sent for review");
       await load();
     } catch (e: any) {
-      Alert.alert("Error", e?.error ?? "Unable to submit");
+      Alert.alert("⚠️ Error", e?.error ?? "Unable to submit");
     } finally {
       setSubmitting(false);
     }
@@ -153,7 +158,7 @@ export default function DisputesScreen() {
       });
       setItems((prev) => prev.map((x) => (x.id === d.id ? { ...x, status, employerComment: commentDraft[d.id] ?? x.employerComment } : x)));
     } catch (e: any) {
-      Alert.alert("Error", e?.error ?? "Unable to save decision");
+      Alert.alert("⚠️ Error", e?.error ?? "Unable to save decision");
     } finally {
       setBusyId(null);
     }
@@ -162,11 +167,11 @@ export default function DisputesScreen() {
   const pendingCount = items.filter((d) => d.status === "Pending").length;
   const acceptedCount = items.filter((d) => d.status === "Accepted").length;
 
-  if (!isWorker && !isReviewer) {
+  if (!isWorker && !isViewer) {
     return (
-      <Screen title="Disputes" subtitle="Not available for this role" gradient={["#f59e0b", "#ef4444"]}>
+      <Screen title="⚖️ Disputes" subtitle="Not available for this role" gradient={["#f59e0b", "#ef4444"]}>
         <Card>
-          <Text style={styles.muted}>Salary disputes are only visible to workers, employers, agencies, the Labour Department and admins.</Text>
+          <Text style={styles.muted}>ℹ️ Salary disputes are only visible to workers, employers, agencies, the Labour Department and admins.</Text>
         </Card>
       </Screen>
     );
@@ -174,8 +179,8 @@ export default function DisputesScreen() {
 
   return (
     <Screen
-      title="Disputes"
-      subtitle={isWorker ? "Submit and track salary disputes" : "Review salary disputes from workers"}
+      title="⚖️ Disputes"
+      subtitle={isWorker ? "📝 Submit and track salary disputes" : canReview ? "🔍 Review salary disputes from workers" : "👀 View salary disputes"}
       gradient={["#f59e0b", "#ef4444", "#a855f7"]}
       refreshing={loading}
       onRefresh={load}
@@ -183,21 +188,21 @@ export default function DisputesScreen() {
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{pendingCount}</Text>
-          <Text style={styles.statLabel}>Pending</Text>
+          <Text style={styles.statLabel}>⏳ Pending</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{acceptedCount}</Text>
-          <Text style={styles.statLabel}>Accepted</Text>
+          <Text style={styles.statLabel}>✅ Accepted</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{items.length}</Text>
-          <Text style={styles.statLabel}>Total</Text>
+          <Text style={styles.statLabel}>📊 Total</Text>
         </View>
       </View>
 
       {isWorker ? (
         <>
-          <SectionTitle title="Submit a salary dispute" />
+          <SectionTitle title="📝 Submit a salary dispute" />
           <Card>
             <Text style={styles.label}>Month</Text>
             <TextInput
@@ -230,7 +235,7 @@ export default function DisputesScreen() {
             <TouchableOpacity onPress={pickProof} activeOpacity={0.85} style={styles.proofPicker}>
               <FontAwesome name="paperclip" size={14} color="#4f46e5" />
               <Text style={styles.proofText} numberOfLines={1}>
-                {proof ? proof.name : "Attach proof (optional, ≤5 MB)"}
+                {proof ? `📎 ${proof.name}` : "📎 Attach proof (optional, ≤5 MB)"}
               </Text>
               {proof ? (
                 <TouchableOpacity onPress={() => setProof(null)} hitSlop={10}>
@@ -240,7 +245,7 @@ export default function DisputesScreen() {
             </TouchableOpacity>
 
             <PrimaryButton
-              title={submitting ? "Submitting…" : "Submit dispute"}
+              title={submitting ? "⏳ Submitting…" : "📤 Submit dispute"}
               loading={submitting}
               onPress={submit}
               style={{ marginTop: 16 }}
@@ -261,13 +266,13 @@ export default function DisputesScreen() {
         })}
       </View>
 
-      <SectionTitle title={`${filtered.length} ${filtered.length === 1 ? "dispute" : "disputes"}`} />
+      <SectionTitle title={`📂 ${filtered.length} ${filtered.length === 1 ? "dispute" : "disputes"}`} />
 
       {loading && items.length === 0 ? (
         <ActivityIndicator color="#f59e0b" />
       ) : filtered.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>No disputes for this filter.</Text>
+          <Text style={styles.emptyText}>🙌 No disputes for this filter.</Text>
         </View>
       ) : (
         <View style={{ gap: 10 }}>
@@ -275,7 +280,7 @@ export default function DisputesScreen() {
             <DisputeCard
               key={d.id}
               d={d}
-              isReviewer={isReviewer}
+              isReviewer={canReview}
               isWorker={isWorker}
               busy={busyId === d.id}
               comment={commentDraft[d.id] ?? ""}
@@ -286,7 +291,7 @@ export default function DisputesScreen() {
         </View>
       )}
 
-      <Text style={styles.back} onPress={() => router.back()}>Back</Text>
+      <Text style={styles.back} onPress={() => router.back()}>← Back</Text>
     </Screen>
   );
 }
@@ -355,7 +360,7 @@ function DisputeCard({
       {d.hasProof ? (
         <View style={styles.proofTag}>
           <FontAwesome name="paperclip" size={10} color="#4f46e5" />
-          <Text style={styles.proofTagText}>Proof attached</Text>
+          <Text style={styles.proofTagText}>📎 Proof attached</Text>
         </View>
       ) : null}
 
@@ -385,10 +390,10 @@ function DisputeCard({
           />
           <View style={styles.decisionRow}>
             <TouchableOpacity disabled={busy} onPress={() => onReview("Rejected")} style={[styles.rejectBtn, busy && styles.btnDisabled]}>
-              <Text style={styles.rejectText}>Reject</Text>
+              <Text style={styles.rejectText}>❌ Reject</Text>
             </TouchableOpacity>
             <TouchableOpacity disabled={busy} onPress={() => onReview("Accepted")} style={[styles.approveBtn, busy && styles.btnDisabled]}>
-              {busy ? <ActivityIndicator color="white" /> : <Text style={styles.approveText}>Accept</Text>}
+              {busy ? <ActivityIndicator color="white" /> : <Text style={styles.approveText}>✅ Accept</Text>}
             </TouchableOpacity>
           </View>
         </View>

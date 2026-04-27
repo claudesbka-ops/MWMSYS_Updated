@@ -64,7 +64,7 @@ export default function AccountScreen() {
       Object.entries(f).forEach(([k, v]) => { if (k !== "photo") next[k] = String(v ?? ""); });
       setFields(next);
     } catch (e: any) {
-      Alert.alert("Error", e?.error ?? "Unable to load profile");
+      Alert.alert("⚠️ Error", e?.error ?? "Unable to load profile");
     } finally {
       setLoading(false);
     }
@@ -78,10 +78,10 @@ export default function AccountScreen() {
     setSaving(true);
     try {
       await api.put("/Api/Account/Profile", fields);
-      Alert.alert("Saved", "Profile updated");
+      Alert.alert("✅ Saved", "Profile updated");
       await load();
     } catch (e: any) {
-      Alert.alert("Error", e?.error ?? "Unable to save profile");
+      Alert.alert("⚠️ Error", e?.error ?? "Unable to save profile");
     } finally {
       setSaving(false);
     }
@@ -90,7 +90,7 @@ export default function AccountScreen() {
   const pickPhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert("Permission", "Media library permission is required");
+      Alert.alert("📷 Permission", "Media library permission is required");
       return;
     }
     const picked = await ImagePicker.launchImageLibraryAsync({
@@ -114,17 +114,17 @@ export default function AccountScreen() {
       // though the web DOM types don't know about it.
       form.append("photo", filePart as unknown as Blob);
       await api.postForm("/Api/Account/Photo", form);
-      Alert.alert("Uploaded", "Profile photo updated");
+      Alert.alert("✅ Uploaded", "Profile photo updated");
       await load();
     } catch (e: any) {
-      Alert.alert("Error", e?.error ?? "Unable to upload photo");
+      Alert.alert("⚠️ Error", e?.error ?? "Unable to upload photo");
     } finally {
       setUploading(false);
     }
   };
 
   const signOut = async () => {
-    Alert.alert("Sign out", "Sign out of your account?", [
+    Alert.alert("👋 Sign out", "Sign out of your account?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Sign out",
@@ -155,7 +155,7 @@ export default function AccountScreen() {
 
   return (
     <Screen
-      title="Account"
+      title="👤 Account"
       subtitle="Manage your profile and subscription"
       gradient={["#6366f1", "#8b5cf6", "#ec4899"]}
       refreshing={loading}
@@ -199,11 +199,11 @@ export default function AccountScreen() {
       </Card>
 
       {/* Editable fields */}
-      <SectionTitle title="Profile details" />
+      <SectionTitle title="📝 Profile details" />
       {!profile?.profile ? (
         <Card>
           <Text style={styles.muted}>
-            No editable profile fields for this role. Contact an administrator to update your details.
+            ℹ️ No editable profile fields for this role. Contact an administrator to update your details.
           </Text>
         </Card>
       ) : profile.profile.kind === "worker" ? (
@@ -236,15 +236,15 @@ export default function AccountScreen() {
       )}
 
       {profile?.profile ? (
-        <PrimaryButton title={saving ? "Saving…" : "Save profile"} loading={saving} onPress={save} style={{ marginTop: 18 }} />
+        <PrimaryButton title={saving ? "⏳ Saving…" : "💾 Save profile"} loading={saving} onPress={save} style={{ marginTop: 18 }} />
       ) : null}
 
-      <SectionTitle title="Account actions" />
+      <SectionTitle title="⚙️ Account actions" />
       <Card tight>
         <TouchableOpacity style={styles.actionRow} activeOpacity={0.7} onPress={() => router.push("/(tabs)/pricing" as any)}>
           <FontAwesome name="credit-card" size={16} color="#4f46e5" />
           <View style={{ flex: 1 }}>
-            <Text style={styles.actionTitle}>Manage subscription</Text>
+            <Text style={styles.actionTitle}>💎 Manage subscription</Text>
             <Text style={styles.actionSub}>Change plan, view billing details</Text>
           </View>
           <FontAwesome name="chevron-right" size={12} color="rgba(15,23,42,0.3)" />
@@ -253,7 +253,7 @@ export default function AccountScreen() {
         <TouchableOpacity style={styles.actionRow} activeOpacity={0.7} onPress={() => router.push("/(tabs)/settings" as any)}>
           <FontAwesome name="cog" size={16} color="#4f46e5" />
           <View style={{ flex: 1 }}>
-            <Text style={styles.actionTitle}>Preferences</Text>
+            <Text style={styles.actionTitle}>⚙️ Preferences</Text>
             <Text style={styles.actionSub}>Location sharing, API base URL</Text>
           </View>
           <FontAwesome name="chevron-right" size={12} color="rgba(15,23,42,0.3)" />
@@ -262,13 +262,13 @@ export default function AccountScreen() {
         <TouchableOpacity style={styles.actionRow} activeOpacity={0.7} onPress={signOut}>
           <FontAwesome name="sign-out" size={16} color="#ef4444" />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.actionTitle, { color: "#ef4444" }]}>Sign out</Text>
+            <Text style={[styles.actionTitle, { color: "#ef4444" }]}>🚪 Sign out</Text>
             <Text style={styles.actionSub}>End your current session</Text>
           </View>
         </TouchableOpacity>
       </Card>
 
-      <Text style={styles.back} onPress={() => router.back()}>Back</Text>
+      <Text style={styles.back} onPress={() => router.back()}>← Back</Text>
     </Screen>
   );
 }

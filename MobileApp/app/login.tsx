@@ -11,9 +11,9 @@ import { useSession } from "@/contexts/SessionContext";
 import { GradientBackground, PrimaryButton, GhostButton } from "@/components/ui";
 
 const ROLES = [
-  { key: "worker", label: "Worker", icon: "user" as const },
-  { key: "employer", label: "Employer", icon: "building" as const },
-  { key: "agency", label: "Agency", icon: "briefcase" as const },
+  { key: "worker", label: "👷 Worker", icon: "user" as const },
+  { key: "employer", label: "🏢 Employer", icon: "building" as const },
+  { key: "agency", label: "💼 Agency", icon: "briefcase" as const },
 ] as const;
 
 type Role = (typeof ROLES)[number]["key"];
@@ -31,22 +31,49 @@ export default function LoginScreen() {
   const [showServer, setShowServer] = useState(false);
   const [serverUrl, setServerUrl] = useState(session.apiBaseUrl);
 
+  // ⚠️ DEV BYPASS: tapping Sign In drops you straight into the selected
+  // role's dashboard with a synthetic local-only JWT. No backend call.
+  // Remove this block (and restore the real `auth.login(...)` flow below)
+  // once signin is working end-to-end.
   const doLogin = async () => {
-    if (!userName.trim() || !password.trim()) {
-      Alert.alert("Missing fields", "Username and password are required");
-      return;
+    setBusy(true);
+    try {
+      const fakeUser = userName.trim() || `${role}-dev`;
+      const token = mintDevToken({
+        appRole: role,
+        roleId: role === "worker" ? 2 : role === "employer" ? 3 : 4,
+        userName: fakeUser,
+        userKey: fakeUser,
+        emailId: `${fakeUser}@dev.local`,
+      });
+      session.setToken(token);
+      router.replace("/(tabs)" as any);
+    } finally {
+      setBusy(false);
     }
-    if (role === "worker" && !passportNo.trim()) {
-      Alert.alert("Missing fields", "Passport No is required for worker login");
+  };
+
+  // Real login (kept for when we re-enable it).
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _doRealLogin = async () => {
+    const u = userName.trim();
+    const p = password;
+    const passport = passportNo.trim();
+    const missing: string[] = [];
+    if (!u) missing.push("Username/email");
+    if (!p) missing.push("Password");
+    if (role === "worker" && !passport) missing.push("Passport No");
+    if (missing.length) {
+      Alert.alert("Missing fields", `Please fill: ${missing.join(", ")}.`);
       return;
     }
 
     setBusy(true);
     try {
       const res = await auth.login({
-        userName: userName.trim(),
-        password,
-        passportNo: role === "worker" ? passportNo.trim() || undefined : undefined,
+        userName: u,
+        password: p,
+        passportNo: role === "worker" ? passport || undefined : undefined,
       });
       if (!res?.access_token) {
         Alert.alert("Login failed", "No token received");
@@ -147,11 +174,14 @@ export default function LoginScreen() {
               )}
 
               <PrimaryButton
-                title="Sign In"
+                title={`✨ Continue as ${role}`}
                 loading={busy}
                 onPress={doLogin}
                 style={{ marginTop: 20 }}
               />
+              <Text style={styles.devHint}>
+                🛠️ Dev mode: tap above to enter the {role} dashboard (no auth).
+              </Text>
 
               <View style={styles.divider}>
                 <View style={styles.dividerLine} />
@@ -160,7 +190,7 @@ export default function LoginScreen() {
               </View>
 
               <GhostButton
-                title="Create new account"
+                title="📝 Create new account"
                 onPress={() => router.push("/onboarding/start" as any)}
                 disabled={busy}
               />
@@ -170,8 +200,54 @@ export default function LoginScreen() {
                 disabled={busy}
                 style={{ alignSelf: "center", marginTop: 14, paddingVertical: 6 }}
               >
-                <Text style={styles.verifyLink}>Have a verification code? Verify email</Text>
+                <Text style={styles.verifyLink}>✉️ Have a verification code? Verify email</Text>
               </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setShowServer((v) => !v)}
+                disabled={busy}
+                style={{ alignSelf: "center", marginTop: 8, paddingVertical: 6 }}
+              >
+                <Text style={styles.serverToggle}>
+                  {showServer ? "Hide server URL" : `Server: ${session.apiBaseUrl}`}
+                </Text>
+              </TouchableOpacity>
+
+              {showServer && (
+                <>
+                  <Text style={[styles.label, { marginTop: 6 }]}>Server URL</Text>
+                  <ThemedTextInput
+                    value={serverUrl}
+                    onChangeText={setServerUrl}
+                    style={styles.input}
+                    autoCapitalize="none"
+                    keyboardType="url"
+                    editable={!busy}
+                    placeholder="http://192.168.x.x:3000"
+                  />
+                  <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                    <View style={{ flex: 1 }}>
+                      <GhostButton
+                        title="Reset"
+                        disabled={busy}
+                        onPress={() => {
+                          session.setApiBaseUrl("");
+                          setServerUrl(session.apiBaseUrl);
+                        }}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <PrimaryButton
+                        title="Save"
+                        disabled={busy}
+                        onPress={() => {
+                          session.setApiBaseUrl(serverUrl.trim());
+                        }}
+                      />
+                    </View>
+                  </View>
+                </>
+              )}
             </LinearGradient>
           </View>
 
@@ -256,4 +332,54 @@ const styles = StyleSheet.create({
 
   footer: { marginTop: 26, textAlign: "center", fontSize: 11, color: "rgba(15,23,42,0.5)" },
   verifyLink: { fontSize: 12, fontWeight: "800", color: "#4f46e5" },
+  serverToggle: { fontSize: 11, fontWeight: "700", color: "rgba(15,23,42,0.55)" },
+  devHint: { marginTop: 8, textAlign: "center", fontSize: 11, fontWeight: "700", color: "rgba(220,38,38,0.85)" },
 });
+
+// ---------- DEV-ONLY: synthetic JWT for the bypass login ----------
+// Mints a fake JWT (header.payload.sig) whose payload is decoded by
+// SessionContext to populate `claims.appRole`, `claims.userName`, etc.
+// The signature is junk; protected backend routes will 401, but that's
+// fine while we're just exploring screens.
+function mintDevToken(claims: {
+  appRole: "worker" | "employer" | "agency";
+  roleId: number;
+  userName: string;
+  userKey: string;
+  emailId: string;
+}): string {
+  const header = { alg: "none", typ: "JWT" };
+  const payload = {
+    ...claims,
+    userId: 0,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
+  };
+  return `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}.dev`;
+}
+
+function b64url(input: string): string {
+  // base64-encode, then make it URL-safe and strip padding.
+  const b64 = typeof (globalThis as any).btoa === "function"
+    ? (globalThis as any).btoa(unescape(encodeURIComponent(input)))
+    : base64Encode(input);
+  return b64.replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
+
+function base64Encode(input: string): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let out = "";
+  let i = 0;
+  const bytes = unescape(encodeURIComponent(input));
+  while (i < bytes.length) {
+    const c1 = bytes.charCodeAt(i++);
+    const c2 = i < bytes.length ? bytes.charCodeAt(i++) : NaN;
+    const c3 = i < bytes.length ? bytes.charCodeAt(i++) : NaN;
+    const e1 = c1 >> 2;
+    const e2 = ((c1 & 3) << 4) | ((isNaN(c2) ? 0 : c2) >> 4);
+    const e3 = isNaN(c2) ? 64 : (((c2 & 15) << 2) | ((isNaN(c3) ? 0 : c3) >> 6));
+    const e4 = isNaN(c3) ? 64 : (c3 & 63);
+    out += chars.charAt(e1) + chars.charAt(e2) + (e3 === 64 ? "=" : chars.charAt(e3)) + (e4 === 64 ? "=" : chars.charAt(e4));
+  }
+  return out;
+}

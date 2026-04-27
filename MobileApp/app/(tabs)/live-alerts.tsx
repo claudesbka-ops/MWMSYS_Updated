@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useRouter } from "expo-router";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { io, type Socket } from "socket.io-client";
 
 import { useApiClient } from "@/services/apiClient";
@@ -18,6 +20,7 @@ type AlertRow = {
 };
 
 export default function LiveAlertsScreen() {
+  const router = useRouter();
   const session = useSession();
   const api = useApiClient();
   const [rows, setRows] = useState<AlertRow[]>([]);
@@ -121,38 +124,48 @@ export default function LiveAlertsScreen() {
       await api.post("/Api/Incidents/Approve", { id });
       setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: "Approved" } : r)));
     } catch (e: any) {
-      Alert.alert("Error", e?.error ?? "Unable to approve");
+      Alert.alert("⚠️ Error", e?.error ?? "Unable to approve");
     }
   };
 
   return (
     <Screen
-      title="Live Alerts"
-      subtitle="Real-time panic and incident feed"
+      title="🔔 Live Alerts"
+      subtitle="📡 Real-time panic and incident feed"
       gradient={["#ef4444", "#f97316", "#a855f7"]}
     >
-      <GhostButton
-        title="Clear all"
-        onPress={() => {
-          Alert.alert("Clear", "Clear all alerts?", [
-            { text: "Cancel", style: "cancel" },
-            { text: "Clear", style: "destructive", onPress: () => setRows([]) },
-          ]);
-        }}
-      />
+      <View style={styles.actionsRow}>
+        <PrimaryButton
+          title="🗺️ Open Live Map"
+          onPress={() => router.push("/(tabs)/live-map" as any)}
+          style={{ flex: 1 }}
+        />
+        <GhostButton
+          title="🧹 Clear all"
+          onPress={() => {
+            Alert.alert("🧹 Clear", "Clear all alerts?", [
+              { text: "Cancel", style: "cancel" },
+              { text: "Clear", style: "destructive", onPress: () => setRows([]) },
+            ]);
+          }}
+        />
+      </View>
 
-      <SectionTitle title={`Feed (${rows.length})`} />
+      <SectionTitle title={`📡 Feed (${rows.length})`} />
 
       {rows.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyText}>Waiting for incoming alerts…</Text>
+          <FontAwesome name="bell-o" size={36} color="rgba(239,68,68,0.35)" />
+          <Text style={styles.emptyText}>⏳ Waiting for incoming alerts…</Text>
         </View>
       ) : (
         <View style={{ gap: 10 }}>
           {rows.map((item) => {
-            const kindLabel = item.kind === 'new_trigger' ? 'New trigger' : 'Forwarded';
+            const kindLabel = item.kind === 'new_trigger' ? '🚨 New trigger' : '↪️ Forwarded';
             const status = String(item.status ?? '');
             const canApprove = roleId === 1 && status.toLowerCase() === 'pending';
+            const wid = item.workerId ? String(item.workerId) : '';
+            const showMap = !!wid;
             return (
               <Card key={`${item.kind}:${item.id}`} tight>
                 <View style={styles.kindRow}>
@@ -167,17 +180,29 @@ export default function LiveAlertsScreen() {
                 </View>
                 <Text style={styles.cardTitle}>{item.title}</Text>
                 {item.description ? <Text style={styles.cardDesc}>{item.description}</Text> : null}
-                {item.workerId ? <Text style={styles.meta}>Worker: {String(item.workerId)}</Text> : null}
-                {item.companyName ? <Text style={styles.meta}>Company: {String(item.companyName)}</Text> : null}
+                {wid ? <Text style={styles.meta}>👷 Worker: {wid}</Text> : null}
+                {item.companyName ? <Text style={styles.meta}>🏢 Company: {String(item.companyName)}</Text> : null}
 
-                {canApprove ? (
-                  <PrimaryButton
-                    title="Approve incident"
-                    variant="success"
-                    style={{ marginTop: 12 }}
-                    onPress={() => approveIncident(item.id)}
-                  />
-                ) : null}
+                <View style={styles.cardActions}>
+                  {showMap ? (
+                    <TouchableOpacity
+                      onPress={() => router.push({ pathname: "/(tabs)/live-map", params: { focus: wid } } as any)}
+                      style={styles.mapBtn}
+                      activeOpacity={0.85}
+                    >
+                      <FontAwesome name="map-marker" size={12} color="#4f46e5" />
+                      <Text style={styles.mapBtnText}>🗺️ View on map</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {canApprove ? (
+                    <PrimaryButton
+                      title="✅ Approve incident"
+                      variant="success"
+                      style={{ flex: 1 }}
+                      onPress={() => approveIncident(item.id)}
+                    />
+                  ) : null}
+                </View>
               </Card>
             );
           })}
@@ -198,6 +223,20 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 14, fontWeight: '800', color: '#0f172a' },
   cardDesc: { marginTop: 4, fontSize: 12, color: 'rgba(15,23,42,0.7)' },
   meta: { marginTop: 4, fontSize: 11, color: 'rgba(15,23,42,0.5)' },
-  empty: { alignItems: 'center', paddingVertical: 50 },
+  empty: { alignItems: 'center', paddingVertical: 50, gap: 10 },
   emptyText: { color: 'rgba(15,23,42,0.55)', fontSize: 13 },
+  actionsRow: { flexDirection: 'row', gap: 10, marginBottom: 8 },
+  cardActions: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  mapBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(79,70,229,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(79,70,229,0.22)',
+  },
+  mapBtnText: { fontSize: 12, fontWeight: '800', color: '#4f46e5' },
 });
