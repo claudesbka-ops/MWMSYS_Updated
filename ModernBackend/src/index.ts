@@ -43,6 +43,13 @@ import { subscriptionRouter } from "./routes/subscriptionRoutes";
 
 const app = express();
 
+// 1. PASTE IT HERE (Right after creating 'app')
+app.use(cors({
+  origin: ["https://mwmsys-master.vercel.app/"], // <-- REPLACE WITH YOUR ACTUAL VERCEL URL
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE"]
+}));
+
 app.use(corsMiddleware);
 app.use(jsonParser);
 app.use(urlencodedParser);
@@ -2635,3 +2642,10 @@ runSchemaMigrations()
       console.log(`ModernBackend listening on port ${String(port)}`);
     });
   });
+function cors(arg0: {
+  origin: string[]; // <-- REPLACE WITH YOUR ACTUAL VERCEL URL
+  credentials: boolean; methods: string[];
+}): any {
+  throw new Error("Function not implemented.");
+}
+
