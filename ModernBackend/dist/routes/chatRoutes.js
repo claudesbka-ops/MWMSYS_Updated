@@ -11,7 +11,7 @@ const auth_1 = require("../middleware/auth");
 const schemaMigrations_1 = require("../db/schemaMigrations");
 // ---------- Chat-local ownership guard ----------
 async function assertChatSessionOwner(chatSessionId, workerId) {
-    const rows = (await db_1.prisma.$queryRawUnsafe("SELECT TOP (1) [ChatSessionId] FROM [dbo].[ChatSessions] WHERE [ChatSessionId]=@p1 AND [WorkerId]=@p2;", chatSessionId, workerId));
+    const rows = (await db_1.prisma.$queryRawUnsafe(`SELECT "ChatSessionId" FROM "ChatSessions" WHERE "ChatSessionId"=$1 AND "WorkerId"=$2 LIMIT 1`, chatSessionId, workerId));
     return !!rows?.[0]?.ChatSessionId;
 }
 exports.chatRouter = (0, express_1.Router)();
@@ -21,7 +21,7 @@ exports.chatRouter.post("/Api/Chat/Sessions", auth_1.requireAuth, async (req, re
         return res.status(401).json({ error: "Unauthorized" });
     try {
         await (0, schemaMigrations_1.ensureChatTablesExist)();
-        const rows = (await db_1.prisma.$queryRawUnsafe("INSERT INTO [dbo].[ChatSessions]([WorkerId]) OUTPUT INSERTED.[ChatSessionId] as ChatSessionId VALUES(@p1);", workerId));
+        const rows = (await db_1.prisma.$queryRawUnsafe(`INSERT INTO "ChatSessions"("WorkerId") VALUES($1) RETURNING "ChatSessionId"`, workerId));
         const id = Array.isArray(rows) ? rows[0]?.ChatSessionId : null;
         if (!id)
             return res.status(500).json({ error: "Unable to create chat session" });
@@ -53,7 +53,7 @@ exports.chatRouter.post("/Api/Chat/Messages", auth_1.requireAuth, async (req, re
         const ok = await assertChatSessionOwner(chatSessionId, workerId);
         if (!ok)
             return res.status(403).json({ error: "Forbidden" });
-        const rows = (await db_1.prisma.$queryRawUnsafe("INSERT INTO [dbo].[ChatMessages]([ChatSessionId],[SenderType],[Message]) OUTPUT INSERTED.[ChatMessageId] as ChatMessageId, INSERTED.[CreatedOn] as CreatedOn VALUES(@p1,@p2,@p3);", chatSessionId, senderType, message));
+        const rows = (await db_1.prisma.$queryRawUnsafe(`INSERT INTO "ChatMessages"("ChatSessionId","SenderType","Message") VALUES($1,$2,$3) RETURNING "ChatMessageId", "CreatedOn"`, chatSessionId, senderType, message));
         const row = Array.isArray(rows) ? rows[0] : null;
         return res.json({ ChatMessageId: row?.ChatMessageId != null ? Number(row.ChatMessageId) : null, CreatedOn: row?.CreatedOn ?? null });
     }
@@ -79,7 +79,7 @@ exports.chatRouter.get("/Api/Chat/Messages", auth_1.requireAuth, async (req, res
         const ok = await assertChatSessionOwner(chatSessionId, workerId);
         if (!ok)
             return res.status(403).json({ error: "Forbidden" });
-        const rows = (await db_1.prisma.$queryRawUnsafe("SELECT [ChatMessageId],[ChatSessionId],[SenderType],[Message],[CreatedOn] FROM [dbo].[ChatMessages] WHERE [ChatSessionId] = @p1 ORDER BY [CreatedOn] ASC;", chatSessionId));
+        const rows = (await db_1.prisma.$queryRawUnsafe(`SELECT "ChatMessageId","ChatSessionId","SenderType","Message","CreatedOn" FROM "ChatMessages" WHERE "ChatSessionId" = $1 ORDER BY "CreatedOn" ASC`, chatSessionId));
         return res.json(rows ?? []);
     }
     catch (e) {
@@ -104,7 +104,7 @@ exports.chatRouter.post("/Api/Chat/SupportRequests", auth_1.requireAuth, async (
         const ok = await assertChatSessionOwner(chatSessionId, workerId);
         if (!ok)
             return res.status(403).json({ error: "Forbidden" });
-        const rows = (await db_1.prisma.$queryRawUnsafe("INSERT INTO [dbo].[SupportRequests]([ChatSessionId],[WorkerId],[Reason]) OUTPUT INSERTED.[SupportRequestId] as SupportRequestId VALUES(@p1,@p2,@p3);", chatSessionId, workerId, reason));
+        const rows = (await db_1.prisma.$queryRawUnsafe(`INSERT INTO "SupportRequests"("ChatSessionId","WorkerId","Reason") VALUES($1,$2,$3) RETURNING "SupportRequestId"`, chatSessionId, workerId, reason));
         const id = Array.isArray(rows) ? rows[0]?.SupportRequestId : null;
         return res.json({ SupportRequestId: id != null ? Number(id) : null });
     }
@@ -119,8 +119,8 @@ exports.chatRouter.post("/Api/Chat/SupportRequests", auth_1.requireAuth, async (
 exports.chatRouter.get("/Api/Chat/DbStatus", auth_1.requireAuth, async (_req, res, next) => {
     try {
         await (0, schemaMigrations_1.ensureChatTablesExist)();
-        const sessions = (await db_1.prisma.$queryRawUnsafe("SELECT TOP (1) [ChatSessionId] FROM [dbo].[ChatSessions] ORDER BY [ChatSessionId] DESC;"));
-        const messages = (await db_1.prisma.$queryRawUnsafe("SELECT TOP (1) [ChatMessageId] FROM [dbo].[ChatMessages] ORDER BY [ChatMessageId] DESC;"));
+        const sessions = (await db_1.prisma.$queryRawUnsafe(`SELECT "ChatSessionId" FROM "ChatSessions" ORDER BY "ChatSessionId" DESC LIMIT 1`));
+        const messages = (await db_1.prisma.$queryRawUnsafe(`SELECT "ChatMessageId" FROM "ChatMessages" ORDER BY "ChatMessageId" DESC LIMIT 1`));
         return res.json({ ok: true, chatSessionsVisible: Array.isArray(sessions), chatMessagesVisible: Array.isArray(messages) });
     }
     catch (e) {
@@ -153,8 +153,8 @@ exports.chatRouter.post("/Api/Chat/AIReply", auth_1.requireAuth, async (req, res
         const ok = await assertChatSessionOwner(chatSessionId, workerId);
         if (!ok)
             return res.status(403).json({ error: "Forbidden" });
-        await db_1.prisma.$queryRawUnsafe("INSERT INTO [dbo].[ChatMessages]([ChatSessionId],[SenderType],[Message]) VALUES(@p1,@p2,@p3);", chatSessionId, "User", userText);
-        const history = (await db_1.prisma.$queryRawUnsafe("SELECT TOP (16) [SenderType],[Message] FROM [dbo].[ChatMessages] WHERE [ChatSessionId]=@p1 ORDER BY [ChatMessageId] DESC;", chatSessionId));
+        await db_1.prisma.$queryRawUnsafe(`INSERT INTO "ChatMessages"("ChatSessionId","SenderType","Message") VALUES($1,$2,$3)`, chatSessionId, "User", userText);
+        const history = (await db_1.prisma.$queryRawUnsafe(`SELECT "SenderType","Message" FROM "ChatMessages" WHERE "ChatSessionId"=$1 ORDER BY "ChatMessageId" DESC LIMIT 16`, chatSessionId));
         const ordered = (history ?? []).slice().reverse();
         const systemPrompt = [
             "You are the MWMS Assistant, an expert on the MWMS (Migrant Worker Management System) platform.",
@@ -201,7 +201,7 @@ exports.chatRouter.post("/Api/Chat/AIReply", auth_1.requireAuth, async (req, res
             max_tokens: 350,
         });
         const aiText = completion.choices?.[0]?.message?.content?.toString?.() ?? "";
-        await db_1.prisma.$queryRawUnsafe("INSERT INTO [dbo].[ChatMessages]([ChatSessionId],[SenderType],[Message]) VALUES(@p1,@p2,@p3);", chatSessionId, "AI", aiText);
+        await db_1.prisma.$queryRawUnsafe(`INSERT INTO "ChatMessages"("ChatSessionId","SenderType","Message") VALUES($1,$2,$3)`, chatSessionId, "AI", aiText);
         return res.json({ ok: true, reply: aiText });
     }
     catch (e) {

@@ -50,20 +50,15 @@ app.post("/Api/Worker/Location", auth_1.requireAuth, async (req, res, next) => {
             return res.status(400).json({ error: "lat and lng are required" });
         }
         const updatedOn = new Date();
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Worker_Location','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_Worker_Location (" +
-            "workerId VARCHAR(100) NOT NULL PRIMARY KEY," +
-            "lat DECIMAL(10,7) NULL," +
-            "lng DECIMAL(10,7) NULL," +
-            "accuracy DECIMAL(10,2) NULL," +
-            "updatedOn DATETIME NULL" +
-            ") END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tbl_Worker_Location" (
+        "workerId" VARCHAR(100) NOT NULL PRIMARY KEY,
+        lat DECIMAL(10,7) NULL,
+        lng DECIMAL(10,7) NULL,
+        accuracy DECIMAL(10,2) NULL,
+        "updatedOn" TIMESTAMP NULL
+      )`);
         const accVal = Number.isFinite(accNum) ? accNum : null;
-        await db_1.prisma.$executeRawUnsafe("MERGE dbo.Tbl_Worker_Location AS t " +
-            "USING (SELECT ? AS workerId, ? AS lat, ? AS lng, ? AS accuracy, ? AS updatedOn) AS s " +
-            "ON (t.workerId = s.workerId) " +
-            "WHEN MATCHED THEN UPDATE SET lat=s.lat, lng=s.lng, accuracy=s.accuracy, updatedOn=s.updatedOn " +
-            "WHEN NOT MATCHED THEN INSERT (workerId,lat,lng,accuracy,updatedOn) VALUES (s.workerId,s.lat,s.lng,s.accuracy,s.updatedOn);", workerId, latNum, lngNum, accVal, updatedOn);
+        await db_1.prisma.$executeRawUnsafe(`INSERT INTO "Tbl_Worker_Location"("workerId", lat, lng, accuracy, "updatedOn") VALUES ($1, $2, $3, $4, $5) ON CONFLICT ("workerId") DO UPDATE SET lat=EXCLUDED.lat, lng=EXCLUDED.lng, accuracy=EXCLUDED.accuracy, "updatedOn"=EXCLUDED."updatedOn"`, workerId, latNum, lngNum, accVal, updatedOn);
         const workerInfo = await db_1.prisma.tbl_Worker_PersonalInfo.findFirst({
             where: { Worker_Id: workerId },
             select: { Employer_Id: true, Nationality: true, Name: true },
@@ -140,15 +135,15 @@ app.get("/Api/HRMS/Timesheets", auth_1.requireAuth, async (req, res, next) => {
             nameById.set((w.Worker_Id ?? "").toString(), w.Name ?? null);
         }
         const rosterRows = (await db_1.prisma.$queryRawUnsafe(roleId === 1
-            ? "SELECT TOP (50000) r.workerId, r.date, s.startTime, s.endTime, s.breakMinutes FROM dbo.Tbl_Roster_Assignment r LEFT JOIN dbo.Tbl_Shift_Template s ON s.id=r.shiftId WHERE r.date >= CAST(? AS DATE) AND r.date <= CAST(? AS DATE)"
-            : `SELECT TOP (50000) r.workerId, r.date, s.startTime, s.endTime, s.breakMinutes FROM dbo.Tbl_Roster_Assignment r LEFT JOIN dbo.Tbl_Shift_Template s ON s.id=r.shiftId WHERE r.date >= CAST(? AS DATE) AND r.date <= CAST(? AS DATE) AND r.workerId IN (${workerIds
-                .map(() => "?")
-                .join(",")})`, fromStr, toStr, ...(roleId === 1 ? [] : workerIds)));
+            ? `SELECT r."workerId", r."date", s."startTime", s."endTime", s."breakMinutes" FROM "Tbl_Roster_Assignment" r LEFT JOIN "Tbl_Shift_Template" s ON s.id=r."shiftId" WHERE r."date" >= CAST($1 AS DATE) AND r."date" <= CAST($2 AS DATE) LIMIT 50000`
+            : `SELECT r."workerId", r."date", s."startTime", s."endTime", s."breakMinutes" FROM "Tbl_Roster_Assignment" r LEFT JOIN "Tbl_Shift_Template" s ON s.id=r."shiftId" WHERE r."date" >= CAST($1 AS DATE) AND r."date" <= CAST($2 AS DATE) AND r."workerId" IN (${workerIds
+                .map((_, i) => `$${i + 3}`)
+                .join(",")}) LIMIT 50000`, fromStr, toStr, ...(roleId === 1 ? [] : workerIds)));
         const attendanceRows = (await db_1.prisma.$queryRawUnsafe(roleId === 1
-            ? "SELECT TOP (50000) workerId, checkIn, checkOut FROM dbo.Tbl_Attendance WHERE checkIn >= ? AND checkIn <= DATEADD(day,1,?)"
-            : `SELECT TOP (50000) workerId, checkIn, checkOut FROM dbo.Tbl_Attendance WHERE checkIn >= ? AND checkIn <= DATEADD(day,1,?) AND workerId IN (${workerIds
-                .map(() => "?")
-                .join(",")})`, fromStr, toStr, ...(roleId === 1 ? [] : workerIds)));
+            ? `SELECT "workerId", "checkIn", "checkOut" FROM "Tbl_Attendance" WHERE "checkIn" >= $1 AND "checkIn" <= (CAST($2 AS TIMESTAMP) + INTERVAL '1 day') LIMIT 50000`
+            : `SELECT "workerId", "checkIn", "checkOut" FROM "Tbl_Attendance" WHERE "checkIn" >= $1 AND "checkIn" <= (CAST($2 AS TIMESTAMP) + INTERVAL '1 day') AND "workerId" IN (${workerIds
+                .map((_, i) => `$${i + 3}`)
+                .join(",")}) LIMIT 50000`, fromStr, toStr, ...(roleId === 1 ? [] : workerIds)));
         const parseTime = (t) => {
             const m = /^\s*(\d{1,2}):(\d{2})\s*$/.exec(String(t ?? ""));
             if (!m)
@@ -246,19 +241,18 @@ app.get("/Api/Workers/Locations", auth_1.requireAuth, (0, auth_1.checkRole)([1, 
         const workerIds = (scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean);
         if (roleId !== 1 && !workerIds.length)
             return res.json({ rows: [] });
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Worker_Location','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_Worker_Location (" +
-            "workerId VARCHAR(100) NOT NULL PRIMARY KEY," +
-            "lat DECIMAL(10,7) NULL," +
-            "lng DECIMAL(10,7) NULL," +
-            "accuracy DECIMAL(10,2) NULL," +
-            "updatedOn DATETIME NULL" +
-            ") END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tbl_Worker_Location" (
+        "workerId" VARCHAR(100) NOT NULL PRIMARY KEY,
+        lat DECIMAL(10,7) NULL,
+        lng DECIMAL(10,7) NULL,
+        accuracy DECIMAL(10,2) NULL,
+        "updatedOn" TIMESTAMP NULL
+      )`);
         const locations = (await db_1.prisma.$queryRawUnsafe(roleId === 1
-            ? "SELECT TOP (5000) workerId, lat, lng, accuracy, updatedOn FROM dbo.Tbl_Worker_Location ORDER BY updatedOn DESC"
-            : `SELECT TOP (5000) workerId, lat, lng, accuracy, updatedOn FROM dbo.Tbl_Worker_Location WHERE workerId IN (${workerIds
-                .map(() => "?")
-                .join(",")}) ORDER BY updatedOn DESC`, ...(roleId === 1 ? [] : workerIds)));
+            ? `SELECT "workerId", lat, lng, accuracy, "updatedOn" FROM "Tbl_Worker_Location" ORDER BY "updatedOn" DESC LIMIT 5000`
+            : `SELECT "workerId", lat, lng, accuracy, "updatedOn" FROM "Tbl_Worker_Location" WHERE "workerId" IN (${workerIds
+                .map((_, i) => `$${i + 1}`)
+                .join(",")}) ORDER BY "updatedOn" DESC LIMIT 5000`, ...(roleId === 1 ? [] : workerIds)));
         const nameById = new Map();
         for (const w of scopedWorkers ?? []) {
             nameById.set((w.Worker_Id ?? "").toString(), w.Name ?? null);
@@ -695,7 +689,7 @@ app.get("/Api/Employer/Incidents", auth_1.requireAuth, (0, auth_1.checkRole)([1,
 app.get("/Api/Attestation/List", auth_1.requireAuth, (0, auth_1.checkRole)([1, 4, 5, 6, 7]), async (_req, res, next) => {
     try {
         await (0, schemaMigrations_1.ensureAttestationTableExists)();
-        const rows = (await db_1.prisma.$queryRawUnsafe("SELECT TOP (500) AttestationId, Worker_Id, Passport_Number, DocumentType, DocumentPath, Status, AdminRemarks, Created_On, Updated_On FROM Tbl_Attestation ORDER BY AttestationId DESC"));
+        const rows = (await db_1.prisma.$queryRawUnsafe(`SELECT "AttestationId", "Worker_Id", "Passport_Number", "DocumentType", "DocumentPath", "Status", "AdminRemarks", "Created_On", "Updated_On" FROM "Tbl_Attestation" ORDER BY "AttestationId" DESC LIMIT 500`));
         return res.json(rows ?? []);
     }
     catch (e) {
@@ -709,7 +703,7 @@ app.post("/Api/Attestation/Approve", auth_1.requireAuth, (0, auth_1.checkRole)([
         return res.status(400).json({ error: "id is required" });
     try {
         await (0, schemaMigrations_1.ensureAttestationTableExists)();
-        await db_1.prisma.$executeRawUnsafe("UPDATE Tbl_Attestation SET Status = 'Approved', AdminRemarks = @p1, Updated_On = GETDATE() WHERE AttestationId = @p2", remarks, id);
+        await db_1.prisma.$executeRawUnsafe(`UPDATE "Tbl_Attestation" SET "Status" = 'Approved', "AdminRemarks" = $1, "Updated_On" = NOW() WHERE "AttestationId" = $2`, remarks, id);
         return res.json({ ok: true });
     }
     catch (e) {
@@ -723,7 +717,7 @@ app.post("/Api/Attestation/Reject", auth_1.requireAuth, (0, auth_1.checkRole)([1
         return res.status(400).json({ error: "id is required" });
     try {
         await (0, schemaMigrations_1.ensureAttestationTableExists)();
-        await db_1.prisma.$executeRawUnsafe("UPDATE Tbl_Attestation SET Status = 'Rejected', AdminRemarks = @p1, Updated_On = GETDATE() WHERE AttestationId = @p2", remarks, id);
+        await db_1.prisma.$executeRawUnsafe(`UPDATE "Tbl_Attestation" SET "Status" = 'Rejected', "AdminRemarks" = $1, "Updated_On" = NOW() WHERE "AttestationId" = $2`, remarks, id);
         return res.json({ ok: true });
     }
     catch (e) {
@@ -1289,7 +1283,7 @@ app.get("/api/admin/stats", auth_1.requireAuth, auth_1.requireAuthority, async (
             orderBy: [{ Updated_On: "desc" }, { ID: "desc" }],
             take: 5,
         });
-        const recentUsers = (await db_1.prisma.$queryRawUnsafe("SELECT TOP (5) ID, User_Id, User_Name, Created_On FROM Tbl_User ORDER BY Created_On DESC, ID DESC"));
+        const recentUsers = (await db_1.prisma.$queryRawUnsafe(`SELECT "ID", "User_Id", "User_Name", "Created_On" FROM "Tbl_User" ORDER BY "Created_On" DESC, "ID" DESC LIMIT 5`));
         const activity = [];
         for (const p of recentProblems ?? []) {
             const id = p?.ID != null ? Number(p.ID) : 0;
@@ -1342,7 +1336,23 @@ app.get("/api/admin/stats", auth_1.requireAuth, auth_1.requireAuthority, async (
 });
 app.get("/Api/Employers/List", auth_1.requireAuth, auth_1.requireAuthority, async (_req, res, next) => {
     try {
-        const rows = (await db_1.prisma.$queryRawUnsafe("SELECT TOP (500) User_Id, Employer_Name, Employer_Address, Employer_ContactPerson, Employer_Position, Employer_EmailID, Employer_OfficeNumber, Employer_PIC_MobileNumber, Created_On FROM Tbl_Employer ORDER BY Created_On DESC"));
+        const rows = (await db_1.prisma.$queryRawUnsafe(`SELECT "User_Id", "Employer_Name", "Employer_Address", "Employer_ContactPerson", "Employer_Position", "Employer_EmailID", "Employer_OfficeNumber", "Employer_PIC_MobileNumber", "Created_On" FROM "Tbl_Employer" ORDER BY "Created_On" DESC LIMIT 500`));
+        return res.json(rows ?? []);
+    }
+    catch (e) {
+        return next(e);
+    }
+});
+/**
+ * GET /Api/Agencies/List
+ *
+ * Returns the recruitment-agency directory for the Agencies page. Any
+ * authenticated authority-role user may read it (admin, embassy, labour,
+ * employer, agency) so the directory works across dashboards.
+ */
+app.get("/Api/Agencies/List", auth_1.requireAuth, auth_1.requireAuthority, async (_req, res, next) => {
+    try {
+        const rows = (await db_1.prisma.$queryRawUnsafe(`SELECT "User_Id", "Agent_Name", "Agent_Organization_Name", "Agent_IC_Passport", "Agent_EmailID", "Agent_ContactNumber", "Agent_Country", "Agent_CountryCode", "Created_On" FROM "Tbl_Agent" ORDER BY "Created_On" DESC LIMIT 500`));
         return res.json(rows ?? []);
     }
     catch (e) {
@@ -1503,8 +1513,8 @@ app.get("/Api/HRMS/Roster/Shifts", auth_1.requireAuth, async (req, res, next) =>
         if (!entityId && roleId !== 1)
             return res.json([]);
         const rows = (await db_1.prisma.$queryRawUnsafe(roleId === 1
-            ? "SELECT TOP (500) id, entityId, name, startTime, endTime, breakMinutes FROM dbo.Tbl_Shift_Template ORDER BY id DESC"
-            : "SELECT TOP (500) id, entityId, name, startTime, endTime, breakMinutes FROM dbo.Tbl_Shift_Template WHERE entityId = ? ORDER BY id DESC", ...(roleId === 1 ? [] : [entityId])));
+            ? `SELECT id, "entityId", name, "startTime", "endTime", "breakMinutes" FROM "Tbl_Shift_Template" ORDER BY id DESC LIMIT 500`
+            : `SELECT id, "entityId", name, "startTime", "endTime", "breakMinutes" FROM "Tbl_Shift_Template" WHERE "entityId" = $1 ORDER BY id DESC LIMIT 500`, ...(roleId === 1 ? [] : [entityId])));
         return res.json((rows ?? []).map((r) => ({
             id: Number(r.id),
             name: (r.name ?? "").toString(),
@@ -1532,7 +1542,7 @@ app.post("/Api/HRMS/Roster/Shifts", auth_1.requireAuth, subscription_1.requireAc
         const breakMinutes = Number(req.body?.breakMinutes ?? 0);
         if (!name || !startTime || !endTime)
             return res.status(400).json({ error: "name, startTime, endTime are required" });
-        const inserted = (await db_1.prisma.$queryRawUnsafe("INSERT INTO dbo.Tbl_Shift_Template(entityId,name,startTime,endTime,breakMinutes) OUTPUT INSERTED.id VALUES(?,?,?,?,?);", entityId || "admin", name, startTime, endTime, Number.isFinite(breakMinutes) ? breakMinutes : 0));
+        const inserted = (await db_1.prisma.$queryRawUnsafe(`INSERT INTO "Tbl_Shift_Template"("entityId",name,"startTime","endTime","breakMinutes") VALUES($1,$2,$3,$4,$5) RETURNING id`, entityId || "admin", name, startTime, endTime, Number.isFinite(breakMinutes) ? breakMinutes : 0));
         const id = inserted?.[0]?.id != null ? Number(inserted[0].id) : NaN;
         return res.status(201).json({ id, name, startTime, endTime, breakMinutes: Number.isFinite(breakMinutes) ? breakMinutes : 0 });
     }
@@ -1561,11 +1571,7 @@ app.post("/Api/HRMS/Roster/Assign", auth_1.requireAuth, subscription_1.requireAc
         if (roleId !== 1 && !scopedWorker)
             return res.status(403).json({ error: "Forbidden" });
         const dStr = date.toISOString().slice(0, 10);
-        await db_1.prisma.$executeRawUnsafe("MERGE dbo.Tbl_Roster_Assignment AS t " +
-            "USING (SELECT ? AS workerId, ? AS entityId, CAST(? AS DATE) AS [date], ? AS shiftId) AS s " +
-            "ON (t.workerId=s.workerId AND t.[date]=s.[date]) " +
-            "WHEN MATCHED THEN UPDATE SET shiftId=s.shiftId, entityId=s.entityId, updatedOn=GETDATE() " +
-            "WHEN NOT MATCHED THEN INSERT(workerId,entityId,[date],shiftId) VALUES(s.workerId,s.entityId,s.[date],s.shiftId);", workerId, entityId || "admin", dStr, shiftId);
+        await db_1.prisma.$executeRawUnsafe(`INSERT INTO "Tbl_Roster_Assignment"("workerId", "entityId", "date", "shiftId") VALUES ($1, $2, CAST($3 AS DATE), $4) ON CONFLICT ("workerId", "date") DO UPDATE SET "shiftId"=EXCLUDED."shiftId", "entityId"=EXCLUDED."entityId", "updatedOn"=NOW()`, workerId, entityId || "admin", dStr, shiftId);
         return res.json({ ok: true });
     }
     catch (e) {
@@ -1597,10 +1603,10 @@ app.get("/Api/HRMS/Roster", auth_1.requireAuth, async (req, res, next) => {
         if (roleId !== 1 && !workerIds.length)
             return res.json({ rows: [] });
         const rows = (await db_1.prisma.$queryRawUnsafe(roleId === 1
-            ? "SELECT TOP (5000) r.id, r.workerId, r.date, r.shiftId, s.name AS shiftName, s.startTime, s.endTime, s.breakMinutes FROM dbo.Tbl_Roster_Assignment r LEFT JOIN dbo.Tbl_Shift_Template s ON s.id=r.shiftId WHERE r.date >= CAST(? AS DATE) AND r.date <= CAST(? AS DATE) ORDER BY r.date DESC, r.id DESC"
-            : `SELECT TOP (5000) r.id, r.workerId, r.date, r.shiftId, s.name AS shiftName, s.startTime, s.endTime, s.breakMinutes FROM dbo.Tbl_Roster_Assignment r LEFT JOIN dbo.Tbl_Shift_Template s ON s.id=r.shiftId WHERE r.date >= CAST(? AS DATE) AND r.date <= CAST(? AS DATE) AND r.workerId IN (${workerIds
-                .map(() => "?")
-                .join(",")}) ORDER BY r.date DESC, r.id DESC`, fromStr, toStr, ...(roleId === 1 ? [] : workerIds)));
+            ? `SELECT r.id, r."workerId", r."date", r."shiftId", s.name AS "shiftName", s."startTime", s."endTime", s."breakMinutes" FROM "Tbl_Roster_Assignment" r LEFT JOIN "Tbl_Shift_Template" s ON s.id=r."shiftId" WHERE r."date" >= CAST($1 AS DATE) AND r."date" <= CAST($2 AS DATE) ORDER BY r."date" DESC, r.id DESC LIMIT 5000`
+            : `SELECT r.id, r."workerId", r."date", r."shiftId", s.name AS "shiftName", s."startTime", s."endTime", s."breakMinutes" FROM "Tbl_Roster_Assignment" r LEFT JOIN "Tbl_Shift_Template" s ON s.id=r."shiftId" WHERE r."date" >= CAST($1 AS DATE) AND r."date" <= CAST($2 AS DATE) AND r."workerId" IN (${workerIds
+                .map((_, i) => `$${i + 3}`)
+                .join(",")}) ORDER BY r."date" DESC, r.id DESC LIMIT 5000`, fromStr, toStr, ...(roleId === 1 ? [] : workerIds)));
         const parseTime = (t) => {
             const m = /^\s*(\d{1,2}):(\d{2})\s*$/.exec(String(t ?? ""));
             if (!m)
@@ -1961,13 +1967,13 @@ app.get("/Api/HRMS/Reports/Summary", auth_1.requireAuth, (0, auth_1.checkRole)([
             const params = [];
             let p = 1;
             for (const pair of pairs) {
-                whereParts.push(`(r.workerId=@P${p} AND r.[date]=CAST(@P${p + 1} AS DATE))`);
+                whereParts.push(`(r."workerId"=$${p} AND r."date"=CAST($${p + 1} AS DATE))`);
                 params.push(pair.workerId, pair.dateStr);
                 p += 2;
             }
-            const q = "SELECT TOP (50000) r.workerId, r.[date] as d, s.startTime, s.endTime " +
-                "FROM dbo.Tbl_Roster_Assignment r LEFT JOIN dbo.Tbl_Shift_Template s ON s.id=r.shiftId " +
-                `WHERE ${whereParts.join(" OR ")}`;
+            const q = `SELECT r."workerId", r."date" as d, s."startTime", s."endTime" ` +
+                `FROM "Tbl_Roster_Assignment" r LEFT JOIN "Tbl_Shift_Template" s ON s.id=r."shiftId" ` +
+                `WHERE ${whereParts.join(" OR ")} LIMIT 50000`;
             const roster = (await db_1.prisma.$queryRawUnsafe(q, ...params));
             for (const rr of roster ?? []) {
                 const workerId = (rr.workerId ?? "").toString();
@@ -2045,10 +2051,10 @@ app.get("/Api/HRMS/Reports/Summary", auth_1.requireAuth, (0, auth_1.checkRole)([
         }
         // Overtime aggregates
         const otRows = (await db_1.prisma.$queryRawUnsafe(roleId === 1
-            ? "SELECT workerId, SUM(hours) as totalHours, SUM(CASE WHEN status='Approved' THEN hours ELSE 0 END) as approvedHours FROM dbo.Tbl_HRMS_Overtime_Request WHERE workDate >= CAST(@P1 AS DATE) AND workDate <= CAST(@P2 AS DATE) GROUP BY workerId"
-            : `SELECT workerId, SUM(hours) as totalHours, SUM(CASE WHEN status='Approved' THEN hours ELSE 0 END) as approvedHours FROM dbo.Tbl_HRMS_Overtime_Request WHERE workDate >= CAST(@P1 AS DATE) AND workDate <= CAST(@P2 AS DATE) AND workerId IN (${workerIds
-                .map((_, i) => `@P${i + 3}`)
-                .join(",")}) GROUP BY workerId`, fromStr, toStr, ...(roleId === 1 ? [] : workerIds)));
+            ? `SELECT "workerId", SUM(hours) as "totalHours", SUM(CASE WHEN status='Approved' THEN hours ELSE 0 END) as "approvedHours" FROM "Tbl_HRMS_Overtime_Request" WHERE "workDate" >= CAST($1 AS DATE) AND "workDate" <= CAST($2 AS DATE) GROUP BY "workerId"`
+            : `SELECT "workerId", SUM(hours) as "totalHours", SUM(CASE WHEN status='Approved' THEN hours ELSE 0 END) as "approvedHours" FROM "Tbl_HRMS_Overtime_Request" WHERE "workDate" >= CAST($1 AS DATE) AND "workDate" <= CAST($2 AS DATE) AND "workerId" IN (${workerIds
+                .map((_, i) => `$${i + 3}`)
+                .join(",")}) GROUP BY "workerId"`, fromStr, toStr, ...(roleId === 1 ? [] : workerIds)));
         for (const r of otRows ?? []) {
             const workerId = (r.workerId ?? "").toString();
             if (!workerId)
@@ -2059,10 +2065,10 @@ app.get("/Api/HRMS/Reports/Summary", auth_1.requireAuth, (0, auth_1.checkRole)([
         }
         // Expense aggregates
         const expRows = (await db_1.prisma.$queryRawUnsafe(roleId === 1
-            ? "SELECT workerId, SUM(amount) as totalAmount, SUM(CASE WHEN status='Approved' THEN amount ELSE 0 END) as approvedAmount FROM dbo.Tbl_HRMS_Expense_Claim WHERE claimDate >= CAST(@P1 AS DATE) AND claimDate <= CAST(@P2 AS DATE) GROUP BY workerId"
-            : `SELECT workerId, SUM(amount) as totalAmount, SUM(CASE WHEN status='Approved' THEN amount ELSE 0 END) as approvedAmount FROM dbo.Tbl_HRMS_Expense_Claim WHERE claimDate >= CAST(@P1 AS DATE) AND claimDate <= CAST(@P2 AS DATE) AND workerId IN (${workerIds
-                .map((_, i) => `@P${i + 3}`)
-                .join(",")}) GROUP BY workerId`, fromStr, toStr, ...(roleId === 1 ? [] : workerIds)));
+            ? `SELECT "workerId", SUM(amount) as "totalAmount", SUM(CASE WHEN status='Approved' THEN amount ELSE 0 END) as "approvedAmount" FROM "Tbl_HRMS_Expense_Claim" WHERE "claimDate" >= CAST($1 AS DATE) AND "claimDate" <= CAST($2 AS DATE) GROUP BY "workerId"`
+            : `SELECT "workerId", SUM(amount) as "totalAmount", SUM(CASE WHEN status='Approved' THEN amount ELSE 0 END) as "approvedAmount" FROM "Tbl_HRMS_Expense_Claim" WHERE "claimDate" >= CAST($1 AS DATE) AND "claimDate" <= CAST($2 AS DATE) AND "workerId" IN (${workerIds
+                .map((_, i) => `$${i + 3}`)
+                .join(",")}) GROUP BY "workerId"`, fromStr, toStr, ...(roleId === 1 ? [] : workerIds)));
         for (const r of expRows ?? []) {
             const workerId = (r.workerId ?? "").toString();
             if (!workerId)
@@ -2343,6 +2349,14 @@ app.get("/Api/ProblemList", auth_1.requireAuth, auth_1.requireAuthority, async (
 });
 app.use(errorHandler_1.errorHandler);
 const port = Number(process.env.PORT) || 3000;
+app.get("/", (req, res) => {
+    res.status(200).json({
+        status: "online",
+        system: "MWMSYS API Production",
+        version: "1.0.0",
+        serverTime: new Date().toISOString()
+    });
+});
 // Bootstrap schema bootstrappers up-front (idempotent, errors swallowed),
 // then start listening. Route-level `ensure*TableExists()` calls remain
 // in place as cheap no-ops after the initial run for defense-in-depth.

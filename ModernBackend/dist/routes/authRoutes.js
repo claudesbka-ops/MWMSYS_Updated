@@ -344,12 +344,12 @@ exports.authRouter.post("/Api/token", async (req, res) => {
 // ---------- Shared token issuance ----------
 async function lookupEmbassyCountryCode(userIdStr) {
     const candidates = [
-        { sql: "SELECT TOP 1 Nationality as value FROM Tbl_Embassy WHERE User_Id = @p1", param: userIdStr, key: "value" },
-        { sql: "SELECT TOP 1 Country_Code as value FROM Tbl_Embassy WHERE User_Id = @p1", param: userIdStr, key: "value" },
-        { sql: "SELECT TOP 1 CountryCode as value FROM Tbl_Embassy WHERE User_Id = @p1", param: userIdStr, key: "value" },
-        { sql: "SELECT TOP 1 Nationality as value FROM Tbl_User WHERE User_Id = @p1", param: userIdStr, key: "value" },
-        { sql: "SELECT TOP 1 Country_Code as value FROM Tbl_User WHERE User_Id = @p1", param: userIdStr, key: "value" },
-        { sql: "SELECT TOP 1 CountryCode as value FROM Tbl_User WHERE User_Id = @p1", param: userIdStr, key: "value" },
+        { sql: `SELECT "Nationality" as value FROM "Tbl_Embassy" WHERE "User_Id" = $1 LIMIT 1`, param: userIdStr, key: "value" },
+        { sql: `SELECT "Country_Code" as value FROM "Tbl_Embassy" WHERE "User_Id" = $1 LIMIT 1`, param: userIdStr, key: "value" },
+        { sql: `SELECT "CountryCode" as value FROM "Tbl_Embassy" WHERE "User_Id" = $1 LIMIT 1`, param: userIdStr, key: "value" },
+        { sql: `SELECT "Nationality" as value FROM "Tbl_User" WHERE "User_Id" = $1 LIMIT 1`, param: userIdStr, key: "value" },
+        { sql: `SELECT "Country_Code" as value FROM "Tbl_User" WHERE "User_Id" = $1 LIMIT 1`, param: userIdStr, key: "value" },
+        { sql: `SELECT "CountryCode" as value FROM "Tbl_User" WHERE "User_Id" = $1 LIMIT 1`, param: userIdStr, key: "value" },
     ];
     for (const c of candidates) {
         try {

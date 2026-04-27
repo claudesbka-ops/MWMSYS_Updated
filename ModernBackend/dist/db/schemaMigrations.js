@@ -13,7 +13,7 @@ exports.runSchemaMigrations = runSchemaMigrations;
 const db_1 = require("../db");
 const subscription_1 = require("../middleware/subscription");
 /**
- * Idempotent `IF OBJECT_ID(...) IS NULL CREATE TABLE` bootstrappers.
+ * Idempotent `CREATE TABLE IF NOT EXISTS` bootstrappers (PostgreSQL).
  * Each helper silently swallows errors so a partially-present schema or
  * an already-running cluster does not fail server start.
  *
@@ -25,33 +25,29 @@ const subscription_1 = require("../middleware/subscription");
  */
 async function ensureRosterTablesExist() {
     try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Shift_Template','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_Shift_Template (" +
-            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "entityId VARCHAR(100) NOT NULL," +
-            "name VARCHAR(80) NOT NULL," +
-            "startTime VARCHAR(5) NOT NULL," +
-            "endTime VARCHAR(5) NOT NULL," +
-            "breakMinutes INT NOT NULL DEFAULT(0)," +
-            "createdOn DATETIME NOT NULL DEFAULT(GETDATE())" +
-            ");" +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tbl_Shift_Template" (
+        id SERIAL PRIMARY KEY,
+        "entityId" VARCHAR(100) NOT NULL,
+        name VARCHAR(80) NOT NULL,
+        "startTime" VARCHAR(5) NOT NULL,
+        "endTime" VARCHAR(5) NOT NULL,
+        "breakMinutes" INT NOT NULL DEFAULT 0,
+        "createdOn" TIMESTAMP NOT NULL DEFAULT NOW()
+      )`);
     }
     catch {
         // ignore
     }
     try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Roster_Assignment','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_Roster_Assignment (" +
-            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "workerId VARCHAR(100) NOT NULL," +
-            "entityId VARCHAR(100) NOT NULL," +
-            "date DATE NOT NULL," +
-            "shiftId INT NOT NULL," +
-            "updatedOn DATETIME NOT NULL DEFAULT(GETDATE())" +
-            ");" +
-            "CREATE UNIQUE INDEX UX_Roster_Worker_Date ON dbo.Tbl_Roster_Assignment(workerId,date);" +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tbl_Roster_Assignment" (
+        id SERIAL PRIMARY KEY,
+        "workerId" VARCHAR(100) NOT NULL,
+        "entityId" VARCHAR(100) NOT NULL,
+        "date" DATE NOT NULL,
+        "shiftId" INT NOT NULL,
+        "updatedOn" TIMESTAMP NOT NULL DEFAULT NOW()
+      )`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "UX_Roster_Worker_Date" ON "Tbl_Roster_Assignment"("workerId","date")`);
     }
     catch {
         // ignore
@@ -59,59 +55,53 @@ async function ensureRosterTablesExist() {
 }
 async function ensureHrmsRequestTablesExist() {
     try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_HRMS_Overtime_Request','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_HRMS_Overtime_Request (" +
-            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "workerId VARCHAR(100) NOT NULL," +
-            "workDate DATE NOT NULL," +
-            "hours DECIMAL(10,2) NOT NULL DEFAULT(0)," +
-            "reason NVARCHAR(500) NULL," +
-            "status VARCHAR(20) NOT NULL DEFAULT('Pending')," +
-            "createdOn DATETIME NOT NULL DEFAULT(GETDATE())," +
-            "decisionBy VARCHAR(100) NULL," +
-            "decisionOn DATETIME NULL" +
-            ");" +
-            "CREATE INDEX IX_HRMS_OT_workerId ON dbo.Tbl_HRMS_Overtime_Request(workerId);" +
-            "CREATE INDEX IX_HRMS_OT_status ON dbo.Tbl_HRMS_Overtime_Request(status);" +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tbl_HRMS_Overtime_Request" (
+        id SERIAL PRIMARY KEY,
+        "workerId" VARCHAR(100) NOT NULL,
+        "workDate" DATE NOT NULL,
+        hours DECIMAL(10,2) NOT NULL DEFAULT 0,
+        reason VARCHAR(500) NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'Pending',
+        "createdOn" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "decisionBy" VARCHAR(100) NULL,
+        "decisionOn" TIMESTAMP NULL
+      )`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_HRMS_OT_workerId" ON "Tbl_HRMS_Overtime_Request"("workerId")`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_HRMS_OT_status" ON "Tbl_HRMS_Overtime_Request"(status)`);
     }
     catch {
         // ignore
     }
     try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_HRMS_Expense_Claim','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_HRMS_Expense_Claim (" +
-            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "workerId VARCHAR(100) NOT NULL," +
-            "claimDate DATE NOT NULL," +
-            "amount DECIMAL(18,2) NOT NULL DEFAULT(0)," +
-            "category VARCHAR(50) NULL," +
-            "description NVARCHAR(500) NULL," +
-            "status VARCHAR(20) NOT NULL DEFAULT('Pending')," +
-            "createdOn DATETIME NOT NULL DEFAULT(GETDATE())," +
-            "decisionBy VARCHAR(100) NULL," +
-            "decisionOn DATETIME NULL" +
-            ");" +
-            "CREATE INDEX IX_HRMS_EXP_workerId ON dbo.Tbl_HRMS_Expense_Claim(workerId);" +
-            "CREATE INDEX IX_HRMS_EXP_status ON dbo.Tbl_HRMS_Expense_Claim(status);" +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tbl_HRMS_Expense_Claim" (
+        id SERIAL PRIMARY KEY,
+        "workerId" VARCHAR(100) NOT NULL,
+        "claimDate" DATE NOT NULL,
+        amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+        category VARCHAR(50) NULL,
+        description VARCHAR(500) NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'Pending',
+        "createdOn" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "decisionBy" VARCHAR(100) NULL,
+        "decisionOn" TIMESTAMP NULL
+      )`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_HRMS_EXP_workerId" ON "Tbl_HRMS_Expense_Claim"("workerId")`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_HRMS_EXP_status" ON "Tbl_HRMS_Expense_Claim"(status)`);
     }
     catch {
         // ignore
     }
     try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_HRMS_Expense_Attachment','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_HRMS_Expense_Attachment (" +
-            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "claimId INT NOT NULL," +
-            "filePath VARCHAR(500) NOT NULL," +
-            "originalName NVARCHAR(255) NULL," +
-            "mimeType VARCHAR(120) NULL," +
-            "fileSize INT NULL," +
-            "createdOn DATETIME NOT NULL DEFAULT(GETDATE())" +
-            ");" +
-            "CREATE INDEX IX_HRMS_EXP_ATT_claimId ON dbo.Tbl_HRMS_Expense_Attachment(claimId);" +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tbl_HRMS_Expense_Attachment" (
+        id SERIAL PRIMARY KEY,
+        "claimId" INT NOT NULL,
+        "filePath" VARCHAR(500) NOT NULL,
+        "originalName" VARCHAR(255) NULL,
+        "mimeType" VARCHAR(120) NULL,
+        "fileSize" INT NULL,
+        "createdOn" TIMESTAMP NOT NULL DEFAULT NOW()
+      )`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_HRMS_EXP_ATT_claimId" ON "Tbl_HRMS_Expense_Attachment"("claimId")`);
     }
     catch {
         // ignore
@@ -119,19 +109,17 @@ async function ensureHrmsRequestTablesExist() {
 }
 async function ensureAttestationTableExists() {
     try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Attestation', 'U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_Attestation (" +
-            "AttestationId INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "Worker_Id VARCHAR(100) NOT NULL," +
-            "Passport_Number VARCHAR(20) NULL," +
-            "DocumentType VARCHAR(50) NULL," +
-            "DocumentPath VARCHAR(500) NULL," +
-            "Status VARCHAR(20) NOT NULL DEFAULT('Submitted')," +
-            "AdminRemarks VARCHAR(500) NULL," +
-            "Created_On DATETIME NULL DEFAULT(GETDATE())," +
-            "Updated_On DATETIME NULL" +
-            ");" +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tbl_Attestation" (
+        "AttestationId" SERIAL PRIMARY KEY,
+        "Worker_Id" VARCHAR(100) NOT NULL,
+        "Passport_Number" VARCHAR(20) NULL,
+        "DocumentType" VARCHAR(50) NULL,
+        "DocumentPath" VARCHAR(500) NULL,
+        "Status" VARCHAR(20) NOT NULL DEFAULT 'Submitted',
+        "AdminRemarks" VARCHAR(500) NULL,
+        "Created_On" TIMESTAMP NULL DEFAULT NOW(),
+        "Updated_On" TIMESTAMP NULL
+      )`);
     }
     catch {
         // ignore
@@ -139,44 +127,38 @@ async function ensureAttestationTableExists() {
 }
 async function ensureChatTablesExist() {
     try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.ChatSessions','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.ChatSessions (" +
-            "ChatSessionId INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "WorkerId INT NOT NULL," +
-            "CreatedOn DATETIME NOT NULL DEFAULT(GETDATE())" +
-            ");" +
-            "CREATE INDEX IX_ChatSessions_WorkerId ON dbo.ChatSessions(WorkerId);" +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "ChatSessions" (
+        "ChatSessionId" SERIAL PRIMARY KEY,
+        "WorkerId" INT NOT NULL,
+        "CreatedOn" TIMESTAMP NOT NULL DEFAULT NOW()
+      )`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_ChatSessions_WorkerId" ON "ChatSessions"("WorkerId")`);
     }
     catch {
         // ignore
     }
     try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.ChatMessages','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.ChatMessages (" +
-            "ChatMessageId INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "ChatSessionId INT NOT NULL," +
-            "SenderType VARCHAR(20) NOT NULL," +
-            "Message NVARCHAR(2000) NOT NULL," +
-            "CreatedOn DATETIME NOT NULL DEFAULT(GETDATE())" +
-            ");" +
-            "CREATE INDEX IX_ChatMessages_SessionId ON dbo.ChatMessages(ChatSessionId);" +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "ChatMessages" (
+        "ChatMessageId" SERIAL PRIMARY KEY,
+        "ChatSessionId" INT NOT NULL,
+        "SenderType" VARCHAR(20) NOT NULL,
+        "Message" VARCHAR(2000) NOT NULL,
+        "CreatedOn" TIMESTAMP NOT NULL DEFAULT NOW()
+      )`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_ChatMessages_SessionId" ON "ChatMessages"("ChatSessionId")`);
     }
     catch {
         // ignore
     }
     try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.SupportRequests','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.SupportRequests (" +
-            "SupportRequestId INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "ChatSessionId INT NOT NULL," +
-            "WorkerId INT NOT NULL," +
-            "Reason NVARCHAR(500) NULL," +
-            "CreatedOn DATETIME NOT NULL DEFAULT(GETDATE())" +
-            ");" +
-            "CREATE INDEX IX_SupportRequests_SessionId ON dbo.SupportRequests(ChatSessionId);" +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "SupportRequests" (
+        "SupportRequestId" SERIAL PRIMARY KEY,
+        "ChatSessionId" INT NOT NULL,
+        "WorkerId" INT NOT NULL,
+        "Reason" VARCHAR(500) NULL,
+        "CreatedOn" TIMESTAMP NOT NULL DEFAULT NOW()
+      )`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_SupportRequests_SessionId" ON "SupportRequests"("ChatSessionId")`);
     }
     catch {
         // ignore
@@ -184,34 +166,30 @@ async function ensureChatTablesExist() {
 }
 async function ensureBroadcastTableExists() {
     try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Broadcast_Message','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_Broadcast_Message (" +
-            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "senderRoleId INT NOT NULL," +
-            "senderKey VARCHAR(120) NULL," +
-            "senderName VARCHAR(120) NULL," +
-            "message NVARCHAR(2000) NOT NULL," +
-            "target VARCHAR(30) NOT NULL," +
-            "createdOn DATETIME NOT NULL DEFAULT(GETDATE())" +
-            ");" +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tbl_Broadcast_Message" (
+        id SERIAL PRIMARY KEY,
+        "senderRoleId" INT NOT NULL,
+        "senderKey" VARCHAR(120) NULL,
+        "senderName" VARCHAR(120) NULL,
+        message VARCHAR(2000) NOT NULL,
+        target VARCHAR(30) NOT NULL,
+        "createdOn" TIMESTAMP NOT NULL DEFAULT NOW()
+      )`);
     }
     catch {
         // ignore
     }
     try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Broadcast_Attachment','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_Broadcast_Attachment (" +
-            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "messageId INT NOT NULL," +
-            "url VARCHAR(500) NOT NULL," +
-            "mime VARCHAR(120) NULL," +
-            "originalName VARCHAR(260) NULL," +
-            "sizeBytes BIGINT NULL," +
-            "createdOn DATETIME NOT NULL DEFAULT(GETDATE())" +
-            ");" +
-            "CREATE INDEX IX_Broadcast_Att_MessageId ON dbo.Tbl_Broadcast_Attachment(messageId);" +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tbl_Broadcast_Attachment" (
+        id SERIAL PRIMARY KEY,
+        "messageId" INT NOT NULL,
+        url VARCHAR(500) NOT NULL,
+        mime VARCHAR(120) NULL,
+        "originalName" VARCHAR(260) NULL,
+        "sizeBytes" BIGINT NULL,
+        "createdOn" TIMESTAMP NOT NULL DEFAULT NOW()
+      )`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_Broadcast_Att_MessageId" ON "Tbl_Broadcast_Attachment"("messageId")`);
     }
     catch {
         // ignore
@@ -219,26 +197,24 @@ async function ensureBroadcastTableExists() {
 }
 async function ensureDisputeTableExists() {
     try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_SalaryDispute','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_SalaryDispute (" +
-            "Id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "Worker_Id VARCHAR(100) NOT NULL," +
-            "Employer_Id VARCHAR(100) NOT NULL," +
-            "Dispute_Month VARCHAR(20) NOT NULL," +
-            "Expected_Amount DECIMAL(10,2) NOT NULL," +
-            "Received_Amount DECIMAL(10,2) NOT NULL," +
-            "Description VARCHAR(1000) NOT NULL," +
-            "Proof_File_Path VARCHAR(500) NULL," +
-            "Status VARCHAR(20) NOT NULL DEFAULT('Pending')," +
-            "Employer_Comment VARCHAR(500) NULL," +
-            "Submitted_At DATETIME NOT NULL DEFAULT(GETDATE())," +
-            "Reviewed_At DATETIME NULL," +
-            "Reviewed_By VARCHAR(100) NULL" +
-            ");" +
-            "CREATE INDEX IX_Tbl_SalaryDispute_Worker_Id ON dbo.Tbl_SalaryDispute(Worker_Id);" +
-            "CREATE INDEX IX_Tbl_SalaryDispute_Employer_Id ON dbo.Tbl_SalaryDispute(Employer_Id);" +
-            "CREATE INDEX IX_Tbl_SalaryDispute_Status ON dbo.Tbl_SalaryDispute(Status);" +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tbl_SalaryDispute" (
+        "Id" SERIAL PRIMARY KEY,
+        "Worker_Id" VARCHAR(100) NOT NULL,
+        "Employer_Id" VARCHAR(100) NOT NULL,
+        "Dispute_Month" VARCHAR(20) NOT NULL,
+        "Expected_Amount" DECIMAL(10,2) NOT NULL,
+        "Received_Amount" DECIMAL(10,2) NOT NULL,
+        "Description" VARCHAR(1000) NOT NULL,
+        "Proof_File_Path" VARCHAR(500) NULL,
+        "Status" VARCHAR(20) NOT NULL DEFAULT 'Pending',
+        "Employer_Comment" VARCHAR(500) NULL,
+        "Submitted_At" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "Reviewed_At" TIMESTAMP NULL,
+        "Reviewed_By" VARCHAR(100) NULL
+      )`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_Tbl_SalaryDispute_Worker_Id" ON "Tbl_SalaryDispute"("Worker_Id")`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_Tbl_SalaryDispute_Employer_Id" ON "Tbl_SalaryDispute"("Employer_Id")`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_Tbl_SalaryDispute_Status" ON "Tbl_SalaryDispute"("Status")`);
     }
     catch {
         // ignore
@@ -246,30 +222,24 @@ async function ensureDisputeTableExists() {
 }
 async function ensureOtpTableExists() {
     try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_UserOtp','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_UserOtp (" +
-            "Id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "User_Id VARCHAR(100) NOT NULL," +
-            "Otp_Code VARCHAR(6) NOT NULL," +
-            "Otp_Type VARCHAR(20) NOT NULL," +
-            "Created_At DATETIME NOT NULL DEFAULT(GETDATE())," +
-            "Expires_At DATETIME NOT NULL," +
-            "Is_Used BIT NOT NULL DEFAULT(0)" +
-            ");" +
-            "CREATE INDEX IX_Tbl_UserOtp_user_type ON dbo.Tbl_UserOtp(User_Id,Otp_Type);" +
-            "CREATE INDEX IX_Tbl_UserOtp_expires ON dbo.Tbl_UserOtp(Expires_At);" +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tbl_UserOtp" (
+        "Id" SERIAL PRIMARY KEY,
+        "User_Id" VARCHAR(100) NOT NULL,
+        "Otp_Code" VARCHAR(6) NOT NULL,
+        "Otp_Type" VARCHAR(20) NOT NULL,
+        "Created_At" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "Expires_At" TIMESTAMP NOT NULL,
+        "Is_Used" BOOLEAN NOT NULL DEFAULT FALSE
+      )`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_Tbl_UserOtp_user_type" ON "Tbl_UserOtp"("User_Id","Otp_Type")`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_Tbl_UserOtp_expires" ON "Tbl_UserOtp"("Expires_At")`);
     }
     catch {
         // ignore
     }
     // Add Is_Verified column to Tbl_User if missing (idempotent ALTER).
     try {
-        await db_1.prisma.$executeRawUnsafe("IF NOT EXISTS (SELECT 1 FROM sys.columns " +
-            "WHERE object_id = OBJECT_ID('dbo.Tbl_User') AND name = 'Is_Verified') " +
-            "BEGIN " +
-            "ALTER TABLE dbo.Tbl_User ADD Is_Verified BIT NULL CONSTRAINT DF_Tbl_User_Is_Verified DEFAULT(0); " +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`ALTER TABLE "Tbl_User" ADD COLUMN IF NOT EXISTS "Is_Verified" BOOLEAN NULL DEFAULT FALSE`);
     }
     catch {
         // ignore
@@ -277,39 +247,31 @@ async function ensureOtpTableExists() {
 }
 async function ensureRelationshipTablesExist() {
     try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Agency_Employer_Link','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_Agency_Employer_Link (" +
-            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "agencyId VARCHAR(100) NOT NULL," +
-            "employerId VARCHAR(100) NOT NULL," +
-            "linkedAt DATETIME NOT NULL DEFAULT(GETDATE())," +
-            "createdBy VARCHAR(100) NULL" +
-            ");" +
-            "CREATE UNIQUE INDEX UX_Tbl_Agency_Employer_Link_agency_employer " +
-            "ON dbo.Tbl_Agency_Employer_Link(agencyId,employerId);" +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tbl_Agency_Employer_Link" (
+        id SERIAL PRIMARY KEY,
+        "agencyId" VARCHAR(100) NOT NULL,
+        "employerId" VARCHAR(100) NOT NULL,
+        "linkedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "createdBy" VARCHAR(100) NULL
+      )`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "UX_Tbl_Agency_Employer_Link_agency_employer" ON "Tbl_Agency_Employer_Link"("agencyId","employerId")`);
     }
     catch {
         // ignore
     }
     try {
-        await db_1.prisma.$executeRawUnsafe("IF OBJECT_ID('dbo.Tbl_Worker_EmployerLink','U') IS NULL BEGIN " +
-            "CREATE TABLE dbo.Tbl_Worker_EmployerLink (" +
-            "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-            "workerId VARCHAR(100) NOT NULL," +
-            "employerId VARCHAR(100) NOT NULL," +
-            "startDate DATETIME NOT NULL DEFAULT(GETDATE())," +
-            "endDate DATETIME NULL," +
-            "status VARCHAR(20) NOT NULL DEFAULT('Active')," +
-            "createdBy VARCHAR(100) NULL" +
-            ");" +
-            "CREATE UNIQUE INDEX UX_Tbl_Worker_EmployerLink_w_e_s " +
-            "ON dbo.Tbl_Worker_EmployerLink(workerId,employerId,startDate);" +
-            "CREATE INDEX IX_Tbl_Worker_EmployerLink_workerId " +
-            "ON dbo.Tbl_Worker_EmployerLink(workerId);" +
-            "CREATE INDEX IX_Tbl_Worker_EmployerLink_employerId " +
-            "ON dbo.Tbl_Worker_EmployerLink(employerId);" +
-            "END");
+        await db_1.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tbl_Worker_EmployerLink" (
+        id SERIAL PRIMARY KEY,
+        "workerId" VARCHAR(100) NOT NULL,
+        "employerId" VARCHAR(100) NOT NULL,
+        "startDate" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "endDate" TIMESTAMP NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'Active',
+        "createdBy" VARCHAR(100) NULL
+      )`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "UX_Tbl_Worker_EmployerLink_w_e_s" ON "Tbl_Worker_EmployerLink"("workerId","employerId","startDate")`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_Tbl_Worker_EmployerLink_workerId" ON "Tbl_Worker_EmployerLink"("workerId")`);
+        await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_Tbl_Worker_EmployerLink_employerId" ON "Tbl_Worker_EmployerLink"("employerId")`);
     }
     catch {
         // ignore
@@ -317,11 +279,11 @@ async function ensureRelationshipTablesExist() {
 }
 /**
  * Non-mutating probe used when a host denies `CREATE TABLE` (e.g. read-only
- * DB users). Returns true if `dbo.Tbl_Broadcast_Message` currently exists.
+ * DB users). Returns true if `Tbl_Broadcast_Message` currently exists.
  */
 async function broadcastTableExists() {
     try {
-        const rows = (await db_1.prisma.$queryRawUnsafe("SELECT OBJECT_ID('dbo.Tbl_Broadcast_Message','U') AS oid;"));
+        const rows = (await db_1.prisma.$queryRawUnsafe(`SELECT to_regclass('public."Tbl_Broadcast_Message"') AS oid`));
         const oid = rows?.[0]?.oid;
         return oid != null;
     }

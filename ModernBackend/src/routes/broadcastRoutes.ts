@@ -61,7 +61,7 @@ broadcastRouter.post("/Api/Broadcast/Send", requireAuth, async (req, res, next) 
     else if (roleId === 7 || roleId === 1) target = "all";
 
     const rows = (await prisma.$queryRawUnsafe(
-      "INSERT INTO dbo.Tbl_Broadcast_Message(senderRoleId,senderKey,senderName,message,target) OUTPUT INSERTED.id, INSERTED.createdOn VALUES(@P1,@P2,@P3,@P4,@P5);",
+      `INSERT INTO "Tbl_Broadcast_Message"("senderRoleId","senderKey","senderName",message,target) VALUES($1,$2,$3,$4,$5) RETURNING id, "createdOn"`,
       roleId,
       senderKey,
       senderName,
@@ -169,7 +169,7 @@ broadcastRouter.post("/Api/Broadcast/SendMultipart", requireAuth, broadcastUploa
     else if (roleId === 7 || roleId === 1) target = "all";
 
     const inserted = (await prisma.$queryRawUnsafe(
-      "INSERT INTO dbo.Tbl_Broadcast_Message(senderRoleId,senderKey,senderName,message,target) OUTPUT INSERTED.id, INSERTED.createdOn VALUES(@P1,@P2,@P3,@P4,@P5);",
+      `INSERT INTO "Tbl_Broadcast_Message"("senderRoleId","senderKey","senderName",message,target) VALUES($1,$2,$3,$4,$5) RETURNING id, "createdOn"`,
       roleId,
       senderKey,
       senderName,
@@ -191,7 +191,7 @@ broadcastRouter.post("/Api/Broadcast/SendMultipart", requireAuth, broadcastUploa
       const sizeBytes = f.size != null ? Number(f.size) : null;
 
       const attRows = (await prisma.$queryRawUnsafe(
-        "INSERT INTO dbo.Tbl_Broadcast_Attachment(messageId,url,mime,originalName,sizeBytes) OUTPUT INSERTED.id VALUES(@P1,@P2,@P3,@P4,@P5);",
+        `INSERT INTO "Tbl_Broadcast_Attachment"("messageId",url,mime,"originalName","sizeBytes") VALUES($1,$2,$3,$4,$5) RETURNING id`,
         messageId,
         url,
         mime,
@@ -307,9 +307,9 @@ broadcastRouter.get("/Api/Broadcast/Feed", requireAuth, async (req, res, next) =
     }
 
     const targetList = Array.from(targets);
-    const placeholders = targetList.map((_, i) => `@P${i + 1}`).join(",");
+    const placeholders = targetList.map((_, i) => `$${i + 1}`).join(",");
     const rows = (await prisma.$queryRawUnsafe(
-      `SELECT TOP (${fetchLimit}) id, senderRoleId, senderKey, senderName, message, target, createdOn FROM dbo.Tbl_Broadcast_Message WHERE target IN (${placeholders}) ORDER BY createdOn DESC, id DESC`,
+      `SELECT id, "senderRoleId", "senderKey", "senderName", message, target, "createdOn" FROM "Tbl_Broadcast_Message" WHERE target IN (${placeholders}) ORDER BY "createdOn" DESC, id DESC LIMIT ${fetchLimit}`,
       ...targetList
     )) as any[];
 
@@ -368,9 +368,9 @@ broadcastRouter.get("/Api/Broadcast/Feed", requireAuth, async (req, res, next) =
 
     const ids = Array.from(new Set(out.map((x) => Number(x.id)).filter((x) => Number.isFinite(x) && x > 0)));
     if (ids.length) {
-      const attPlaceholders = ids.map((_, i) => `@P${i + 1}`).join(",");
+      const attPlaceholders = ids.map((_, i) => `$${i + 1}`).join(",");
       const attRows = (await prisma.$queryRawUnsafe(
-        `SELECT id, messageId, url, mime, originalName, sizeBytes FROM dbo.Tbl_Broadcast_Attachment WHERE messageId IN (${attPlaceholders}) ORDER BY id ASC`,
+        `SELECT id, "messageId", url, mime, "originalName", "sizeBytes" FROM "Tbl_Broadcast_Attachment" WHERE "messageId" IN (${attPlaceholders}) ORDER BY id ASC`,
         ...ids
       )) as any[];
 

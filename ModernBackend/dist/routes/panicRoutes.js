@@ -11,9 +11,9 @@ const workerLookup_1 = require("../services/workerLookup");
 // ---------- Panic-only helpers ----------
 async function findMemberInfoIdByPassport(passportNo) {
     const candidates = [
-        "SELECT TOP 1 MemberInfoId FROM MemberInfo WHERE PassportNo = @p1",
-        "SELECT TOP 1 MemberInfoId FROM MemberInfo WHERE PassportNumber = @p1",
-        "SELECT TOP 1 MemberInfoId FROM MemberInfo WHERE Passport = @p1",
+        `SELECT "MemberInfoId" FROM "MemberInfo" WHERE "PassportNo" = $1 LIMIT 1`,
+        `SELECT "MemberInfoId" FROM "MemberInfo" WHERE "PassportNumber" = $1 LIMIT 1`,
+        `SELECT "MemberInfoId" FROM "MemberInfo" WHERE "Passport" = $1 LIMIT 1`,
     ];
     for (const sql of candidates) {
         try {

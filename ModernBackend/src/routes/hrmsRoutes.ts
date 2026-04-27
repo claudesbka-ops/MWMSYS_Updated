@@ -55,15 +55,16 @@ hrmsRouter.get("/Api/HRMS/Attendance", requireAuth, async (req, res, next) => {
       const params: any[] = [];
       let p = 1;
       for (const pair of pairs) {
-        whereParts.push(`(r.workerId=@P${p} AND r.[date]=CAST(@P${p + 1} AS DATE))`);
+        whereParts.push(`(r."workerId"=$${p} AND r."date"=CAST($${p + 1} AS DATE))`);
         params.push(pair.workerId, pair.dateStr);
         p += 2;
       }
 
       const q =
-        "SELECT TOP (50000) r.workerId, r.[date] as d, s.startTime, s.endTime " +
-        "FROM dbo.Tbl_Roster_Assignment r LEFT JOIN dbo.Tbl_Shift_Template s ON s.id=r.shiftId " +
-        (whereParts.length ? `WHERE ${whereParts.join(" OR ")}` : "");
+        `SELECT r."workerId", r."date" as d, s."startTime", s."endTime" ` +
+        `FROM "Tbl_Roster_Assignment" r LEFT JOIN "Tbl_Shift_Template" s ON s.id=r."shiftId" ` +
+        (whereParts.length ? `WHERE ${whereParts.join(" OR ")} ` : "") +
+        `LIMIT 50000`;
 
       const roster = (await prisma.$queryRawUnsafe(q, ...params)) as any[];
       for (const rr of roster ?? []) {
@@ -231,7 +232,7 @@ hrmsRouter.get("/Api/HRMS/Overtime/me", requireAuth, checkRole([2]), async (req,
     if (!userKey) return res.status(400).json({ error: "Missing worker id" });
 
     const rows = (await prisma.$queryRawUnsafe(
-      "SELECT TOP (1000) id, workerId, workDate, hours, reason, status, createdOn, decisionBy, decisionOn FROM dbo.Tbl_HRMS_Overtime_Request WHERE workerId=@P1 ORDER BY id DESC",
+      `SELECT id, "workerId", "workDate", hours, reason, status, "createdOn", "decisionBy", "decisionOn" FROM "Tbl_HRMS_Overtime_Request" WHERE "workerId"=$1 ORDER BY id DESC LIMIT 1000`,
       userKey
     )) as any[];
 
@@ -257,7 +258,7 @@ hrmsRouter.post("/Api/HRMS/Overtime/Request", requireAuth, checkRole([2]), async
 
     const dStr = workDate.toISOString().slice(0, 10);
     const rows = (await prisma.$queryRawUnsafe(
-      "INSERT INTO dbo.Tbl_HRMS_Overtime_Request(workerId, workDate, hours, reason) OUTPUT INSERTED.id, INSERTED.workerId, INSERTED.workDate, INSERTED.hours, INSERTED.reason, INSERTED.status, INSERTED.createdOn VALUES (@P1, CAST(@P2 AS DATE), @P3, @P4)",
+      `INSERT INTO "Tbl_HRMS_Overtime_Request"("workerId", "workDate", hours, reason) VALUES ($1, CAST($2 AS DATE), $3, $4) RETURNING id, "workerId", "workDate", hours, reason, status, "createdOn"`,
       userKey,
       dStr,
       hours,
@@ -288,10 +289,10 @@ hrmsRouter.get("/Api/HRMS/Overtime", requireAuth, checkRole([1, 3, 4]), async (r
 
     const rows = (await prisma.$queryRawUnsafe(
       roleId === 1
-        ? "SELECT TOP (@P1) id, workerId, workDate, hours, reason, status, createdOn, decisionBy, decisionOn FROM dbo.Tbl_HRMS_Overtime_Request ORDER BY id DESC"
-        : `SELECT TOP (@P1) id, workerId, workDate, hours, reason, status, createdOn, decisionBy, decisionOn FROM dbo.Tbl_HRMS_Overtime_Request WHERE workerId IN (${workerIds
-            .map((_, i) => `@P${i + 2}`)
-            .join(",")}) ORDER BY id DESC`,
+        ? `SELECT id, "workerId", "workDate", hours, reason, status, "createdOn", "decisionBy", "decisionOn" FROM "Tbl_HRMS_Overtime_Request" ORDER BY id DESC LIMIT $1`
+        : `SELECT id, "workerId", "workDate", hours, reason, status, "createdOn", "decisionBy", "decisionOn" FROM "Tbl_HRMS_Overtime_Request" WHERE "workerId" IN (${workerIds
+            .map((_, i) => `$${i + 2}`)
+            .join(",")}) ORDER BY id DESC LIMIT $1`,
       limit,
       ...(roleId === 1 ? [] : workerIds)
     )) as any[];
@@ -306,8 +307,8 @@ hrmsRouter.get("/Api/HRMS/Overtime", requireAuth, checkRole([1, 3, 4]), async (r
     let attByClaim = new Map<number, any[]>();
     if (ids.length) {
       const attRows = (await prisma.$queryRawUnsafe(
-        `SELECT id, claimId, filePath, originalName, mimeType, fileSize, createdOn FROM dbo.Tbl_HRMS_Expense_Attachment WHERE claimId IN (${ids
-          .map((_, i) => `@P${i + 1}`)
+        `SELECT id, "claimId", "filePath", "originalName", "mimeType", "fileSize", "createdOn" FROM "Tbl_HRMS_Expense_Attachment" WHERE "claimId" IN (${ids
+          .map((_, i) => `$${i + 1}`)
           .join(",")}) ORDER BY id DESC`,
         ...ids
       )) as any[];
@@ -350,7 +351,7 @@ hrmsRouter.post("/Api/HRMS/Overtime/Decision", requireAuth, checkRole([1, 3, 4])
     if (status !== "Approved" && status !== "Rejected") return res.status(400).json({ error: "Invalid status" });
 
     const row = (await prisma.$queryRawUnsafe(
-      "SELECT TOP (1) id, workerId FROM dbo.Tbl_HRMS_Overtime_Request WHERE id=@P1",
+      `SELECT id, "workerId" FROM "Tbl_HRMS_Overtime_Request" WHERE id=$1 LIMIT 1`,
       id
     )) as any[];
     const workerId = (row?.[0]?.workerId ?? "").toString();
@@ -365,7 +366,7 @@ hrmsRouter.post("/Api/HRMS/Overtime/Decision", requireAuth, checkRole([1, 3, 4])
 
     const decisionBy = ((req as any).user?.userKey ?? "").toString().trim() || "approver";
     await prisma.$executeRawUnsafe(
-      "UPDATE dbo.Tbl_HRMS_Overtime_Request SET status=@P1, decisionBy=@P2, decisionOn=GETDATE() WHERE id=@P3",
+      `UPDATE "Tbl_HRMS_Overtime_Request" SET status=$1, "decisionBy"=$2, "decisionOn"=NOW() WHERE id=$3`,
       status,
       decisionBy,
       id
@@ -396,7 +397,7 @@ hrmsRouter.post("/Api/HRMS/Expenses/Claim", requireAuth, checkRole([2]), async (
 
     const dStr = claimDate.toISOString().slice(0, 10);
     const rows = (await prisma.$queryRawUnsafe(
-      "INSERT INTO dbo.Tbl_HRMS_Expense_Claim(workerId, claimDate, amount, category, description) OUTPUT INSERTED.id, INSERTED.workerId, INSERTED.claimDate, INSERTED.amount, INSERTED.category, INSERTED.description, INSERTED.status, INSERTED.createdOn VALUES (@P1, CAST(@P2 AS DATE), @P3, @P4, @P5)",
+      `INSERT INTO "Tbl_HRMS_Expense_Claim"("workerId", "claimDate", amount, category, description) VALUES ($1, CAST($2 AS DATE), $3, $4, $5) RETURNING id, "workerId", "claimDate", amount, category, description, status, "createdOn"`,
       userKey,
       dStr,
       amount,
@@ -426,7 +427,7 @@ hrmsRouter.post(
       if (!userKey) return res.status(400).json({ error: "Missing worker id" });
 
       const claim = (await prisma.$queryRawUnsafe(
-        "SELECT TOP (1) id, workerId FROM dbo.Tbl_HRMS_Expense_Claim WHERE id=@P1",
+        `SELECT id, "workerId" FROM "Tbl_HRMS_Expense_Claim" WHERE id=$1 LIMIT 1`,
         id
       )) as any[];
       const claimWorkerId = (claim?.[0]?.workerId ?? "").toString();
@@ -441,7 +442,7 @@ hrmsRouter.post(
         if (!f?.filename) continue;
         const filePath = `/uploads/${f.filename}`;
         const rows = (await prisma.$queryRawUnsafe(
-          "INSERT INTO dbo.Tbl_HRMS_Expense_Attachment(claimId, filePath, originalName, mimeType, fileSize) OUTPUT INSERTED.id, INSERTED.claimId, INSERTED.filePath, INSERTED.originalName, INSERTED.mimeType, INSERTED.fileSize, INSERTED.createdOn VALUES (@P1, @P2, @P3, @P4, @P5)",
+          `INSERT INTO "Tbl_HRMS_Expense_Attachment"("claimId", "filePath", "originalName", "mimeType", "fileSize") VALUES ($1, $2, $3, $4, $5) RETURNING id, "claimId", "filePath", "originalName", "mimeType", "fileSize", "createdOn"`,
           id,
           filePath,
           (f.originalname ?? "").toString(),
@@ -466,7 +467,7 @@ hrmsRouter.get("/Api/HRMS/Expenses/me", requireAuth, checkRole([2]), async (req,
     if (!userKey) return res.status(400).json({ error: "Missing worker id" });
 
     const rows = (await prisma.$queryRawUnsafe(
-      "SELECT TOP (1000) id, workerId, claimDate, amount, category, description, status, createdOn, decisionBy, decisionOn FROM dbo.Tbl_HRMS_Expense_Claim WHERE workerId=@P1 ORDER BY id DESC",
+      `SELECT id, "workerId", "claimDate", amount, category, description, status, "createdOn", "decisionBy", "decisionOn" FROM "Tbl_HRMS_Expense_Claim" WHERE "workerId"=$1 ORDER BY id DESC LIMIT 1000`,
       userKey
     )) as any[];
 
@@ -474,8 +475,8 @@ hrmsRouter.get("/Api/HRMS/Expenses/me", requireAuth, checkRole([2]), async (req,
     let attByClaim = new Map<number, any[]>();
     if (ids.length) {
       const attRows = (await prisma.$queryRawUnsafe(
-        `SELECT id, claimId, filePath, originalName, mimeType, fileSize, createdOn FROM dbo.Tbl_HRMS_Expense_Attachment WHERE claimId IN (${ids
-          .map((_, i) => `@P${i + 1}`)
+        `SELECT id, "claimId", "filePath", "originalName", "mimeType", "fileSize", "createdOn" FROM "Tbl_HRMS_Expense_Attachment" WHERE "claimId" IN (${ids
+          .map((_, i) => `$${i + 1}`)
           .join(",")}) ORDER BY id DESC`,
         ...ids
       )) as any[];
@@ -520,10 +521,10 @@ hrmsRouter.get("/Api/HRMS/Expenses", requireAuth, checkRole([1, 3, 4]), async (r
 
     const rows = (await prisma.$queryRawUnsafe(
       roleId === 1
-        ? "SELECT TOP (@P1) id, workerId, claimDate, amount, category, description, status, createdOn, decisionBy, decisionOn FROM dbo.Tbl_HRMS_Expense_Claim ORDER BY id DESC"
-        : `SELECT TOP (@P1) id, workerId, claimDate, amount, category, description, status, createdOn, decisionBy, decisionOn FROM dbo.Tbl_HRMS_Expense_Claim WHERE workerId IN (${workerIds
-            .map((_, i) => `@P${i + 2}`)
-            .join(",")}) ORDER BY id DESC`,
+        ? `SELECT id, "workerId", "claimDate", amount, category, description, status, "createdOn", "decisionBy", "decisionOn" FROM "Tbl_HRMS_Expense_Claim" ORDER BY id DESC LIMIT $1`
+        : `SELECT id, "workerId", "claimDate", amount, category, description, status, "createdOn", "decisionBy", "decisionOn" FROM "Tbl_HRMS_Expense_Claim" WHERE "workerId" IN (${workerIds
+            .map((_, i) => `$${i + 2}`)
+            .join(",")}) ORDER BY id DESC LIMIT $1`,
       limit,
       ...(roleId === 1 ? [] : workerIds)
     )) as any[];
@@ -555,7 +556,7 @@ hrmsRouter.post("/Api/HRMS/Expenses/Decision", requireAuth, checkRole([1, 3, 4])
     if (status !== "Approved" && status !== "Rejected") return res.status(400).json({ error: "Invalid status" });
 
     const row = (await prisma.$queryRawUnsafe(
-      "SELECT TOP (1) id, workerId FROM dbo.Tbl_HRMS_Expense_Claim WHERE id=@P1",
+      `SELECT id, "workerId" FROM "Tbl_HRMS_Expense_Claim" WHERE id=$1 LIMIT 1`,
       id
     )) as any[];
     const workerId = (row?.[0]?.workerId ?? "").toString();
@@ -570,7 +571,7 @@ hrmsRouter.post("/Api/HRMS/Expenses/Decision", requireAuth, checkRole([1, 3, 4])
 
     const decisionBy = ((req as any).user?.userKey ?? "").toString().trim() || "approver";
     await prisma.$executeRawUnsafe(
-      "UPDATE dbo.Tbl_HRMS_Expense_Claim SET status=@P1, decisionBy=@P2, decisionOn=GETDATE() WHERE id=@P3",
+      `UPDATE "Tbl_HRMS_Expense_Claim" SET status=$1, "decisionBy"=$2, "decisionOn"=NOW() WHERE id=$3`,
       status,
       decisionBy,
       id

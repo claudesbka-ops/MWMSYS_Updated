@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlserver"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -18,8 +18,8 @@ model Tbl_Agent {
   Agent_Country           Int
   Agent_ContactNumber     String    @db.VarChar(50)
   Created_By              String?   @db.VarChar(50)
-  Created_On              DateTime? @db.DateTime
-  Agent_CountryCode       String?   @db.NVarChar(10)
+  Created_On              DateTime?
+  Agent_CountryCode       String?   @db.VarChar(10)
 
   @@id([User_Id, Agent_EmailID], map: "PK_Tbl_Agent")
 }
@@ -30,7 +30,7 @@ model Tbl_Branch {
   Branch_ShortName String    @db.VarChar(10)
   Branch_Status    Int
   Created_By       String?   @db.VarChar(50)
-  Created_On       DateTime? @db.DateTime
+  Created_On       DateTime?
 }
 
 model Tbl_City {
@@ -41,21 +41,21 @@ model Tbl_City {
   City_ShortName String?   @db.VarChar(10)
   City_Status    Int
   Created_By     String?   @db.VarChar(50)
-  Created_On     DateTime? @db.DateTime
+  Created_On     DateTime?
 
   @@id([ID, Country_ID, State_ID], map: "PK_City")
 }
 
 model Tbl_Country {
-  ID                Int       @unique(map: "NonClusteredIndex-20250122-133511") @default(autoincrement())
+  ID                Int       @unique(map: "NonClusteredIndex_20250122_133511") @default(autoincrement())
   Country_Name      String    @db.VarChar(50)
   Country_ShortName String?   @db.VarChar(10)
   Country_Status    Int
   Created_By        String?   @db.VarChar(50)
-  Created_On        DateTime? @db.DateTime
+  Created_On        DateTime?
   Country_Flag      Bytes?
-  CountryCode       String?   @db.NVarChar(10)
-  FlagPath          String?   @db.NVarChar(255)
+  CountryCode       String?   @db.VarChar(10)
+  FlagPath          String?   @db.VarChar(255)
 }
 
 model Tbl_Department {
@@ -63,34 +63,34 @@ model Tbl_Department {
   Department_Name   String    @db.VarChar(50)
   Department_Status Int
   Created_By        String?   @db.VarChar(50)
-  Created_On        DateTime? @db.DateTime
+  Created_On        DateTime?
 }
 
 model Tbl_Employer {
-  ID                          Int       @default(autoincrement())
-  User_Id                     String    @db.VarChar(100)
-  Employer_Name               String    @db.VarChar(100)
-  Employer_Address            String    @db.VarChar(500)
-  Employer_ContactPerson      String    @db.VarChar(100)
-  Employer_ContactPerson_IC   String?   @db.VarChar(50)
-  Employer_ContactPerson_Email String?  @db.VarChar(100)
-  Employer_ContactPerson_Phone String?  @db.VarChar(20)
-  Employer_Position           String    @db.VarChar(100)
-  Employer_EmailID            String    @db.VarChar(100)
-  Employer_OfficeNumber       String?   @db.VarChar(20)
-  Employer_CompanyPhone       String?   @db.VarChar(20)
-  Employer_SSM_ROC_ROB_Number String?   @db.VarChar(100)
-  Employer_SSM_Number         String?   @db.VarChar(100)
-  Employer_Sector             Int?
-  Employer_SubSector          Int?
-  Employer_PIC_MobileNumber   String    @db.VarChar(20)
-  Employer_Description        String?   @db.VarChar(500)
-  Employer_HFW                Int?
-  Employer_LFW                Int?
-  Employer_FWC_               String?   @map("Employer_FWC ") @db.VarChar(500)
-  Created_By                  String?   @db.VarChar(50)
-  Created_On                  DateTime? @db.DateTime
-  CountryCode                 String?   @db.NVarChar(10)
+  ID                           Int       @default(autoincrement())
+  User_Id                      String    @db.VarChar(100)
+  Employer_Name                String    @db.VarChar(100)
+  Employer_Address             String    @db.VarChar(500)
+  Employer_ContactPerson       String    @db.VarChar(100)
+  Employer_ContactPerson_IC    String?   @db.VarChar(50)
+  Employer_ContactPerson_Email String?   @db.VarChar(100)
+  Employer_ContactPerson_Phone String?   @db.VarChar(20)
+  Employer_Position            String    @db.VarChar(100)
+  Employer_EmailID             String    @db.VarChar(100)
+  Employer_OfficeNumber        String?   @db.VarChar(20)
+  Employer_CompanyPhone        String?   @db.VarChar(20)
+  Employer_SSM_ROC_ROB_Number  String?   @db.VarChar(100)
+  Employer_SSM_Number          String?   @db.VarChar(100)
+  Employer_Sector              Int?
+  Employer_SubSector           Int?
+  Employer_PIC_MobileNumber    String    @db.VarChar(20)
+  Employer_Description         String?   @db.VarChar(500)
+  Employer_HFW                 Int?
+  Employer_LFW                 Int?
+  Employer_FWC_                String?   @map("Employer_FWC ") @db.VarChar(500)
+  Created_By                   String?   @db.VarChar(50)
+  Created_On                   DateTime?
+  CountryCode                  String?   @db.VarChar(10)
 
   @@id([User_Id, Employer_EmailID], map: "PK_Tbl_Employer")
 }
@@ -100,15 +100,15 @@ model Tbl_Subscription {
   entityId  String   @db.VarChar(100)
   planType  String   @db.VarChar(20)
   status    String   @db.VarChar(20)
-  startDate DateTime @db.DateTime
-  endDate   DateTime @db.DateTime
+  startDate DateTime
+  endDate   DateTime
 }
 
 model Tbl_Attendance {
   id       Int       @id(map: "PK_Tbl_Attendance") @default(autoincrement())
   workerId String    @db.VarChar(100)
-  checkIn  DateTime? @db.DateTime
-  checkOut DateTime? @db.DateTime
+  checkIn  DateTime?
+  checkOut DateTime?
   lat      Decimal?  @db.Decimal(10, 7)
   lng      Decimal?  @db.Decimal(10, 7)
   photoUrl String?   @db.VarChar(500)
@@ -118,19 +118,19 @@ model Tbl_Leave {
   id        Int      @id(map: "PK_Tbl_Leave") @default(autoincrement())
   workerId  String   @db.VarChar(100)
   leaveType String   @db.VarChar(50)
-  startDate DateTime @db.DateTime
-  endDate   DateTime @db.DateTime
+  startDate DateTime
+  endDate   DateTime
   status    String   @db.VarChar(20)
 }
 
 model Tbl_Payroll {
-  id        Int      @id(map: "PK_Tbl_Payroll") @default(autoincrement())
-  workerId  String   @db.VarChar(100)
-  month     Int
-  year      Int
-  amount    Decimal  @db.Decimal(18, 2)
-  voucherUrl String? @db.VarChar(500)
-  isPaid    Boolean  @default(false)
+  id         Int      @id(map: "PK_Tbl_Payroll") @default(autoincrement())
+  workerId   String   @db.VarChar(100)
+  month      Int
+  year       Int
+  amount     Decimal  @db.Decimal(18, 2)
+  voucherUrl String?  @db.VarChar(500)
+  isPaid     Boolean  @default(false)
 }
 
 model Tbl_EmployerIndividual {
@@ -140,10 +140,10 @@ model Tbl_EmployerIndividual {
   Employer_Address          String    @db.VarChar(500)
   Employer_ContactPerson    String    @db.VarChar(100)
   Employer_EmailID          String    @db.VarChar(100)
-  CountryCode               String?   @db.NVarChar(10)
+  CountryCode               String?   @db.VarChar(10)
   Employer_PIC_MobileNumber String    @db.VarChar(20)
   Created_By                String?   @db.VarChar(50)
-  Created_On                DateTime? @db.DateTime
+  Created_On                DateTime?
 
   @@id([User_Id, Employer_EmailID], map: "PK_Tbl_EmployerIndividual")
 }
@@ -155,18 +155,18 @@ model Tbl_Insurance {
   Insurance_Nationality Int
   Insurance_Status      Int
   Created_By            String?   @db.VarChar(50)
-  Created_On            DateTime? @db.DateTime
+  Created_On            DateTime?
 }
 
 model Tbl_MaritalStatus {
   ID             Int       @id(map: "PK_MaritalStatus") @default(autoincrement())
   Marital_Status String    @db.VarChar(50)
   Created_By     String?   @db.VarChar(50)
-  Created_On     DateTime? @db.DateTime
+  Created_On     DateTime?
 }
 
 model Tbl_Menu_Details {
-  ID               Int     @id(map: "PK__Tbl_Menu__3214EC27A381EDE7") @default(autoincrement())
+  ID               Int     @id(map: "PK_Tbl_Menu_Details") @default(autoincrement())
   PARENT_ID        Int?
   PAGE_NAME        String? @db.VarChar(50)
   PAGE_URL         String? @db.VarChar(50)
@@ -180,14 +180,14 @@ model Tbl_ProbSol {
   Description      String    @db.VarChar(500)
   ProbStatus       String?   @db.VarChar(50)
   Updated_By       String?   @db.VarChar(50)
-  Updated_On       DateTime? @db.DateTime
+  Updated_On       DateTime?
   Title            String?   @db.VarChar(200)
   Document         Bytes?
   worker_ID        String?   @db.VarChar(50)
   DocumentPath     String?   @db.VarChar(500)
   Current_Location String?   @db.VarChar(250)
   Company_Name     String?   @db.VarChar(250)
-  IsResolved       Boolean?  @default(false, map: "DF__Tbl_ProbS__IsRes__2739D489")
+  IsResolved       Boolean?  @default(false)
   Lat              Decimal?  @db.Decimal(10, 7)
   Lng              Decimal?  @db.Decimal(10, 7)
 }
@@ -199,7 +199,7 @@ model Tbl_Rights_Master {
   Status    Boolean?
   ISDefault Boolean?
   UpdatedBy String?   @db.VarChar(20)
-  UpdatedOn DateTime? @db.DateTime
+  UpdatedOn DateTime?
 }
 
 model Tbl_Role {
@@ -207,7 +207,7 @@ model Tbl_Role {
   Role_Name   String    @db.VarChar(50)
   Role_Status Int
   Created_By  String?   @db.VarChar(50)
-  Created_On  DateTime? @db.DateTime
+  Created_On  DateTime?
 }
 
 model Tbl_Sector {
@@ -215,7 +215,7 @@ model Tbl_Sector {
   Sector_Name   String    @db.VarChar(50)
   Sector_Status Int
   Created_By    String?   @db.VarChar(50)
-  Created_On    DateTime? @db.DateTime
+  Created_On    DateTime?
 }
 
 model Tbl_SourceCountry_Insurance {
@@ -225,7 +225,7 @@ model Tbl_SourceCountry_Insurance {
   SC_Insurance_Nationality Int
   SC_Insurance_Status      Int
   Created_By               String?   @db.VarChar(50)
-  Created_On               DateTime? @db.DateTime
+  Created_On               DateTime?
 }
 
 model Tbl_State {
@@ -235,7 +235,7 @@ model Tbl_State {
   State_ShortName String?   @db.VarChar(10)
   State_Status    Int
   Created_By      String?   @db.VarChar(50)
-  Created_On      DateTime? @db.DateTime
+  Created_On      DateTime?
 
   @@id([ID, Country_ID], map: "PK_State")
 }
@@ -244,7 +244,7 @@ model Tbl_Status {
   ID         Int       @id(map: "PK_Status") @default(autoincrement())
   Status     String    @db.VarChar(50)
   Created_By String?   @db.VarChar(50)
-  Created_On DateTime? @db.DateTime
+  Created_On DateTime?
 }
 
 model Tbl_SubSector {
@@ -253,7 +253,7 @@ model Tbl_SubSector {
   SubSector_Name   String    @db.VarChar(50)
   SubSector_Status Int
   Created_By       String?   @db.VarChar(50)
-  Created_On       DateTime? @db.DateTime
+  Created_On       DateTime?
 }
 
 model Tbl_Title {
@@ -261,7 +261,7 @@ model Tbl_Title {
   Title_Name   String    @db.VarChar(50)
   Title_Status Int
   Created_By   String?   @db.VarChar(50)
-  Created_On   DateTime? @db.DateTime
+  Created_On   DateTime?
 }
 
 model Tbl_User {
@@ -274,13 +274,13 @@ model Tbl_User {
   User_Title       Int?
   User_Branch      Int?
   Created_By       String?   @db.VarChar(50)
-  Created_On       DateTime? @db.DateTime
+  Created_On       DateTime?
   User_Name        String?   @db.VarChar(100)
   Activated_By     String?   @db.VarChar(50)
-  Activated_On     DateTime? @db.DateTime
+  Activated_On     DateTime?
   Password_Changed Int?
-  Password_On      DateTime? @db.DateTime
-  Is_Verified      Boolean?  @default(false, map: "DF_Tbl_User_Is_Verified")
+  Password_On      DateTime?
+  Is_Verified      Boolean?  @default(false)
 
   @@id([User_Id, Email_Id], map: "PK_Tbl_User")
 }
@@ -289,17 +289,17 @@ model Tbl_Worker_Attachments {
   Id                           Int       @default(autoincrement())
   Worker_Id                    String    @id(map: "PK_Tbl_Worker_Attachments") @db.VarChar(100)
   Passport_Copy_Filename       String?   @db.VarChar(50)
-  Passport_Copy                String?   @db.VarChar(Max)
+  Passport_Copy                String?   @db.Text
   Permit_Copy_Filename         String?   @db.VarChar(50)
-  Permit_Copy                  String?   @db.VarChar(Max)
+  Permit_Copy                  String?   @db.Text
   Demand_Letter_Filename       String?   @db.VarChar(50)
-  Demand_Letter                String?   @db.VarChar(Max)
+  Demand_Letter                String?   @db.Text
   Employment_Contract_Filename String?   @db.VarChar(50)
-  Employment_Contract          String?   @db.VarChar(Max)
+  Employment_Contract          String?   @db.Text
   Insurance_Policy_Filename    String?   @db.VarChar(50)
-  Insurance_Policy             String?   @db.VarChar(Max)
+  Insurance_Policy             String?   @db.Text
   Created_By                   String?   @db.VarChar(50)
-  Created_On                   DateTime? @db.DateTime
+  Created_On                   DateTime?
 }
 
 model Tbl_Worker_EmployerInfo {
@@ -320,7 +320,7 @@ model Tbl_Worker_EmployerInfo {
   Contract_issue_Date    DateTime?
   Employment_Description String?   @db.VarChar(500)
   Created_By             String?   @db.VarChar(50)
-  Created_On             DateTime? @db.DateTime
+  Created_On             DateTime?
   TelephonenoCC          String?   @db.VarChar(10)
 }
 
@@ -343,7 +343,7 @@ model Tbl_Worker_PermitInsurance {
   Contact_Number_One       String?   @db.VarChar(20)
   Relationship_One         String?   @db.VarChar(50)
   Created_By               String?   @db.VarChar(50)
-  Created_On               DateTime? @db.DateTime
+  Created_On               DateTime?
   Spouse_Contact_No_CC     String?   @db.VarChar(10)
   Contact_No_Two_CC        String?   @db.VarChar(10)
   Contact_No_One_CC        String?   @db.VarChar(10)
@@ -370,10 +370,10 @@ model Tbl_Worker_PersonalInfo {
   Mother_Name                 String?   @db.VarChar(20)
   Father_Name                 String?   @db.VarChar(20)
   Branch                      Int?
-  Photo                       String?   @db.VarChar(Max)
+  Photo                       String?   @db.Text
   PhotoName                   String?   @db.VarChar(50)
   Created_By                  String?   @db.VarChar(50)
-  Created_On                  DateTime? @db.DateTime
+  Created_On                  DateTime?
   Employer_Id                 String?   @db.VarChar(20)
   Contact_Number_Country_Code String?   @db.VarChar(20)
 }
@@ -396,37 +396,37 @@ model Tbl_Worker_RecruitAgent {
   Website_M                         String?   @db.VarChar(250)
   Website_S                         String?   @db.VarChar(250)
   Created_By                        String?   @db.VarChar(50)
-  Created_On                        DateTime? @db.DateTime
+  Created_On                        DateTime?
   Contact_No_S_CC                   String?   @db.VarChar(10)
   Contact_N0_M_CC                   String?   @db.VarChar(10)
 }
 
 model Tbl_Attestation {
-  AttestationId   Int       @id(map: "PK__Tbl_Atte__5955B4D9A4295717") @default(autoincrement())
+  AttestationId   Int       @id(map: "PK_Tbl_Attestation") @default(autoincrement())
   Worker_Id       String    @db.VarChar(100)
   Passport_Number String?   @db.VarChar(20)
   DocumentType    String?   @db.VarChar(50)
   DocumentPath    String?   @db.VarChar(500)
-  Status          String    @default("Submitted", map: "DF__Tbl_Attes__Statu__2A164134") @db.VarChar(20)
+  Status          String    @default("Submitted") @db.VarChar(20)
   AdminRemarks    String?   @db.VarChar(500)
-  Created_On      DateTime? @default(now(), map: "DF__Tbl_Attes__Creat__2B0A656D") @db.DateTime
-  Updated_On      DateTime? @db.DateTime
+  Created_On      DateTime? @default(now())
+  Updated_On      DateTime?
 }
 
 model Tbl_Worker_Location {
-  workerId   String    @id(map: "PK_Tbl_Worker_Location") @db.VarChar(100)
-  lat        Decimal?  @db.Decimal(10, 7)
-  lng        Decimal?  @db.Decimal(10, 7)
-  accuracy   Decimal?  @db.Decimal(10, 2)
-  updatedOn  DateTime? @db.DateTime
+  workerId  String    @id(map: "PK_Tbl_Worker_Location") @db.VarChar(100)
+  lat       Decimal?  @db.Decimal(10, 7)
+  lng       Decimal?  @db.Decimal(10, 7)
+  accuracy  Decimal?  @db.Decimal(10, 2)
+  updatedOn DateTime?
 }
 
 model Tbl_Agency_Employer_Link {
-  id           Int       @id(map: "PK_Tbl_Agency_Employer_Link") @default(autoincrement())
-  agencyId     String    @db.VarChar(100)
-  employerId   String    @db.VarChar(100)
-  linkedAt     DateTime  @default(now(), map: "DF_Tbl_Agency_Employer_Link_linkedAt") @db.DateTime
-  createdBy    String?   @db.VarChar(100)
+  id         Int      @id(map: "PK_Tbl_Agency_Employer_Link") @default(autoincrement())
+  agencyId   String   @db.VarChar(100)
+  employerId String   @db.VarChar(100)
+  linkedAt   DateTime @default(now())
+  createdBy  String?  @db.VarChar(100)
 
   @@unique([agencyId, employerId], map: "UX_Tbl_Agency_Employer_Link_agency_employer")
 }
@@ -440,10 +440,10 @@ model Tbl_SalaryDispute {
   Received_Amount  Decimal   @db.Decimal(10, 2)
   Description      String    @db.VarChar(1000)
   Proof_File_Path  String?   @db.VarChar(500)
-  Status           String    @default("Pending", map: "DF_Tbl_SalaryDispute_Status") @db.VarChar(20)
+  Status           String    @default("Pending") @db.VarChar(20)
   Employer_Comment String?   @db.VarChar(500)
-  Submitted_At     DateTime  @default(now(), map: "DF_Tbl_SalaryDispute_Submitted_At") @db.DateTime
-  Reviewed_At      DateTime? @db.DateTime
+  Submitted_At     DateTime  @default(now())
+  Reviewed_At      DateTime?
   Reviewed_By      String?   @db.VarChar(100)
 
   @@index([Worker_Id], map: "IX_Tbl_SalaryDispute_Worker_Id")
@@ -456,22 +456,22 @@ model Tbl_UserOtp {
   User_Id    String   @db.VarChar(100)
   Otp_Code   String   @db.VarChar(6)
   Otp_Type   String   @db.VarChar(20)
-  Created_At DateTime @default(now(), map: "DF_Tbl_UserOtp_Created_At") @db.DateTime
-  Expires_At DateTime @db.DateTime
-  Is_Used    Boolean  @default(false, map: "DF_Tbl_UserOtp_Is_Used")
+  Created_At DateTime @default(now())
+  Expires_At DateTime
+  Is_Used    Boolean  @default(false)
 
   @@index([User_Id, Otp_Type], map: "IX_Tbl_UserOtp_user_type")
   @@index([Expires_At], map: "IX_Tbl_UserOtp_expires")
 }
 
 model Tbl_Worker_EmployerLink {
-  id          Int       @id(map: "PK_Tbl_Worker_EmployerLink") @default(autoincrement())
-  workerId    String    @db.VarChar(100)
-  employerId  String    @db.VarChar(100)
-  startDate   DateTime  @default(now(), map: "DF_Tbl_Worker_EmployerLink_startDate") @db.DateTime
-  endDate     DateTime? @db.DateTime
-  status      String    @default("Active", map: "DF_Tbl_Worker_EmployerLink_status") @db.VarChar(20)
-  createdBy   String?   @db.VarChar(100)
+  id         Int       @id(map: "PK_Tbl_Worker_EmployerLink") @default(autoincrement())
+  workerId   String    @db.VarChar(100)
+  employerId String    @db.VarChar(100)
+  startDate  DateTime  @default(now())
+  endDate    DateTime?
+  status     String    @default("Active") @db.VarChar(20)
+  createdBy  String?   @db.VarChar(100)
 
   @@unique([workerId, employerId, startDate], map: "UX_Tbl_Worker_EmployerLink_w_e_s")
   @@index([workerId], map: "IX_Tbl_Worker_EmployerLink_workerId")

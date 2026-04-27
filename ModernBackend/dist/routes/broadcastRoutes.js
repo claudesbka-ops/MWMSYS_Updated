@@ -62,7 +62,7 @@ exports.broadcastRouter.post("/Api/Broadcast/Send", auth_1.requireAuth, async (r
             target = "nationality";
         else if (roleId === 7 || roleId === 1)
             target = "all";
-        const rows = (await db_1.prisma.$queryRawUnsafe("INSERT INTO dbo.Tbl_Broadcast_Message(senderRoleId,senderKey,senderName,message,target) OUTPUT INSERTED.id, INSERTED.createdOn VALUES(@P1,@P2,@P3,@P4,@P5);", roleId, senderKey, senderName, message.trim().slice(0, 2000), target));
+        const rows = (await db_1.prisma.$queryRawUnsafe(`INSERT INTO "Tbl_Broadcast_Message"("senderRoleId","senderKey","senderName",message,target) VALUES($1,$2,$3,$4,$5) RETURNING id, "createdOn"`, roleId, senderKey, senderName, message.trim().slice(0, 2000), target));
         const row = Array.isArray(rows) ? rows[0] : null;
         const payload = {
             id: row?.id != null ? Number(row.id) : null,
@@ -168,7 +168,7 @@ exports.broadcastRouter.post("/Api/Broadcast/SendMultipart", auth_1.requireAuth,
             target = "nationality";
         else if (roleId === 7 || roleId === 1)
             target = "all";
-        const inserted = (await db_1.prisma.$queryRawUnsafe("INSERT INTO dbo.Tbl_Broadcast_Message(senderRoleId,senderKey,senderName,message,target) OUTPUT INSERTED.id, INSERTED.createdOn VALUES(@P1,@P2,@P3,@P4,@P5);", roleId, senderKey, senderName, message.trim().slice(0, 2000), target));
+        const inserted = (await db_1.prisma.$queryRawUnsafe(`INSERT INTO "Tbl_Broadcast_Message"("senderRoleId","senderKey","senderName",message,target) VALUES($1,$2,$3,$4,$5) RETURNING id, "createdOn"`, roleId, senderKey, senderName, message.trim().slice(0, 2000), target));
         const row = Array.isArray(inserted) ? inserted[0] : null;
         const messageId = row?.id != null ? Number(row.id) : NaN;
         if (!Number.isFinite(messageId))
@@ -182,7 +182,7 @@ exports.broadcastRouter.post("/Api/Broadcast/SendMultipart", auth_1.requireAuth,
             const mime = (f.mimetype ?? "").toString() || null;
             const originalName = (f.originalname ?? filename).toString() || null;
             const sizeBytes = f.size != null ? Number(f.size) : null;
-            const attRows = (await db_1.prisma.$queryRawUnsafe("INSERT INTO dbo.Tbl_Broadcast_Attachment(messageId,url,mime,originalName,sizeBytes) OUTPUT INSERTED.id VALUES(@P1,@P2,@P3,@P4,@P5);", messageId, url, mime, originalName, sizeBytes));
+            const attRows = (await db_1.prisma.$queryRawUnsafe(`INSERT INTO "Tbl_Broadcast_Attachment"("messageId",url,mime,"originalName","sizeBytes") VALUES($1,$2,$3,$4,$5) RETURNING id`, messageId, url, mime, originalName, sizeBytes));
             const att = Array.isArray(attRows) ? attRows[0] : null;
             attachments.push({
                 id: att?.id != null ? Number(att.id) : 0,
@@ -291,8 +291,8 @@ exports.broadcastRouter.get("/Api/Broadcast/Feed", auth_1.requireAuth, async (re
             targets.add("nationality");
         }
         const targetList = Array.from(targets);
-        const placeholders = targetList.map((_, i) => `@P${i + 1}`).join(",");
-        const rows = (await db_1.prisma.$queryRawUnsafe(`SELECT TOP (${fetchLimit}) id, senderRoleId, senderKey, senderName, message, target, createdOn FROM dbo.Tbl_Broadcast_Message WHERE target IN (${placeholders}) ORDER BY createdOn DESC, id DESC`, ...targetList));
+        const placeholders = targetList.map((_, i) => `$${i + 1}`).join(",");
+        const rows = (await db_1.prisma.$queryRawUnsafe(`SELECT id, "senderRoleId", "senderKey", "senderName", message, target, "createdOn" FROM "Tbl_Broadcast_Message" WHERE target IN (${placeholders}) ORDER BY "createdOn" DESC, id DESC LIMIT ${fetchLimit}`, ...targetList));
         // For nationality-targeted messages, filter to the user's nationality if needed.
         let out = (rows ?? []).map((r) => ({
             id: Number(r.id),
@@ -353,8 +353,8 @@ exports.broadcastRouter.get("/Api/Broadcast/Feed", auth_1.requireAuth, async (re
         out = out.slice(0, limit);
         const ids = Array.from(new Set(out.map((x) => Number(x.id)).filter((x) => Number.isFinite(x) && x > 0)));
         if (ids.length) {
-            const attPlaceholders = ids.map((_, i) => `@P${i + 1}`).join(",");
-            const attRows = (await db_1.prisma.$queryRawUnsafe(`SELECT id, messageId, url, mime, originalName, sizeBytes FROM dbo.Tbl_Broadcast_Attachment WHERE messageId IN (${attPlaceholders}) ORDER BY id ASC`, ...ids));
+            const attPlaceholders = ids.map((_, i) => `$${i + 1}`).join(",");
+            const attRows = (await db_1.prisma.$queryRawUnsafe(`SELECT id, "messageId", url, mime, "originalName", "sizeBytes" FROM "Tbl_Broadcast_Attachment" WHERE "messageId" IN (${attPlaceholders}) ORDER BY id ASC`, ...ids));
             const byMsg = new Map();
             for (const a of attRows ?? []) {
                 const mid = Number(a.messageId);

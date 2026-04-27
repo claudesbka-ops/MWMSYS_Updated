@@ -8,16 +8,14 @@ import { prisma } from "../db";
 export async function ensureSubscriptionTableExists(): Promise<void> {
   try {
     await prisma.$executeRawUnsafe(
-      "IF OBJECT_ID('dbo.Tbl_Subscription','U') IS NULL BEGIN " +
-        "CREATE TABLE dbo.Tbl_Subscription (" +
-        "id INT IDENTITY(1,1) NOT NULL PRIMARY KEY," +
-        "entityId VARCHAR(100) NOT NULL," +
-        "planType VARCHAR(20) NOT NULL," +
-        "status VARCHAR(20) NOT NULL," +
-        "startDate DATETIME NOT NULL," +
-        "endDate DATETIME NOT NULL" +
-        ");" +
-        "END"
+      `CREATE TABLE IF NOT EXISTS "Tbl_Subscription" (
+        id SERIAL PRIMARY KEY,
+        "entityId" VARCHAR(100) NOT NULL,
+        "planType" VARCHAR(20) NOT NULL,
+        status VARCHAR(20) NOT NULL,
+        "startDate" TIMESTAMP NOT NULL,
+        "endDate" TIMESTAMP NOT NULL
+      )`
     );
   } catch {
     // ignore
