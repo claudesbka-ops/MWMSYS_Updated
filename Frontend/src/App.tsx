@@ -4,7 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { RoleProvider } from "@/contexts/RoleContext";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PanicAlertsProvider } from "@/contexts/PanicAlertsContext";
 import Chatbot from "@/components/Chatbot";
 import PanicNotifier from "@/components/PanicNotifier";
@@ -58,6 +58,12 @@ import RequireCompleteProfile from "@/components/RequireCompleteProfile";
 
 const queryClient = new QueryClient();
 
+function RootRedirect() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  return <Navigate to={user ? "/dashboard" : "/login"} replace />;
+}
+
 function AnimatedRoutes() {
   const location = useLocation();
 
@@ -72,7 +78,7 @@ function AnimatedRoutes() {
       >
         <Routes location={location}>
           <Route path="/complete-profile" element={<CompleteProfilePage />} />
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<RootRedirect />} />
           <Route path="/dashboard" element={
               <ProtectedRoute allow={["admin", "agency", "employer", "worker"]}>
               <Index />
