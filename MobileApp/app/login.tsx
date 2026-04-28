@@ -31,31 +31,7 @@ export default function LoginScreen() {
   const [showServer, setShowServer] = useState(false);
   const [serverUrl, setServerUrl] = useState(session.apiBaseUrl);
 
-  // ⚠️ DEV BYPASS: tapping Sign In drops you straight into the selected
-  // role's dashboard with a synthetic local-only JWT. No backend call.
-  // Remove this block (and restore the real `auth.login(...)` flow below)
-  // once signin is working end-to-end.
   const doLogin = async () => {
-    setBusy(true);
-    try {
-      const fakeUser = userName.trim() || `${role}-dev`;
-      const token = mintDevToken({
-        appRole: role,
-        roleId: role === "worker" ? 2 : role === "employer" ? 3 : 4,
-        userName: fakeUser,
-        userKey: fakeUser,
-        emailId: `${fakeUser}@dev.local`,
-      });
-      session.setToken(token);
-      router.replace("/(tabs)" as any);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // Real login (kept for when we re-enable it).
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _doRealLogin = async () => {
     const u = userName.trim();
     const p = password;
     const passport = passportNo.trim();
@@ -82,7 +58,20 @@ export default function LoginScreen() {
       session.setToken(res.access_token);
       router.replace("/(tabs)" as any);
     } catch (e: any) {
+      const status = Number(e?.status);
       const detail = e?.error ?? e?.message ?? "Unable to login";
+      // Backend throws { status: 403, error: "Email not verified for user <id>" }
+      // when the account exists but email is not yet verified.
+      if (status === 403 && typeof detail === "string" && /not verified/i.test(detail)) {
+        const qs = new URLSearchParams();
+        qs.set("userId", u);
+        Alert.alert(
+          "Verify your email",
+          "Please verify your email to continue. Redirecting to verification…",
+          [{ text: "OK", onPress: () => router.push((`/verify-email?${qs.toString()}`) as any) }]
+        );
+        return;
+      }
       const where = session.apiBaseUrl ? `\n\nServer: ${session.apiBaseUrl}` : "";
       Alert.alert("Login failed", `${detail}${where}`);
     } finally {
@@ -174,14 +163,11 @@ export default function LoginScreen() {
               )}
 
               <PrimaryButton
-                title={`✨ Continue as ${role}`}
+                title={`✨ Sign in as ${role}`}
                 loading={busy}
                 onPress={doLogin}
                 style={{ marginTop: 20 }}
               />
-              <Text style={styles.devHint}>
-                🛠️ Dev mode: tap above to enter the {role} dashboard (no auth).
-              </Text>
 
               <View style={styles.divider}>
                 <View style={styles.dividerLine} />
@@ -333,53 +319,4 @@ const styles = StyleSheet.create({
   footer: { marginTop: 26, textAlign: "center", fontSize: 11, color: "rgba(15,23,42,0.5)" },
   verifyLink: { fontSize: 12, fontWeight: "800", color: "#4f46e5" },
   serverToggle: { fontSize: 11, fontWeight: "700", color: "rgba(15,23,42,0.55)" },
-  devHint: { marginTop: 8, textAlign: "center", fontSize: 11, fontWeight: "700", color: "rgba(220,38,38,0.85)" },
 });
-
-// ---------- DEV-ONLY: synthetic JWT for the bypass login ----------
-// Mints a fake JWT (header.payload.sig) whose payload is decoded by
-// SessionContext to populate `claims.appRole`, `claims.userName`, etc.
-// The signature is junk; protected backend routes will 401, but that's
-// fine while we're just exploring screens.
-function mintDevToken(claims: {
-  appRole: "worker" | "employer" | "agency";
-  roleId: number;
-  userName: string;
-  userKey: string;
-  emailId: string;
-}): string {
-  const header = { alg: "none", typ: "JWT" };
-  const payload = {
-    ...claims,
-    userId: 0,
-    iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
-  };
-  return `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}.dev`;
-}
-
-function b64url(input: string): string {
-  // base64-encode, then make it URL-safe and strip padding.
-  const b64 = typeof (globalThis as any).btoa === "function"
-    ? (globalThis as any).btoa(unescape(encodeURIComponent(input)))
-    : base64Encode(input);
-  return b64.replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
-}
-
-function base64Encode(input: string): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  let out = "";
-  let i = 0;
-  const bytes = unescape(encodeURIComponent(input));
-  while (i < bytes.length) {
-    const c1 = bytes.charCodeAt(i++);
-    const c2 = i < bytes.length ? bytes.charCodeAt(i++) : NaN;
-    const c3 = i < bytes.length ? bytes.charCodeAt(i++) : NaN;
-    const e1 = c1 >> 2;
-    const e2 = ((c1 & 3) << 4) | ((isNaN(c2) ? 0 : c2) >> 4);
-    const e3 = isNaN(c2) ? 64 : (((c2 & 15) << 2) | ((isNaN(c3) ? 0 : c3) >> 6));
-    const e4 = isNaN(c3) ? 64 : (c3 & 63);
-    out += chars.charAt(e1) + chars.charAt(e2) + (e3 === 64 ? "=" : chars.charAt(e3)) + (e4 === 64 ? "=" : chars.charAt(e4));
-  }
-  return out;
-}
