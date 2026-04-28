@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -72,7 +72,12 @@ function AnimatedRoutes() {
       >
         <Routes location={location}>
           <Route path="/complete-profile" element={<CompleteProfilePage />} />
-          <Route path="/" element={<Index />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/dashboard" element={
+              <ProtectedRoute allow={["admin", "agency", "employer", "worker"]}>
+              <Index />
+            </ProtectedRoute>
+          } />
           <Route path="/blog" element={<BlogPage />} />
           <Route path="/blog/:slug" element={<BlogPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
