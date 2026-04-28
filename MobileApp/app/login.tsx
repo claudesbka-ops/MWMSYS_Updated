@@ -72,7 +72,7 @@ export default function LoginScreen() {
         );
         return;
       }
-      const where = session.apiBaseUrl ? `\n\nServer: ${session.apiBaseUrl}` : "";
+      const where = __DEV__ && session.apiBaseUrl ? `\n\nServer: ${session.apiBaseUrl}` : "";
       Alert.alert("Login failed", `${detail}${where}`);
     } finally {
       setBusy(false);
@@ -189,17 +189,19 @@ export default function LoginScreen() {
                 <Text style={styles.verifyLink}>✉️ Have a verification code? Verify email</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={() => setShowServer((v) => !v)}
-                disabled={busy}
-                style={{ alignSelf: "center", marginTop: 8, paddingVertical: 6 }}
-              >
-                <Text style={styles.serverToggle}>
-                  {showServer ? "Hide server URL" : `Server: ${session.apiBaseUrl}`}
-                </Text>
-              </TouchableOpacity>
+              {__DEV__ && (
+                <TouchableOpacity
+                  onPress={() => setShowServer((v) => !v)}
+                  disabled={busy}
+                  style={{ alignSelf: "center", marginTop: 8, paddingVertical: 6 }}
+                >
+                  <Text style={styles.serverToggle}>
+                    {showServer ? "Hide server URL" : `Server: ${session.apiBaseUrl}`}
+                  </Text>
+                </TouchableOpacity>
+              )}
 
-              {showServer && (
+              {__DEV__ && showServer && (
                 <>
                   <Text style={[styles.label, { marginTop: 6 }]}>Server URL</Text>
                   <ThemedTextInput

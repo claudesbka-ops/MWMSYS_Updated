@@ -21,13 +21,17 @@ export function useAuthService() {
 
       const base = resolveApiBaseUrl(session.apiBaseUrl);
       const url = base.replace(/\/+$/, "") + "/Api/token";
+      // IMPORTANT: React Native's `fetch` does not auto-serialize a
+      // URLSearchParams instance the way browsers do — on Android/iOS the
+      // body ends up empty and the server responds with
+      // "username and password are required". Always send the encoded string.
       const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
           Accept: "application/json",
         },
-        body,
+        body: body.toString(),
       });
 
       const data = (await res.json().catch(() => null)) as any;
