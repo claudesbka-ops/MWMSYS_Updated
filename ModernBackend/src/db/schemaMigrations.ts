@@ -343,16 +343,21 @@ export async function ensureRelationshipTablesExist(): Promise<void> {
  */
 export async function broadcastTableExists(): Promise<boolean> {
   try {
-    const rows = (await prisma.$queryRawUnsafe(
-      `SELECT to_regclass('public."Tbl_Broadcast_Message"') AS oid`
-    )) as Array<{ oid: any }>;
-    const oid = rows?.[0]?.oid;
-    return oid != null;
-  } catch {
+    // We check the information_schema directly. 
+    // This avoids the 'oid' and 'to_regclass' confusion.
+    const rows = (await prisma.$queryRawUnsafe(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_name = 'Tbl_Broadcast_Message'
+    `)) as any[];
+
+    return rows.length > 0;
+  } catch (error) {
+    console.error("Error checking broadcast table:", error);
     return false;
   }
 }
-
 /**
  * Runs every schema bootstrapper in parallel. Intended to be awaited once
  * during server startup before listening for connections. Individual
