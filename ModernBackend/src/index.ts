@@ -2614,7 +2614,8 @@ app.get("/Api/ProblemList", requireAuth, requireAuthority, async (req, res, next
   }
 });
 
-
+// Add this to see all active routes in your logs
+console.log("REGISTERED ROUTES:", app._router.stack.filter((r: any) => r.route).map((r: any) => r.route.path));
 app.use(errorHandler);
 
 const port = Number(process.env.PORT) || 3000;
