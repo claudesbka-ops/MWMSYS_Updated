@@ -723,6 +723,565 @@ export const blogPosts: BlogPost[] = [
       },
     ],
   },
+  {
+    slug: "recruitment-agency-licensing-act-246-malaysia",
+    title: "Recruitment Agency Licensing — Act 246 and the JTKSM PEA Licence",
+    description:
+      "How the Private Employment Agencies Act 1981 governs migrant worker recruitment in Malaysia — licence classes, fee caps, and employer due diligence.",
+    heroImage:
+      "https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=1600&q=80",
+    author: "MWMS Compliance Desk",
+    publishedAt: "2025-06-19",
+    readingMinutes: 7,
+    body: [
+      {
+        type: "p",
+        text: "Every agency that recruits migrant workers into Malaysia must hold a valid Private Employment Agency (PEA) licence under the Private Employment Agencies Act 1981 (Act 246). The Act was amended in 2017 and again in 2022 to align with ILO Convention 181 on private employment agencies and to harden the response to recruitment-fee abuses.",
+      },
+      { type: "h2", text: "The four PEA licence classes" },
+      {
+        type: "ul",
+        items: [
+          "Class A — recruitment of foreign workers from any approved source country",
+          "Class B — recruitment of Malaysian citizens for jobs in Malaysia",
+          "Class C — placement of Malaysian citizens in jobs abroad",
+          "Class D — placement of any worker (local or foreign) in domestic service",
+        ],
+      },
+      { type: "h2", text: "Fee caps that cannot be exceeded" },
+      {
+        type: "p",
+        text: "Schedule II of the 2017 amendment caps the placement fee a PEA may charge an employer at 25% of the worker's first-month wage. Charging the worker is now restricted to a tightly defined list of items — passport processing, medical screening, and standardised pre-departure training — capped at the equivalent of one month's basic wage. Anything else is recoverable as an unlawful recruitment fee.",
+      },
+      { type: "h2", text: "Employer due diligence checklist" },
+      {
+        type: "ul",
+        items: [
+          "Verify the PEA licence number on the JTKSM public register",
+          "Insist on a written placement contract with itemised fees",
+          "Refuse to accept any fee invoice issued to the worker",
+          "Cross-check the source-country sub-agent's accreditation",
+          "Document the recruitment chain end to end for ATIPSOM defence",
+        ],
+      },
+      { type: "h2", text: "What happens when an agency loses its licence" },
+      {
+        type: "p",
+        text: "Suspension or revocation freezes all in-flight recruitment files. Employers with workers mid-pipeline must transfer the file to a licensed agency within 30 days or risk losing the quota slot. The previous agency remains liable for refunds owed to workers regardless of its licence status.",
+      },
+      {
+        type: "quote",
+        text: "Recruitment is the single most fragile link in the migrant-worker compliance chain — the wrong agency can wipe out a decade of clean operations downstream.",
+        cite: "MWMS Compliance Desk",
+      },
+      { type: "h2", text: "How MWMS validates your agencies" },
+      {
+        type: "p",
+        text: "Every agency linked to your MWMS account carries its PEA licence number, expiry date, and inspection history on file. Renewal alerts mirror the PLKS cadence at 90, 60, and 30 days so an expired licence cannot quietly process a new worker.",
+      },
+    ],
+  },
+  {
+    slug: "foreign-worker-bank-accounts-malaysia",
+    title: "Bank Accounts for Foreign Workers — Why Cashless Wages Matter",
+    description:
+      "BNM's e-payroll directive, the practical steps to open a Malaysian bank account for a migrant worker, and how digital wages reduce dispute risk.",
+    heroImage:
+      "https://images.unsplash.com/photo-1556742502-ec7c0e9f34b1?auto=format&fit=crop&w=1600&q=80",
+    author: "MWMS Editorial",
+    publishedAt: "2025-07-04",
+    readingMinutes: 6,
+    body: [
+      {
+        type: "p",
+        text: "Bank Negara Malaysia's e-Payment Roadmap and the 2022 amendment to Section 25 of the Employment Act together make electronic wage payment the default for every employee in Malaysia, including migrant workers. Cash and cheque payments are now exception cases that require the worker's written consent and Director-General notification.",
+      },
+      { type: "h2", text: "Why cashless wages matter for compliance" },
+      {
+        type: "ul",
+        items: [
+          "Bank statements are admissible evidence of timely wage payment",
+          "Eliminates the most common forced-labour indicator — wage withholding",
+          "Removes the need for the employer to handle large cash floats",
+          "Allows workers to remit earnings home without informal channels",
+          "Creates an audit trail that brand customers expect by default",
+        ],
+      },
+      { type: "h2", text: "Documents required to open the account" },
+      {
+        type: "ul",
+        items: [
+          "Original passport with valid PLKS sticker",
+          "Employer's introduction letter on company letterhead",
+          "Proof of Malaysian residential address (employer accommodation letter accepted)",
+          "Source-country tax or national ID, where applicable",
+        ],
+      },
+      { type: "h2", text: "Banks that actively serve migrant workers" },
+      {
+        type: "p",
+        text: "Maybank, CIMB, Public Bank, and RHB run dedicated migrant-worker product lines with low minimum balances, multilingual mobile apps, and tie-ups with major source-country remittance corridors. Onboarding inside the employer's premises (group account opening) is widely available — banks send a relationship team for batches of 30 or more workers.",
+      },
+      { type: "h2", text: "When cash payment is still permitted" },
+      {
+        type: "p",
+        text: "An employer may pay in cash only after written agreement with the worker and notification to the JTKSM Director-General. Even then, a signed receipt for each pay cycle must be retained. The administrative cost of doing this lawfully usually outweighs the cost of opening a bank account.",
+      },
+      { type: "h2", text: "Digital wage flow inside MWMS" },
+      {
+        type: "p",
+        text: "MWMS Payroll exports a JomPay-compatible salary file every cycle and stores the bank-side acknowledgement against each worker's record. Salary disputes raised in the worker app cite the exact transaction reference, which dramatically shortens the JTKSM mediation timeline.",
+      },
+    ],
+  },
+  {
+    slug: "minimum-wage-orders-malaysia-sector-rates",
+    title: "Minimum Wage Orders — National and Sectoral Rates Explained",
+    description:
+      "How the National Wages Consultative Council Act 2011 sets the minimum wage, the 2025 RM 1,700 rate, and the sectoral floors employers cannot ignore.",
+    heroImage:
+      "https://images.unsplash.com/photo-1554224154-26032ffc0d07?auto=format&fit=crop&w=1600&q=80",
+    author: "MWMS Legal",
+    publishedAt: "2025-07-18",
+    readingMinutes: 6,
+    body: [
+      {
+        type: "p",
+        text: "Malaysia's national minimum wage is reset by the Minimum Wages Order (MWO) issued under the National Wages Consultative Council Act 2011. The 2024 MWO took effect on 1 February 2025 at RM 1,700 per month for employers with five or more employees, and applies in full to migrant workers.",
+      },
+      { type: "h2", text: "Headline rates for 2025" },
+      {
+        type: "ul",
+        items: [
+          "RM 1,700/month — employers with 5 or more employees",
+          "RM 1,500/month — employers with fewer than 5 employees (until 31 July 2025, then RM 1,700)",
+          "Hourly rate — RM 8.72 for the 5+ employee category",
+          "Daily rate — RM 65.38 for a 26-day month",
+        ],
+      },
+      { type: "h2", text: "Sectoral and shift-based variations" },
+      {
+        type: "p",
+        text: "Several sectors layer additional wage protections on top of the MWO. Plantation and security-services subsectors operate under collective wage agreements that exceed the national floor, and the Wages Council for shop assistants sets a separate retail rate. Where two rules apply, the higher rate prevails.",
+      },
+      { type: "h2", text: "Components that count toward the minimum wage" },
+      {
+        type: "ul",
+        items: [
+          "Basic wage — counts in full",
+          "Fixed monthly allowances (e.g. shift, attendance) — count only if guaranteed",
+          "Overtime — never counts toward the minimum",
+          "Service charge — never counts toward the minimum (separate distribution rule)",
+          "Productivity incentives — count only if codified in the contract",
+        ],
+      },
+      { type: "h2", text: "Penalties for non-compliance" },
+      {
+        type: "p",
+        text: "An underpayment is a strict-liability offence under Section 23 of Act 732. Each affected month per worker is a separate offence, and the maximum fine has risen to RM 10,000 per offence. Repeat offences double the fine and can attract a daily continuing penalty.",
+      },
+      { type: "h2", text: "How MWMS Payroll guards the floor" },
+      {
+        type: "p",
+        text: "Payroll inside MWMS rejects any net-of-allowance basic wage below the prevailing MWO. Sectoral overrides — plantation, security, shop — are configurable so multi-sector employers do not accidentally apply the wrong floor.",
+      },
+    ],
+  },
+  {
+    slug: "sexual-harassment-act-2022-employer-duties-malaysia",
+    title: "Anti-Sexual Harassment Act 2022 — What Employers Must Do",
+    description:
+      "Practical guide to the Anti-Sexual Harassment Act 2022, the new Tribunal, and the workplace policy duties imposed on every employer.",
+    heroImage:
+      "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&w=1600&q=80",
+    author: "MWMS Legal",
+    publishedAt: "2025-08-01",
+    readingMinutes: 7,
+    body: [
+      {
+        type: "p",
+        text: "The Anti-Sexual Harassment Act 2022 (Act 840) came into force in March 2024. It complements the existing Section 81A of the Employment Act and creates a dedicated Tribunal for Anti-Sexual Harassment that any worker — including a migrant worker — may approach without an employer-side process being exhausted first.",
+      },
+      { type: "h2", text: "Workplace policy obligations" },
+      {
+        type: "ul",
+        items: [
+          "Issue a written anti-sexual-harassment policy",
+          "Display the policy at every worksite in the languages spoken by workers",
+          "Run a mandatory induction covering definitions and reporting channels",
+          "Maintain a confidential reporting channel insulated from line management",
+          "Investigate every complaint within 60 days, with documented outcomes",
+        ],
+      },
+      { type: "h2", text: "What the Tribunal can order" },
+      {
+        type: "p",
+        text: "The Tribunal sits in regional centres and adjudicates on a balance-of-probabilities standard. It can order monetary compensation up to RM 250,000 per case, a written apology, and corrective action by the employer. Tribunal decisions are filed in the High Court and are enforceable like any civil judgment.",
+      },
+      { type: "h2", text: "Migrant workers — the language and access barrier" },
+      {
+        type: "p",
+        text: "Migrant workers are statistically over-represented as victims and under-represented as complainants. The 2022 Act explicitly removes barriers to access — translation services are free at the Tribunal, and complainants cannot be retaliated against by way of permit cancellation while a case is pending.",
+      },
+      {
+        type: "quote",
+        text: "A workplace that handles its first sexual-harassment complaint well rarely sees a second one — the response, not the policy, is what shifts the culture.",
+        cite: "MWMS Legal",
+      },
+      { type: "h2", text: "Reporting flow inside MWMS" },
+      {
+        type: "p",
+        text: "The Complaint module supports a confidential category that bypasses immediate line management and routes directly to the appointed officer. Multilingual templates and immutable timestamps mean the audit trail meets the Tribunal's evidentiary standard out of the box.",
+      },
+    ],
+  },
+  {
+    slug: "industrial-court-foreign-workers-malaysia",
+    title: "Industrial Court for Foreign Workers — Filing, Evidence, and Awards",
+    description:
+      "How the Industrial Relations Act 1967 protects migrant workers from unfair dismissal — the 60-day window, evidence prep, and typical awards.",
+    heroImage:
+      "https://images.unsplash.com/photo-1505664194779-8beaceb93744?auto=format&fit=crop&w=1600&q=80",
+    author: "MWMS Legal",
+    publishedAt: "2025-08-15",
+    readingMinutes: 7,
+    body: [
+      {
+        type: "p",
+        text: "The Industrial Relations Act 1967 (IRA) protects every employee from dismissal without just cause or excuse — and the Federal Court has consistently confirmed that this protection extends to foreign workers on PLKS. The 2020 amendments removed the Minister's gatekeeping role and gave direct access to the Industrial Court.",
+      },
+      { type: "h2", text: "The 60-day filing window" },
+      {
+        type: "p",
+        text: "A dismissed worker has 60 days from the dismissal date to lodge a representation under Section 20 of the IRA at the nearest Department of Industrial Relations (JPP) office. Missing the window is fatal — extensions are not granted on hardship grounds.",
+      },
+      { type: "h2", text: "Evidence the Court expects" },
+      {
+        type: "ul",
+        items: [
+          "Show-cause letters and written responses",
+          "Domestic inquiry minutes, if held",
+          "Attendance and overtime records covering the disputed period",
+          "Pay slips and any final settlement document",
+          "Termination letter stating the grounds",
+        ],
+      },
+      { type: "h2", text: "Typical awards in 2025" },
+      {
+        type: "ul",
+        items: [
+          "Reinstatement with back wages capped at 24 months",
+          "Compensation in lieu of reinstatement at one month's wage per year of service",
+          "Costs against the employer in egregious cases",
+          "Mandatory wage settlement before repatriation in foreign-worker cases",
+        ],
+      },
+      { type: "h2", text: "Practical points unique to migrant workers" },
+      {
+        type: "p",
+        text: "Repatriation does not extinguish the claim — Industrial Court hearings can proceed by video link from the source country. Permit cancellation while a representation is pending is treated as victimisation under Section 20 and weakens the employer's defence considerably.",
+      },
+      { type: "h2", text: "What MWMS preserves automatically" },
+      {
+        type: "p",
+        text: "Every disciplinary letter, attendance log, and payroll record sits behind an immutable timestamp inside MWMS. When an unfair-dismissal case lands, the entire 36-month evidence pack is exportable as a signed PDF and meets the Industrial Court's evidentiary standard.",
+      },
+    ],
+  },
+  {
+    slug: "jtksm-inspection-preparation-malaysia",
+    title: "JTKSM Inspections — How to Prepare and Pass First Time",
+    description:
+      "Inside view of a JTKSM labour inspection — the documents officers ask for, the typical findings, and how to get a clean closure letter.",
+    heroImage:
+      "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1600&q=80",
+    author: "MWMS Compliance Desk",
+    publishedAt: "2025-08-29",
+    readingMinutes: 7,
+    body: [
+      {
+        type: "p",
+        text: "A JTKSM (Department of Labour) inspection is the single most consequential compliance event for any employer of migrant workers. Inspections are mostly unannounced, may last from a few hours to a full week, and end with a written closure letter that becomes part of the employer's permanent record.",
+      },
+      { type: "h2", text: "What inspectors typically ask for" },
+      {
+        type: "ul",
+        items: [
+          "Worker register with passport, PLKS, and FOMEMA details",
+          "Time records covering the previous 36 months",
+          "Wage register with payslip copies and bank acknowledgements",
+          "Employment contracts in the worker's language",
+          "Accommodation Certificate (CFA) and dormitory register",
+          "Levy receipts and SOCSO contribution records",
+          "Recruitment file — agency contract, demand letter, source-country docs",
+        ],
+      },
+      { type: "h2", text: "The five most common adverse findings" },
+      {
+        type: "ul",
+        items: [
+          "Wages paid late or below the prevailing MWO",
+          "Overtime exceeding the 104-hour monthly cap",
+          "Levy or recruitment fee deducted from worker wages",
+          "Accommodation occupancy above the four-per-room ceiling",
+          "Permit holders working in a sector different from the approved one",
+        ],
+      },
+      { type: "h2", text: "How to behave during the visit" },
+      {
+        type: "p",
+        text: "Cooperation is mandatory under Section 65 of the Employment Act. Refusing access, withholding documents, or coaching workers during the inspection elevates the case from administrative to criminal. A nominated compliance officer should accompany inspectors throughout, take contemporaneous notes, and request the inspector's identification card before disclosing sensitive records.",
+      },
+      { type: "h2", text: "Closing the file cleanly" },
+      {
+        type: "p",
+        text: "If findings are issued, the remediation notice gives 30 to 90 days. Submitting evidence of correction promptly — and asking for a re-inspection rather than waiting for the next cycle — is the fastest route to a clean closure letter that you can file alongside next year's quota application.",
+      },
+      {
+        type: "quote",
+        text: "Inspections are won at the filing cabinet, not at the front gate — the day-to-day discipline is what saves you.",
+        cite: "MWMS Compliance Desk",
+      },
+      { type: "h2", text: "Inspection-ready inside MWMS" },
+      {
+        type: "p",
+        text: "Selecting an inspection date in MWMS auto-generates the seven core registers JTKSM requests. Workers, contracts, attendance, payroll, levy, SOCSO, and accommodation are exported in a single bundle that mirrors the JTKSM inspection checklist row for row.",
+      },
+    ],
+  },
+  {
+    slug: "source-country-mou-bangladesh-indonesia-nepal",
+    title: "Source-Country MoUs — Bangladesh, Indonesia, Nepal",
+    description:
+      "What the bilateral MoUs governing recruitment from Bangladesh, Indonesia, and Nepal mean in practice — wage floors, fee responsibility, and grievance routes.",
+    heroImage:
+      "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1600&q=80",
+    author: "MWMS Editorial",
+    publishedAt: "2025-09-12",
+    readingMinutes: 8,
+    body: [
+      {
+        type: "p",
+        text: "Recruitment from Malaysia's largest source countries is structured by Government-to-Government MoUs that sit on top of domestic law. The Bangladesh MoU (renewed 2021), the Indonesia MoU (renewed 2022 with a separate Domestic Worker Protocol in 2023), and the Nepal MoU (renewed 2018, paused 2023, resumed 2024) each impose specific obligations on Malaysian employers.",
+      },
+      { type: "h2", text: "Common features across all three MoUs" },
+      {
+        type: "ul",
+        items: [
+          "Recruitment fees are payable by the Malaysian employer, not the worker",
+          "Standardised contracts published by the source-country labour ministry",
+          "Mandatory pre-departure orientation in the worker's language",
+          "Source-country insurance to cover repatriation and welfare in Malaysia",
+          "Bilateral grievance committees that meet at least annually",
+        ],
+      },
+      { type: "h3", text: "Bangladesh — the all-cost-to-employer principle" },
+      {
+        type: "p",
+        text: "Under the 2021 MoU the employer covers visa, return airfare, FOMEMA, levy, insurance, and PLKS — explicitly with no recovery from the worker. The Bangladesh High Commission runs an attestation step on the demand letter that must precede VDR issuance.",
+      },
+      { type: "h3", text: "Indonesia — the One-Channel System" },
+      {
+        type: "p",
+        text: "All Indonesian worker placements flow through SISKOP2MI, the One-Channel system maintained by BP2MI. Employers cannot bypass the system even when working with a private Malaysian agency. The Domestic Worker Protocol caps monthly working hours and enforces a separate minimum wage of RM 1,500 plus food and lodging.",
+      },
+      { type: "h3", text: "Nepal — the post-2024 e-Visa flow" },
+      {
+        type: "p",
+        text: "After the 2023 pause, the resumed flow uses a fully digital e-visa with end-to-end traceability. Recruitment fees from the worker side are zero — the Nepal Foreign Employment Board enforces the policy strictly and has revoked agency licences for documented breaches.",
+      },
+      { type: "h2", text: "Where the source-country embassy fits in" },
+      {
+        type: "p",
+        text: "All three embassies operate active labour-attaché desks in Kuala Lumpur. They handle attestation, complaint reception, and welfare visits. Employers running large workforces should map the embassy contact list as a routine part of HR operations.",
+      },
+      { type: "h2", text: "Embassy linkage in MWMS" },
+      {
+        type: "p",
+        text: "MWMS supports source-country and destination-country embassy logins. Workers raising a complaint can flag visibility to their embassy, who then sees the dispute thread, evidence, and employer responses without needing the employer's permission.",
+      },
+    ],
+  },
+  {
+    slug: "employer-of-record-vs-direct-hiring-malaysia",
+    title: "Employer of Record vs Direct Hiring in Malaysia — When Each Wins",
+    description:
+      "How EOR arrangements work for foreign workers in Malaysia, the legal limits, and a side-by-side comparison with direct hiring on the employer's quota.",
+    heroImage:
+      "https://images.unsplash.com/photo-1521737852567-6949f3f9f2b5?auto=format&fit=crop&w=1600&q=80",
+    author: "MWMS Editorial",
+    publishedAt: "2025-09-26",
+    readingMinutes: 7,
+    body: [
+      {
+        type: "p",
+        text: "The Employer of Record (EOR) model — where a third party legally employs the worker and supplies labour to a host company — has grown rapidly in Malaysia, particularly in services and project-based construction. The model is lawful, but its boundary with the prohibited 'contractor for labour' arrangement under the Employment Act is narrower than most operators realise.",
+      },
+      { type: "h2", text: "What EOR is and is not" },
+      {
+        type: "p",
+        text: "EOR is a tripartite arrangement: the EOR holds the PLKS quota, signs the employment contract, processes payroll, and pays statutory contributions. The host company directs day-to-day work. EOR is not labour outsourcing — the host cannot exercise authority over wage rates or working hours, which remain the EOR's responsibility.",
+      },
+      { type: "h2", text: "Direct hiring at a glance" },
+      {
+        type: "ul",
+        items: [
+          "Quota approval and levy paid by the hiring company",
+          "Worker is legally employed by the company that benefits from the work",
+          "Single-employer audit trail — simpler for ATIPSOM defence",
+          "All compliance burden sits with the hiring company",
+        ],
+      },
+      { type: "h2", text: "EOR at a glance" },
+      {
+        type: "ul",
+        items: [
+          "EOR holds the quota and the contractual employer relationship",
+          "Host company pays a service fee that bundles wage, levy, and margin",
+          "Faster to scale up and down than direct hiring",
+          "Audit chain is longer — host must still document working conditions",
+        ],
+      },
+      { type: "h2", text: "Where EOR most often goes wrong" },
+      {
+        type: "ul",
+        items: [
+          "Host company sets disciplinary policy and dismisses workers — converts the EOR into a sham",
+          "EOR fails to remit SOCSO or levy on time and the host inherits enforcement risk",
+          "Workers report to the host's HR for grievances — fragments the audit trail",
+          "Source-country fees pushed onto the worker by the EOR's sub-agent",
+        ],
+      },
+      { type: "h2", text: "Picking the right model" },
+      {
+        type: "p",
+        text: "EOR wins for short-duration projects, multi-state operations, and businesses with no in-house migrant-worker compliance capability. Direct hiring wins for stable, single-site operations with HR maturity and a long-term workforce. A hybrid — direct hiring for the core, EOR for ramp — is increasingly common.",
+      },
+      { type: "h2", text: "MWMS for both models" },
+      {
+        type: "p",
+        text: "Agencies operating as EORs use MWMS in agency mode and link to multiple employer accounts. Direct-hire companies use the employer mode. In both cases the worker app, attendance, and payroll experience are identical — the audit trail follows the worker, not the contracting party.",
+      },
+    ],
+  },
+  {
+    slug: "osha-1994-foreign-worker-compliance-malaysia",
+    title: "OSHA 1994 — Foreign Worker Safety Compliance for Malaysian Employers",
+    description:
+      "What the 2022 amendments to the Occupational Safety and Health Act 1994 mean for migrant workforces — risk assessments, training, and reporting duties.",
+    heroImage:
+      "https://images.unsplash.com/photo-1581094288338-2314dddb7ece?auto=format&fit=crop&w=1600&q=80",
+    author: "MWMS Compliance Desk",
+    publishedAt: "2025-10-10",
+    readingMinutes: 7,
+    body: [
+      {
+        type: "p",
+        text: "The 2022 amendments to the Occupational Safety and Health Act 1994 (OSHA) — fully in force from June 2024 — extend coverage to every workplace in Malaysia, including those previously out of scope, and apply equally to citizens and migrant workers. The amendments raise penalties tenfold and introduce a duty of care that is now actionable in tort.",
+      },
+      { type: "h2", text: "Headline duties of every employer" },
+      {
+        type: "ul",
+        items: [
+          "Conduct a written hazard identification, risk assessment, and risk control (HIRARC) for every task",
+          "Appoint an Occupational Safety and Health Coordinator (OSHC) at any workplace with five or more workers",
+          "Provide and document personal protective equipment (PPE) free of charge",
+          "Run safety inductions in the worker's language within the first week",
+          "Maintain a nearest-clinic and nearest-hospital chart at every worksite",
+        ],
+      },
+      { type: "h2", text: "The new duty of care to non-employees" },
+      {
+        type: "p",
+        text: "The 2022 amendment imports a UK-style duty of care to anyone affected by the employer's operations — sub-contractors, visitors, and members of the public. Construction principals who used to push safety obligations down to sub-contractors are now directly responsible if those sub-contractors employ migrant workers exposed to harm.",
+      },
+      { type: "h2", text: "Reporting obligations after an incident" },
+      {
+        type: "ul",
+        items: [
+          "Death or serious bodily injury — report to DOSH within 7 days using JKKP 6",
+          "Dangerous occurrence (e.g. crane collapse) — report within 7 days even without injury",
+          "Occupational disease — report within 7 days of medical confirmation",
+          "Maintain an Accident Book on site for the previous 5 years",
+        ],
+      },
+      { type: "h2", text: "Penalties under the new tariff" },
+      {
+        type: "p",
+        text: "Maximum corporate fines have risen to RM 500,000 per offence with 2 years' imprisonment for officers. Repeat offences double the fine. DOSH may also issue a Prohibition Notice that halts work on the spot — the commercial cost of even a 24-hour stoppage now exceeds the historical fine in most projects.",
+      },
+      { type: "h2", text: "Safety logging in MWMS" },
+      {
+        type: "p",
+        text: "MWMS captures HIRARC sign-offs, PPE issue records, induction completion, and incident reports against each worker and worksite. JKKP-format exports are generated automatically when a reportable incident is logged, cutting the post-incident administrative burden by hours.",
+      },
+    ],
+  },
+  {
+    slug: "digitising-hr-migrant-workforces-roi-audit",
+    title: "Digitising HR for Migrant Workforces — ROI and Audit Readiness",
+    description:
+      "Why migrant-employer HR is moving from spreadsheets to platforms — and the measurable returns in compliance, audit response time, and worker retention.",
+    heroImage:
+      "https://images.unsplash.com/photo-1551836022-b06985bceb24?auto=format&fit=crop&w=1600&q=80",
+    author: "MWMS Editorial",
+    publishedAt: "2025-10-24",
+    readingMinutes: 6,
+    body: [
+      {
+        type: "p",
+        text: "Spreadsheet-based HR scales to roughly 50 migrant workers before the cracks show. Beyond that, expiry tracking, payroll variance, and audit-pack production become full-time jobs that absorb the very HR capacity meant to drive the business. Digitising HR is no longer an aspiration — it is a precondition for staying compliant at scale.",
+      },
+      { type: "h2", text: "Where digital platforms pay back" },
+      {
+        type: "ul",
+        items: [
+          "Permit and FOMEMA expiry alerts at 90/60/30 days — eliminates lapsed-permit fines",
+          "Single source of truth for worker, employer, and agency views",
+          "Payroll variance reports that catch underpayment before JTKSM does",
+          "Audit packs assembled in minutes instead of days",
+          "Worker-facing complaint and dispute channels that meet ATIPSOM evidentiary standards",
+        ],
+      },
+      { type: "h2", text: "Typical 12-month ROI in 2025" },
+      {
+        type: "p",
+        text: "Across MWMS deployments in manufacturing and services, the recurring savings track three drivers: avoided permit-lapse fines (averaging RM 18,000 per 100-worker site annually), audit-prep time reduction (from 6 person-days to 1 person-day per audit), and reduced worker turnover from clearer wage and grievance handling (typically 8 to 12 percentage points).",
+      },
+      { type: "h2", text: "What auditors now expect to see digitally" },
+      {
+        type: "ul",
+        items: [
+          "36 months of attendance records exportable in under 10 minutes",
+          "Wage payment proof with bank-side acknowledgement against each pay cycle",
+          "Document-return logs at end of contract with worker e-signature",
+          "Incident and complaint history per worker and per worksite",
+          "Accommodation occupancy snapshots for any historical date",
+        ],
+      },
+      { type: "h2", text: "What to look for in a platform" },
+      {
+        type: "ul",
+        items: [
+          "Multilingual worker app — English plus the four core source-country languages",
+          "Linkages between agency, employer, embassy, and labour-department roles",
+          "Immutable timestamps on every transaction",
+          "Offline-tolerant punch-in for remote sites and dormitories",
+          "Single-click export packages mirroring JTKSM, DOSH, and brand-audit checklists",
+        ],
+      },
+      {
+        type: "quote",
+        text: "The platforms that win the next decade will be the ones that make compliance the cheapest path through the day, not a separate workstream bolted onto operations.",
+        cite: "MWMS Editorial",
+      },
+      { type: "h2", text: "Getting started with MWMS" },
+      {
+        type: "p",
+        text: "Onboarding a 100-worker site to MWMS typically takes ten working days — passport and PLKS data import, attendance device pairing, and bank-payroll integration are the main milestones. Worker app rollout follows in week two with multilingual induction sessions delivered through the app itself.",
+      },
+    ],
+  },
 ];
 
 export function findBlogPost(slug: string): BlogPost | undefined {
