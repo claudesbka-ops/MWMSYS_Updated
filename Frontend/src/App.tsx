@@ -49,6 +49,7 @@ import NotFound from "./pages/NotFound.tsx";
 import AdminDashboard from "./pages/AdminDashboard.tsx";
 import AttestationPage from "./pages/AttestationPage.tsx";
 import LiveMapPage from "./pages/LiveMapPage.tsx";
+import AlertDetailPage from "./pages/AlertDetailPage.tsx";
 import BlogPage from "./pages/BlogPage.tsx";
 import VerifyEmailPage from "./pages/VerifyEmailPage.tsx";
 import AccountPage from "./pages/AccountPage.tsx";
@@ -115,6 +116,14 @@ function AnimatedRoutes() {
             element={
               <ProtectedRoute allow={["admin", "agency", "employer", "embassy_source", "embassy_destination", "labour"]}>
                 <LiveMapPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/map"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer", "embassy_source", "embassy_destination", "labour"]}>
+                <AlertDetailPage />
               </ProtectedRoute>
             }
           />
