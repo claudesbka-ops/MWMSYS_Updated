@@ -968,17 +968,40 @@ app.get("/Api/Worker/Documents", auth_1.requireAuth, async (req, res, next) => {
         const row = await db_1.prisma.tbl_Worker_Attachments.findFirst({
             where: { Worker_Id: workerId },
         });
+        await (0, schemaMigrations_1.ensureAttestationTableExists)();
+        const attestations = (await db_1.prisma.$queryRawUnsafe(`SELECT "AttestationId", "DocumentType", "DocumentPath", "Status", "AdminRemarks", "Created_On", "Updated_On"
+         FROM "Tbl_Attestation"
+        WHERE "Worker_Id" = $1
+        ORDER BY "AttestationId" DESC`, workerId));
+        const latestAttestationByType = new Map();
+        for (const a of attestations ?? []) {
+            const key = (a.DocumentType ?? "").toString().trim().toLowerCase();
+            if (key && !latestAttestationByType.has(key))
+                latestAttestationByType.set(key, a);
+        }
         const docs = [
             { type: "passport", name: "Passport Copy", path: row?.Passport_Copy ?? null, filename: row?.Passport_Copy_Filename ?? null },
             { type: "permit", name: "Work Permit", path: row?.Permit_Copy ?? null, filename: row?.Permit_Copy_Filename ?? null },
             { type: "insurance", name: "Insurance Policy", path: row?.Insurance_Policy ?? null, filename: row?.Insurance_Policy_Filename ?? null },
             { type: "contract", name: "Employment Contract", path: row?.Employment_Contract ?? null, filename: row?.Employment_Contract_Filename ?? null },
+            { type: "medical", name: "Medical", path: null, filename: null },
             { type: "demand_letter", name: "Demand Letter", path: row?.Demand_Letter ?? null, filename: row?.Demand_Letter_Filename ?? null },
         ].map((d) => {
             const p = d.path != null ? String(d.path) : "";
             const isUrl = p.startsWith("http://") || p.startsWith("https://") || p.startsWith("/uploads/");
             const url = p ? (isUrl ? (p.startsWith("/uploads/") ? `${req.protocol}://${req.get("host")}${p}` : p) : "") : "";
-            return { ...d, url, hasFile: !!url };
+            const attestation = latestAttestationByType.get(d.type);
+            return {
+                ...d,
+                url,
+                hasFile: !!url || !!attestation,
+                attestationId: attestation?.AttestationId ?? null,
+                hasAttestationDocument: !!(attestation?.DocumentPath && String(attestation.DocumentPath).trim()),
+                attestationStatus: attestation?.Status ?? null,
+                adminRemarks: attestation?.AdminRemarks ?? null,
+                submittedOn: attestation?.Created_On ?? null,
+                verifiedOn: attestation?.Updated_On ?? null,
+            };
         });
         return res.json({ workerId, documents: docs });
     }

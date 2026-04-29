@@ -45,11 +45,17 @@ export type WorkerProfileResponse = {
 };
 
 export type WorkerDocumentRow = {
-  type: "passport" | "permit" | "insurance" | "contract" | "demand_letter";
+  type: "passport" | "permit" | "insurance" | "contract" | "medical" | "demand_letter";
   name: string;
   filename: string | null;
   url: string;
   hasFile: boolean;
+  attestationId?: number | null;
+  hasAttestationDocument?: boolean;
+  attestationStatus?: string | null;
+  adminRemarks?: string | null;
+  submittedOn?: string | null;
+  verifiedOn?: string | null;
 };
 
 export async function getWorkerProfile(workerId: string): Promise<WorkerProfileResponse> {
@@ -59,6 +65,11 @@ export async function getWorkerProfile(workerId: string): Promise<WorkerProfileR
 
 export async function getWorkerDocuments(workerId: string): Promise<{ workerId: string; documents: WorkerDocumentRow[] }> {
   const res = await apiClient.get(`/Api/HRMS/Workers/${encodeURIComponent(workerId)}/Documents`);
+  return res.data as { workerId: string; documents: WorkerDocumentRow[] };
+}
+
+export async function getMyWorkerDocuments(): Promise<{ workerId: string; documents: WorkerDocumentRow[] }> {
+  const res = await apiClient.get("/Api/Worker/Documents");
   return res.data as { workerId: string; documents: WorkerDocumentRow[] };
 }
 

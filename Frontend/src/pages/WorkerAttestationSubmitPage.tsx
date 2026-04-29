@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -21,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { submitAttestation, type AttestationSubmitResponse } from "@/services/attestationService";
+import { getMyWorkerDocuments, type WorkerDocumentRow } from "@/services/workerService";
 
 const DOC_TYPES: Array<{ value: string; label: string }> = [
   { value: "passport", label: "Passport" },
@@ -48,14 +50,30 @@ function formatExpiry(value: string | null | undefined): string {
   return d.toLocaleDateString();
 }
 
+function statusBadgeClass(status: string | null | undefined): string {
+  const s = (status ?? "").toString().toLowerCase();
+  if (s === "approved") return "bg-success/10 text-success border-success/30";
+  if (s === "rejected") return "bg-destructive/10 text-destructive border-destructive/30";
+  if (s === "submitted" || s === "in review") return "bg-warning/10 text-warning border-warning/30";
+  return "bg-muted text-muted-foreground border-border/60";
+}
+
 export default function WorkerAttestationSubmitPage() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [docType, setDocType] = useState<string>("passport");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<AttestationSubmitResponse | null>(null);
+
+  const { data: docsRes, isLoading: docsLoading } = useQuery({
+    queryKey: ["my_worker_documents"],
+    queryFn: getMyWorkerDocuments,
+  });
+
+  const documents = (docsRes?.documents ?? []) as WorkerDocumentRow[];
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -83,6 +101,7 @@ export default function WorkerAttestationSubmitPage() {
     try {
       const res = await submitAttestation({ file, documentType: docType });
       setResult(res);
+      await qc.invalidateQueries({ queryKey: ["my_worker_documents"] });
       toast.success("Document uploaded for review");
     } catch (err: any) {
       toast.error(err?.response?.data?.error ?? "Upload failed");
@@ -282,6 +301,54 @@ export default function WorkerAttestationSubmitPage() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="mt-6 bg-card rounded-2xl border border-border/60 p-6">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-sm font-bold text-foreground">My Document Checklist</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Track uploaded, submitted, and admin-approved document status.
+            </p>
+          </div>
+        </div>
+
+        {docsLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <div key={n} className="h-24 rounded-xl bg-muted/40 animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {documents.map((d) => {
+              const status = d.attestationStatus ?? (d.hasFile ? "Uploaded" : "Missing");
+              return (
+                <div key={d.type} className="rounded-xl border border-border/50 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{d.name}</p>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        {d.filename ?? (d.attestationStatus ? "Submitted for verification" : "No file uploaded")}
+                      </p>
+                    </div>
+                    <span className={`shrink-0 px-2.5 py-1 rounded-lg border text-[11px] font-semibold ${statusBadgeClass(status)}`}>
+                      {status}
+                    </span>
+                  </div>
+
+                  {(d.submittedOn || d.verifiedOn || d.adminRemarks) && (
+                    <div className="mt-3 pt-3 border-t border-border/40 space-y-1 text-xs text-muted-foreground">
+                      {d.submittedOn && <p>Submitted: {new Date(String(d.submittedOn)).toLocaleDateString()}</p>}
+                      {d.verifiedOn && <p>Updated: {new Date(String(d.verifiedOn)).toLocaleDateString()}</p>}
+                      {d.adminRemarks && <p>Remarks: {d.adminRemarks}</p>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

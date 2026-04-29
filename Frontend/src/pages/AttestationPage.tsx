@@ -257,9 +257,6 @@ export default function AttestationPage() {
         )}
       </div>
 
-      <div className="mt-6 text-[11px] text-muted-foreground">
-        Note: If no requests exist yet, insert a few rows into <code>Tbl_Attestation</code> for testing.
-      </div>
     </DashboardLayout>
   );
 }
