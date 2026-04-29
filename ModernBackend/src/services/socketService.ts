@@ -91,8 +91,16 @@ export function initSocket(httpServer: http.Server): Server {
         socket.join("embassy_destination");
         if (Number.isFinite(countryCode)) socket.join(`nationality:${countryCode}`);
       }
-    } catch (e) {
-      console.warn("socket auth rejected", e);
+    } catch (e: any) {
+      // Don't crash the connection — surface a structured error to the client
+      // so it can prompt the user to log in again instead of silently failing.
+      const isExpired = e?.name === "TokenExpiredError";
+      if (isExpired) {
+        socket.emit("auth_error", { error: "token_expired" });
+      } else {
+        socket.emit("auth_error", { error: "invalid_token" });
+        console.warn("socket auth rejected", e?.message ?? e);
+      }
     }
   });
 

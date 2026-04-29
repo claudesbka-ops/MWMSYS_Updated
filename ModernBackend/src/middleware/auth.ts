@@ -17,7 +17,7 @@ export function signToken(claims: JwtClaims): string {
     throw new Error("JWT_SECRET is not set");
   }
 
-  return jwt.sign(claims, secret, { expiresIn: "1d" });
+  return jwt.sign(claims, secret, { expiresIn: "7d" });
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {

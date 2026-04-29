@@ -13,7 +13,7 @@ function signToken(claims) {
     if (!secret) {
         throw new Error("JWT_SECRET is not set");
     }
-    return jsonwebtoken_1.default.sign(claims, secret, { expiresIn: "1d" });
+    return jsonwebtoken_1.default.sign(claims, secret, { expiresIn: "7d" });
 }
 function requireAuth(req, res, next) {
     const header = req.header("authorization") || req.header("Authorization");

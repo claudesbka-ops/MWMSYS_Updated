@@ -94,7 +94,16 @@ function initSocket(httpServer) {
             }
         }
         catch (e) {
-            console.warn("socket auth rejected", e);
+            // Don't crash the connection — surface a structured error to the client
+            // so it can prompt the user to log in again instead of silently failing.
+            const isExpired = e?.name === "TokenExpiredError";
+            if (isExpired) {
+                socket.emit("auth_error", { error: "token_expired" });
+            }
+            else {
+                socket.emit("auth_error", { error: "invalid_token" });
+                console.warn("socket auth rejected", e?.message ?? e);
+            }
         }
     });
     ioInstance = io;
