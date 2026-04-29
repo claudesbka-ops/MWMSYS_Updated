@@ -105,8 +105,11 @@ export default function AttestationPage() {
                   <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">#</th>
                   <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Worker</th>
                   <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Passport</th>
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Document</th>
+                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Doc Type</th>
                   <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">AI</th>
+                  {isAdmin && (
+                    <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Uploaded File</th>
+                  )}
                   <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Status</th>
                   <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Remarks</th>
                   {isAdmin && (
@@ -152,6 +155,19 @@ export default function AttestationPage() {
                             <span className="text-[11px] text-muted-foreground">—</span>
                           )}
                         </td>
+                        {isAdmin && (
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              onClick={() => viewDocument(id)}
+                              disabled={!r.hasDocument}
+                              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/15 transition-colors disabled:opacity-40"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              View Document
+                            </button>
+                          </td>
+                        )}
                         <td className="px-4 py-3">
                           <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${statusBadge(s)}`}>{s}</span>
                         </td>
@@ -171,14 +187,6 @@ export default function AttestationPage() {
                         {isAdmin && (
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => viewDocument(id)}
-                                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-muted text-foreground text-xs font-semibold hover:bg-muted/80 transition-colors"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                                View
-                              </button>
                               <button
                                 className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-success/10 text-success text-xs font-semibold hover:bg-success/15 transition-colors disabled:opacity-40"
                                 disabled={!canAct || isBusy}
@@ -201,7 +209,7 @@ export default function AttestationPage() {
                       </tr>
                       {isOpen && hasAi && (
                         <tr className="bg-muted/10">
-                          <td colSpan={isAdmin ? 8 : 7} className="px-4 py-4">
+                          <td colSpan={isAdmin ? 9 : 7} className="px-4 py-4">
                             <div className="rounded-xl border border-border/60 bg-card p-4">
                               <div className="flex items-center gap-2 mb-3">
                                 <Sparkles className="w-4 h-4 text-primary" />

@@ -6,6 +6,7 @@ export type AttestationRow = {
   Passport_Number?: string | null;
   DocumentType?: string | null;
   DocumentPath?: string | null;
+  hasDocument?: boolean;
   Status: string;
   AdminRemarks?: string | null;
   Created_On?: string | null;
