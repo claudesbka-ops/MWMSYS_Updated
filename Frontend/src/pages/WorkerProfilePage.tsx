@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { deleteWorkerDocument, getWorkerDocuments, getWorkerProfile, uploadWorkerDocument, type WorkerDocumentRow } from "@/services/workerService";
+import { deleteWorkerDocument, getWorkerDocuments, getWorkerProfile, openAttestationDocument, uploadWorkerDocument, type WorkerDocumentRow } from "@/services/workerService";
 
 export default function WorkerProfilePage() {
   const { workerId } = useParams();
@@ -166,7 +166,11 @@ export default function WorkerProfilePage() {
                     <div className="text-xs text-muted-foreground truncate">{d.filename ?? "—"}</div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {d.hasFile ? (
+                    {d.hasAttestationDocument && d.attestationId ? (
+                      <Button variant="outline" size="sm" onClick={() => openAttestationDocument(Number(d.attestationId))}>
+                        View
+                      </Button>
+                    ) : d.hasFile && d.url ? (
                       <a
                         href={d.url}
                         target="_blank"

@@ -73,6 +73,13 @@ export async function getMyWorkerDocuments(): Promise<{ workerId: string; docume
   return res.data as { workerId: string; documents: WorkerDocumentRow[] };
 }
 
+export async function openAttestationDocument(attestationId: number): Promise<void> {
+  const res = await apiClient.get(`/Api/Attestation/${attestationId}/Document`, { responseType: "blob" });
+  const url = URL.createObjectURL(res.data as Blob);
+  window.open(url, "_blank", "noopener,noreferrer");
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 export async function uploadWorkerDocument(params: { workerId: string; docType: WorkerDocumentRow["type"]; file: File }): Promise<any> {
   const form = new FormData();
   form.append("docType", params.docType);

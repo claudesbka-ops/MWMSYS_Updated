@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { submitAttestation, type AttestationSubmitResponse } from "@/services/attestationService";
-import { getMyWorkerDocuments, type WorkerDocumentRow } from "@/services/workerService";
+import { getMyWorkerDocuments, openAttestationDocument, type WorkerDocumentRow } from "@/services/workerService";
 
 const DOC_TYPES: Array<{ value: string; label: string }> = [
   { value: "passport", label: "Passport" },
@@ -323,6 +323,7 @@ export default function WorkerAttestationSubmitPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {documents.map((d) => {
               const status = d.attestationStatus ?? (d.hasFile ? "Uploaded" : "Missing");
+              const canOpen = !!d.attestationId && !!d.hasAttestationDocument;
               return (
                 <div key={d.type} className="rounded-xl border border-border/50 p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -336,6 +337,18 @@ export default function WorkerAttestationSubmitPage() {
                       {status}
                     </span>
                   </div>
+
+                  {canOpen && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3 w-full"
+                      onClick={() => openAttestationDocument(Number(d.attestationId))}
+                    >
+                      Open Document
+                    </Button>
+                  )}
 
                   {(d.submittedOn || d.verifiedOn || d.adminRemarks) && (
                     <div className="mt-3 pt-3 border-t border-border/40 space-y-1 text-xs text-muted-foreground">
