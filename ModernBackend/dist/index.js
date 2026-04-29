@@ -928,7 +928,7 @@ app.get("/Api/Attestation/:id/Document", auth_1.requireAuth, async (req, res, ne
         return next(e);
     }
 });
-app.post("/Api/Attestation/Approve", auth_1.requireAuth, (0, auth_1.checkRole)([1, 4, 5, 6, 7]), async (req, res, next) => {
+app.post("/Api/Attestation/Approve", auth_1.requireAuth, (0, auth_1.checkRole)([1]), async (req, res, next) => {
     const id = Number(req.body?.id ?? 0);
     const remarks = (req.body?.remarks ?? "").toString();
     if (!Number.isFinite(id) || id <= 0)
@@ -942,7 +942,7 @@ app.post("/Api/Attestation/Approve", auth_1.requireAuth, (0, auth_1.checkRole)([
         return next(e);
     }
 });
-app.post("/Api/Attestation/Reject", auth_1.requireAuth, (0, auth_1.checkRole)([1, 4, 5, 6, 7]), async (req, res, next) => {
+app.post("/Api/Attestation/Reject", auth_1.requireAuth, (0, auth_1.checkRole)([1]), async (req, res, next) => {
     const id = Number(req.body?.id ?? 0);
     const remarks = (req.body?.remarks ?? "").toString();
     if (!Number.isFinite(id) || id <= 0)

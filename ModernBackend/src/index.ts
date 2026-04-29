@@ -1064,7 +1064,7 @@ app.get("/Api/Attestation/:id/Document", requireAuth, async (req, res, next) => 
   }
 });
 
-app.post("/Api/Attestation/Approve", requireAuth, checkRole([1, 4, 5, 6, 7]), async (req, res, next) => {
+app.post("/Api/Attestation/Approve", requireAuth, checkRole([1]), async (req, res, next) => {
   const id = Number(req.body?.id ?? 0);
   const remarks = (req.body?.remarks ?? "").toString();
   if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: "id is required" });
@@ -1082,7 +1082,7 @@ app.post("/Api/Attestation/Approve", requireAuth, checkRole([1, 4, 5, 6, 7]), as
   }
 });
 
-app.post("/Api/Attestation/Reject", requireAuth, checkRole([1, 4, 5, 6, 7]), async (req, res, next) => {
+app.post("/Api/Attestation/Reject", requireAuth, checkRole([1]), async (req, res, next) => {
   const id = Number(req.body?.id ?? 0);
   const remarks = (req.body?.remarks ?? "").toString();
   if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: "id is required" });

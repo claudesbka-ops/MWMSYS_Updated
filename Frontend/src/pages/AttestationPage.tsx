@@ -3,7 +3,9 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { approveAttestation, getAttestationList, rejectAttestation, type AttestationRow } from "@/services/attestationService";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, Check, ChevronDown, ChevronRight, FileCheck, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronRight, Eye, FileCheck, Sparkles, X } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { apiClient } from "@/services/apiClient";
 
 function confidenceBadgeClass(c: string | null | undefined): string {
   const v = (c ?? "").toString().toLowerCase();
@@ -21,6 +23,8 @@ function formatExpiry(value: string | null | undefined): string {
 
 export default function AttestationPage() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = (user?.role ?? "").toLowerCase() === "admin";
   const [remarks, setRemarks] = useState<Record<number, string>>({});
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
 
@@ -47,6 +51,17 @@ export default function AttestationPage() {
 
   const isBusy = approveMut.isPending || rejectMut.isPending;
 
+  const viewDocument = async (id: number) => {
+    try {
+      const res = await apiClient.get(`/Api/Attestation/${id}/Document`, { responseType: "blob" });
+      const url = URL.createObjectURL(res.data as Blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      console.error("View document failed", e);
+    }
+  };
+
   const statusBadge = (status: string) => {
     const s = (status ?? "").toLowerCase();
     if (s === "approved") return "bg-success/10 text-success";
@@ -60,7 +75,11 @@ export default function AttestationPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold text-foreground">Attestation</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">Approve or reject contract verification requests</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {isAdmin
+              ? "Approve or reject contract verification requests"
+              : "View document verification requests (admin approval required)"}
+          </p>
         </div>
       </div>
 
@@ -90,7 +109,9 @@ export default function AttestationPage() {
                   <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">AI</th>
                   <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Status</th>
                   <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Remarks</th>
-                  <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Actions</th>
+                  {isAdmin && (
+                    <th className="text-left px-4 py-3.5 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
@@ -135,38 +156,52 @@ export default function AttestationPage() {
                           <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${statusBadge(s)}`}>{s}</span>
                         </td>
                         <td className="px-4 py-3">
-                          <input
-                            value={remarks[id] ?? r.AdminRemarks ?? ""}
-                            onChange={(e) => setRemarks((prev) => ({ ...prev, [id]: e.target.value }))}
-                            placeholder="Optional remarks"
-                            className="h-9 w-64 rounded-xl border border-border/60 bg-background px-3 text-xs"
-                            disabled={!canAct || isBusy}
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <button
-                              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-success/10 text-success text-xs font-semibold hover:bg-success/15 transition-colors disabled:opacity-40"
+                          {isAdmin ? (
+                            <input
+                              value={remarks[id] ?? r.AdminRemarks ?? ""}
+                              onChange={(e) => setRemarks((prev) => ({ ...prev, [id]: e.target.value }))}
+                              placeholder="Optional remarks"
+                              className="h-9 w-64 rounded-xl border border-border/60 bg-background px-3 text-xs"
                               disabled={!canAct || isBusy}
-                              onClick={() => approveMut.mutate({ id })}
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              Approve
-                            </button>
-                            <button
-                              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-destructive/10 text-destructive text-xs font-semibold hover:bg-destructive/15 transition-colors disabled:opacity-40"
-                              disabled={!canAct || isBusy}
-                              onClick={() => rejectMut.mutate({ id })}
-                            >
-                              <X className="w-3.5 h-3.5" />
-                              Reject
-                            </button>
-                          </div>
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">{r.AdminRemarks ?? "—"}</span>
+                          )}
                         </td>
+                        {isAdmin && (
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => viewDocument(id)}
+                                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-muted text-foreground text-xs font-semibold hover:bg-muted/80 transition-colors"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                View
+                              </button>
+                              <button
+                                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-success/10 text-success text-xs font-semibold hover:bg-success/15 transition-colors disabled:opacity-40"
+                                disabled={!canAct || isBusy}
+                                onClick={() => approveMut.mutate({ id })}
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                Approve
+                              </button>
+                              <button
+                                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-destructive/10 text-destructive text-xs font-semibold hover:bg-destructive/15 transition-colors disabled:opacity-40"
+                                disabled={!canAct || isBusy}
+                                onClick={() => rejectMut.mutate({ id })}
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                Reject
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                       {isOpen && hasAi && (
                         <tr className="bg-muted/10">
-                          <td colSpan={8} className="px-4 py-4">
+                          <td colSpan={isAdmin ? 8 : 7} className="px-4 py-4">
                             <div className="rounded-xl border border-border/60 bg-card p-4">
                               <div className="flex items-center gap-2 mb-3">
                                 <Sparkles className="w-4 h-4 text-primary" />
