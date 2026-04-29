@@ -14,7 +14,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jd12345.MobileApp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +26,15 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
+      ],
+      "package": "com.jd12345.MobileApp"
     },
     "web": {
       "bundler": "metro",
@@ -44,7 +56,11 @@
       "@react-native-community/datetimepicker"
     ],
     "extra": {
-      "EXPO_PUBLIC_API_BASE_URL": "http://192.168.100.180:3000"
+      "EXPO_PUBLIC_API_BASE_URL": "http://192.168.100.180:3000",
+      "router": {},
+      "eas": {
+        "projectId": "005a6537-8ff2-4940-9d8f-cf591a2b8767"
+      }
     },
     "experiments": {
       "typedRoutes": true

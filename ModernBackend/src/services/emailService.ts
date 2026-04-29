@@ -1,14 +1,16 @@
 import nodemailer, { type Transporter } from "nodemailer";
+import { Resend } from "resend";
 
 /**
  * Email service for OTP and transactional messages.
  *
- * Reads SMTP config from env:
- *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
- *
- * If any of SMTP_HOST / SMTP_USER / SMTP_PASS is missing the service falls
- * back to logging the OTP to console. This lets development proceed without
- * real credentials while making the fallback obvious in server logs.
+ * Send precedence:
+ *   1. Resend HTTP API     — if RESEND_API_KEY is set (preferred on hosts that
+ *                            block outbound SMTP, e.g. Railway).
+ *   2. SMTP (nodemailer)   — if SMTP_HOST / SMTP_USER / SMTP_PASS are all set.
+ *   3. Console fallback    — logs the OTP to stdout and reports fallback=true
+ *                            so the client can show a "check server logs" hint
+ *                            in development.
  */
 
 let cachedTransporter: Transporter | null = null;
@@ -57,6 +59,29 @@ function humanLabel(type: OtpType): string {
   }
 }
 
+let cachedResend: Resend | null = null;
+
+function getResendClient(): Resend | null {
+  const key = (process.env.RESEND_API_KEY ?? "").toString().trim();
+  if (!key) return null;
+  if (cachedResend) return cachedResend;
+  try {
+    cachedResend = new Resend(key);
+    return cachedResend;
+  } catch (err) {
+    console.error("[emailService] failed to instantiate Resend client", err);
+    return null;
+  }
+}
+
+function resolveFromAddress(): string {
+  const explicit = (process.env.RESEND_FROM ?? "").toString().trim();
+  if (explicit) return explicit;
+  const smtpFrom = (process.env.SMTP_FROM ?? "").toString().trim();
+  if (smtpFrom) return smtpFrom;
+  return "MWMS <onboarding@resend.dev>";
+}
+
 export async function sendOtpEmail(to: string, otp: string, type: OtpType): Promise<{ sent: boolean; fallback: boolean }> {
   const target = (to ?? "").toString().trim();
   if (!target) {
@@ -64,48 +89,73 @@ export async function sendOtpEmail(to: string, otp: string, type: OtpType): Prom
     return { sent: false, fallback: true };
   }
 
-  if (!isSmtpConfigured()) {
-    console.warn(
-      `[emailService] SMTP not configured — OTP logged to console only. to=${target} type=${type} otp=${otp}`
-    );
-    return { sent: true, fallback: true };
-  }
-
-  const transporter = getTransporter();
-  if (!transporter) {
-    console.warn(
-      `[emailService] SMTP not configured — OTP logged to console only. to=${target} type=${type} otp=${otp}`
-    );
-    return { sent: true, fallback: true };
-  }
-
-  const { from } = readSmtpConfig();
   const label = humanLabel(type);
-  const subject = `Your MWMS ${label} code`;
+  const subject = "Your MWMS Verification Code";
   const textBody = [
-    `Your MWMS ${label} code is: ${otp}`,
-    ``,
-    `This code expires in 15 minutes. If you did not request it, you can safely ignore this email.`,
+    `Your verification code is: ${otp}`,
+    `Valid for 15 minutes. Do not share this code.`,
   ].join("\n");
   const htmlBody = [
     `<p>Your MWMS ${label} code is:</p>`,
     `<p style="font-size:22px;letter-spacing:0.25em;font-weight:700;margin:12px 0">${otp}</p>`,
-    `<p style="color:#555;font-size:13px">This code expires in 15 minutes. If you did not request it, you can safely ignore this email.</p>`,
+    `<p style="color:#555;font-size:13px">Valid for 15 minutes. Do not share this code.</p>`,
   ].join("");
 
-  try {
-    await transporter.sendMail({
-      from,
-      to: target,
-      subject,
-      text: textBody,
-      html: htmlBody,
-    });
-    return { sent: true, fallback: false };
-  } catch (err) {
-    console.error(`[emailService] sendMail failed — falling back to console log. to=${target} type=${type} otp=${otp}`, err);
-    return { sent: false, fallback: true };
+  // Preferred path: Resend HTTP API (works on Railway where SMTP is blocked).
+  const resend = getResendClient();
+  if (resend) {
+    try {
+      const { error } = await resend.emails.send({
+        from: resolveFromAddress(),
+        to: target,
+        subject,
+        text: textBody,
+        html: htmlBody,
+      });
+      if (error) {
+        console.error(
+          `[emailService] Resend API rejected send — falling back. to=${target} type=${type} otp=${otp}`,
+          error
+        );
+      } else {
+        return { sent: true, fallback: false };
+      }
+    } catch (err) {
+      console.error(
+        `[emailService] Resend send threw — falling back. to=${target} type=${type} otp=${otp}`,
+        err
+      );
+    }
   }
+
+  // Secondary path: SMTP via nodemailer.
+  if (isSmtpConfigured()) {
+    const transporter = getTransporter();
+    if (transporter) {
+      const { from } = readSmtpConfig();
+      try {
+        await transporter.sendMail({
+          from,
+          to: target,
+          subject,
+          text: textBody,
+          html: htmlBody,
+        });
+        return { sent: true, fallback: false };
+      } catch (err) {
+        console.error(
+          `[emailService] sendMail failed — falling back to console log. to=${target} type=${type} otp=${otp}`,
+          err
+        );
+      }
+    }
+  }
+
+  // Tertiary path: console log fallback so dev work continues without creds.
+  console.warn(
+    `[emailService] No email provider available — OTP logged to console only. to=${target} type=${type} otp=${otp}`
+  );
+  return { sent: true, fallback: true };
 }
 
 /** Generate a zero-padded 6-digit numeric OTP. */

@@ -129,6 +129,9 @@ exports.authRouter.post("/signup", async (req, res) => {
     if (userRole === 2 && !passportNo) {
         return res.status(400).json({ error: "passportNo is required for worker signup" });
     }
+    // Pre-create checks: anything before tbl_User.create() may legitimately
+    // return 4xx/5xx because no row has been written yet.
+    let created;
     try {
         const existing = await db_1.prisma.tbl_User.findFirst({
             where: {
@@ -139,7 +142,7 @@ exports.authRouter.post("/signup", async (req, res) => {
             return res.status(409).json({ error: "User already exists" });
         }
         const loginPwd = (0, cryptoLegacy_1.encryptLegacyPassword)(password, userId);
-        const created = await db_1.prisma.tbl_User.create({
+        created = await db_1.prisma.tbl_User.create({
             data: {
                 User_Id: userId,
                 Email_Id: emailId,
@@ -150,44 +153,59 @@ exports.authRouter.post("/signup", async (req, res) => {
                 Is_Verified: false,
             },
         });
+    }
+    catch (e) {
+        console.error("[signup] failed before user creation", e);
+        return res.status(500).json({ error: "Signup failed" });
+    }
+    // From this point the user row exists in the DB. Any failure in role-
+    // specific profile creation, OTP creation, or email sending must NOT
+    // turn the response into an error — log it and still return 201 so the
+    // client can drive the user to the verify-email page (or resend OTP).
+    try {
         if (userRole === 2) {
-            // Verify employer exists if one was selected.
-            let resolvedEmployerId = null;
-            if (signupEmployerId) {
-                const emp = await db_1.prisma.tbl_Employer.findFirst({
-                    where: { User_Id: signupEmployerId },
-                    select: { User_Id: true },
-                });
-                resolvedEmployerId = emp?.User_Id ?? null;
-            }
-            await db_1.prisma.tbl_Worker_PersonalInfo.create({
-                data: {
-                    Worker_Id: userId,
-                    Name: workerName || null,
-                    Passport_Number: passportNo,
-                    Email_Id: emailId,
-                    Created_On: new Date(),
-                    Employer_Id: resolvedEmployerId,
-                },
-            });
-            // Record the worker↔employer link so the worker shows up under that
-            // employer across the system the moment registration completes.
-            if (resolvedEmployerId) {
-                try {
-                    await (0, schemaMigrations_1.ensureRelationshipTablesExist)();
-                    await db_1.prisma.tbl_Worker_EmployerLink.create({
-                        data: {
-                            workerId: userId,
-                            employerId: resolvedEmployerId,
-                            status: "Active",
-                            createdBy: userId,
-                        },
+            try {
+                // Verify employer exists if one was selected.
+                let resolvedEmployerId = null;
+                if (signupEmployerId) {
+                    const emp = await db_1.prisma.tbl_Employer.findFirst({
+                        where: { User_Id: signupEmployerId },
+                        select: { User_Id: true },
                     });
+                    resolvedEmployerId = emp?.User_Id ?? null;
                 }
-                catch {
-                    // Non-fatal: denormalised Employer_Id on the worker record already
-                    // makes the worker visible; the link table is an audit trail.
+                await db_1.prisma.tbl_Worker_PersonalInfo.create({
+                    data: {
+                        Worker_Id: userId,
+                        Name: workerName || null,
+                        Passport_Number: passportNo,
+                        Email_Id: emailId,
+                        Created_On: new Date(),
+                        Employer_Id: resolvedEmployerId,
+                    },
+                });
+                // Record the worker↔employer link so the worker shows up under that
+                // employer across the system the moment registration completes.
+                if (resolvedEmployerId) {
+                    try {
+                        await (0, schemaMigrations_1.ensureRelationshipTablesExist)();
+                        await db_1.prisma.tbl_Worker_EmployerLink.create({
+                            data: {
+                                workerId: userId,
+                                employerId: resolvedEmployerId,
+                                status: "Active",
+                                createdBy: userId,
+                            },
+                        });
+                    }
+                    catch {
+                        // Non-fatal: denormalised Employer_Id on the worker record already
+                        // makes the worker visible; the link table is an audit trail.
+                    }
                 }
+            }
+            catch (workerErr) {
+                console.error("[signup] failed to create worker profile", workerErr);
             }
         }
         if (userRole === 3) {
@@ -253,7 +271,7 @@ exports.authRouter.post("/signup", async (req, res) => {
             // still request a resend from the verify page.
         }
         return res.status(201).json({
-            message: "Verification email sent",
+            message: "Account created",
             userId: created.User_Id,
             emailId: created.Email_Id,
             role: mapAppRole(created.User_Role),
@@ -261,9 +279,19 @@ exports.authRouter.post("/signup", async (req, res) => {
             smtpFallback: otpInfo?.fallback ?? null,
         });
     }
-    catch (e) {
-        console.error(e);
-        return res.status(500).json({ error: "Signup failed" });
+    catch (postErr) {
+        // The user row exists — never report failure to the client. Log and
+        // return 201 so the client can route into verify-email and let the
+        // user request a fresh OTP if needed.
+        console.error("[signup] post-create error (ignored)", postErr);
+        return res.status(201).json({
+            message: "Account created",
+            userId: created.User_Id,
+            emailId: created.Email_Id,
+            role: mapAppRole(created.User_Role),
+            otpExpiresAt: null,
+            smtpFallback: null,
+        });
     }
 });
 // Alias: /Api/Auth/Register matches the Batch C spec.

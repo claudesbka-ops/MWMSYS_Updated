@@ -3,7 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-require("dotenv").config();
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
 const express_1 = __importDefault(require("express"));
 const http_1 = __importDefault(require("http"));
 const db_1 = require("./db");
@@ -1189,7 +1190,7 @@ app.get("/api/admin/stats", auth_1.requireAuth, auth_1.requireAuthority, async (
                 OR: [{ IsResolved: false }, { IsResolved: null }],
             },
         });
-        const totalUsersRows = (await db_1.prisma.$queryRawUnsafe("SELECT COUNT(1) as cnt FROM Tbl_User"));
+        const totalUsersRows = (await db_1.prisma.$queryRawUnsafe(`SELECT COUNT(1) as cnt FROM "Tbl_User"`));
         const totalUsers = totalUsersRows?.[0]?.cnt != null ? Number(totalUsersRows[0].cnt) : 0;
         const months = [];
         const endMonth = startOfMonth(now);
@@ -1225,7 +1226,7 @@ app.get("/api/admin/stats", auth_1.requireAuth, auth_1.requireAuthority, async (
             month: m.month,
             alerts: monthCounts.get(m.key) ?? 0,
         }));
-        const workersByCountryRows = (await db_1.prisma.$queryRawUnsafe("SELECT ISNULL(c.Country_Name, 'Unknown') as name, COUNT(1) as value FROM Tbl_User u INNER JOIN Tbl_Worker_PersonalInfo wpi ON wpi.Worker_Id = u.User_Id LEFT JOIN Tbl_Country c ON c.ID = wpi.Nationality GROUP BY c.Country_Name ORDER BY value DESC"));
+        const workersByCountryRows = (await db_1.prisma.$queryRawUnsafe(`SELECT COALESCE(c."Country_Name", 'Unknown') as name, COUNT(1) as value FROM "Tbl_User" u INNER JOIN "Tbl_Worker_PersonalInfo" wpi ON wpi."Worker_Id" = u."User_Id" LEFT JOIN "Tbl_Country" c ON c."ID" = wpi."Nationality" GROUP BY c."Country_Name" ORDER BY value DESC`));
         const workersByCountry = (workersByCountryRows ?? []).map((r) => ({
             name: r?.name != null ? String(r.name) : "Unknown",
             value: r?.value != null ? Number(r.value) : 0,
