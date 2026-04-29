@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { apiClient, getAccessToken, AUTH_USERNAME_STORAGE_KEY } from "@/services/apiClient";
+import { flushPendingWorkerPhoto } from "@/services/pendingPhotoUploader";
 
 export type AuthUser = {
   id: string | null;
@@ -63,13 +64,22 @@ async function fetchMe(): Promise<AuthUser | null> {
       }
     }
 
-    return {
+    const userOut: AuthUser = {
       id: id ? String(id) : null,
       name: (name || "").trim() || (id ? String(id) : "User"),
       email,
       role,
       companyName,
     };
+
+    // Drain any pending signup-time profile photo for this worker. Runs
+    // in the background — failures are silent and the entry stays cached
+    // for the next refresh so the worker doesn't lose their photo.
+    if (userOut.role === "worker" && userOut.id) {
+      void flushPendingWorkerPhoto(userOut.id);
+    }
+
+    return userOut;
   } catch {
     return null;
   }

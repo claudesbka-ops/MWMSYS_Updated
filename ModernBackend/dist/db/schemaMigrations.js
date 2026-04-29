@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ensureRosterTablesExist = ensureRosterTablesExist;
 exports.ensureHrmsRequestTablesExist = ensureHrmsRequestTablesExist;
 exports.ensureAttestationTableExists = ensureAttestationTableExists;
+exports.ensureUserProfilePhotoColumn = ensureUserProfilePhotoColumn;
 exports.ensureChatTablesExist = ensureChatTablesExist;
 exports.ensureBroadcastTableExists = ensureBroadcastTableExists;
 exports.ensureDisputeTableExists = ensureDisputeTableExists;
@@ -120,6 +121,40 @@ async function ensureAttestationTableExists() {
         "Created_On" TIMESTAMP NULL DEFAULT NOW(),
         "Updated_On" TIMESTAMP NULL
       )`);
+    }
+    catch {
+        // ignore
+    }
+    // AI extraction columns (Batch — AI document verification). Added via
+    // idempotent ALTERs so existing deployments pick them up without losing
+    // data. Each ALTER is wrapped individually so a permission error on one
+    // column does not skip the others.
+    const aiColumns = [
+        { name: "Extracted_Name", ddl: `ALTER TABLE "Tbl_Attestation" ADD COLUMN IF NOT EXISTS "Extracted_Name" VARCHAR(200) NULL` },
+        { name: "Extracted_Document_Number", ddl: `ALTER TABLE "Tbl_Attestation" ADD COLUMN IF NOT EXISTS "Extracted_Document_Number" VARCHAR(100) NULL` },
+        { name: "Extracted_Expiry_Date", ddl: `ALTER TABLE "Tbl_Attestation" ADD COLUMN IF NOT EXISTS "Extracted_Expiry_Date" TIMESTAMP NULL` },
+        { name: "Extracted_Nationality", ddl: `ALTER TABLE "Tbl_Attestation" ADD COLUMN IF NOT EXISTS "Extracted_Nationality" VARCHAR(100) NULL` },
+        { name: "Ai_Confidence", ddl: `ALTER TABLE "Tbl_Attestation" ADD COLUMN IF NOT EXISTS "Ai_Confidence" VARCHAR(20) NULL` },
+        { name: "Ai_Raw_Response", ddl: `ALTER TABLE "Tbl_Attestation" ADD COLUMN IF NOT EXISTS "Ai_Raw_Response" TEXT NULL` },
+    ];
+    for (const col of aiColumns) {
+        try {
+            await db_1.prisma.$executeRawUnsafe(col.ddl);
+        }
+        catch {
+            // ignore — column may already exist or DB may be read-only
+        }
+    }
+}
+/**
+ * Adds the `Profile_Photo` column to `Tbl_User` so any role (worker,
+ * employer, agency, embassy, labour) can store a profile photo URL/path.
+ * Workers continue to also use `Tbl_Worker_PersonalInfo.Photo` (base64)
+ * for backward compatibility with the legacy mobile app.
+ */
+async function ensureUserProfilePhotoColumn() {
+    try {
+        await db_1.prisma.$executeRawUnsafe(`ALTER TABLE "Tbl_User" ADD COLUMN IF NOT EXISTS "Profile_Photo" VARCHAR(500) NULL`);
     }
     catch {
         // ignore
@@ -317,5 +352,6 @@ async function runSchemaMigrations() {
         ensureRelationshipTablesExist(),
         ensureOtpTableExists(),
         ensureDisputeTableExists(),
+        ensureUserProfilePhotoColumn(),
     ]);
 }

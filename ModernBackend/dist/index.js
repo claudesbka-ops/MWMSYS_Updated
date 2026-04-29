@@ -19,6 +19,7 @@ const schemaMigrations_1 = require("./db/schemaMigrations");
 const queryGuard_1 = require("./services/queryGuard");
 const socketService_1 = require("./services/socketService");
 const workerLookup_1 = require("./services/workerLookup");
+const documentAiService_1 = require("./services/documentAiService");
 const accountRoutes_1 = require("./routes/accountRoutes");
 const authRoutes_1 = require("./routes/authRoutes");
 const broadcastRoutes_1 = require("./routes/broadcastRoutes");
@@ -687,10 +688,108 @@ app.get("/Api/Employer/Incidents", auth_1.requireAuth, (0, auth_1.checkRole)([1,
         return next(e);
     }
 });
+app.post("/Api/Attestation/Submit", auth_1.requireAuth, (0, auth_1.checkRole)([2]), upload_1.upload.single("file"), async (req, res, next) => {
+    const uploaded = req.file;
+    if (!uploaded?.filename || !uploaded?.path) {
+        return res.status(400).json({ error: "file is required" });
+    }
+    try {
+        await (0, schemaMigrations_1.ensureAttestationTableExists)();
+        const jwtUserId = Number(req.user?.userId ?? 0);
+        const workerId = await (0, workerLookup_1.findWorkerIdByJwtUserId)(jwtUserId);
+        if (!workerId)
+            return res.status(400).json({ error: "Worker profile not found" });
+        const passportFromBody = (req.body?.passportNumber ?? req.body?.PassportNumber ?? "").toString().trim();
+        const passportFallback = await (0, workerLookup_1.findWorkerPassportByJwtUserId)(jwtUserId);
+        const passportNumber = passportFromBody || passportFallback || null;
+        const rawDocType = (req.body?.documentType ?? req.body?.docType ?? "").toString().trim().toLowerCase();
+        const allowed = new Set(["passport", "permit", "work_permit", "insurance", "contract", "medical", "demand_letter"]);
+        const docType = allowed.has(rawDocType) ? rawDocType : "passport";
+        const documentPath = `/uploads/${uploaded.filename}`;
+        // Best-effort AI extraction. Failures must not abort the upload.
+        const fs = await import("fs");
+        let extracted = {
+            confidence: "low",
+            rawText: "AI extraction skipped",
+        };
+        try {
+            const buf = fs.readFileSync(uploaded.path);
+            const base64 = buf.toString("base64");
+            extracted = await (0, documentAiService_1.extractDocumentData)(base64, docType, uploaded.mimetype || "image/jpeg");
+        }
+        catch (aiErr) {
+            console.error("[attestation/submit] AI extraction threw", aiErr);
+        }
+        const expiryTimestamp = extracted.expiryDate ? new Date(extracted.expiryDate) : null;
+        const expiryValid = expiryTimestamp && Number.isFinite(expiryTimestamp.getTime()) ? expiryTimestamp : null;
+        // Insert attestation row with AI extracted fields.
+        const insertedRows = (await db_1.prisma.$queryRawUnsafe(`INSERT INTO "Tbl_Attestation"
+          ("Worker_Id","Passport_Number","DocumentType","DocumentPath","Status","Created_On",
+           "Extracted_Name","Extracted_Document_Number","Extracted_Expiry_Date","Extracted_Nationality","Ai_Confidence","Ai_Raw_Response")
+         VALUES ($1,$2,$3,$4,'Submitted',NOW(),$5,$6,$7,$8,$9,$10)
+         RETURNING "AttestationId"`, workerId, passportNumber, docType, documentPath, extracted.fullName ?? null, extracted.documentNumber ?? null, expiryValid, extracted.nationality ?? null, extracted.confidence, extracted.rawText ?? null));
+        const attestationId = insertedRows?.[0]?.AttestationId ?? null;
+        // Auto-fill expiry on the relevant worker profile table only when AI is
+        // confident enough to trust the value. Low-confidence extractions still
+        // get stored on the attestation row for human review.
+        let autoFilled = false;
+        if (expiryValid && (extracted.confidence === "high" || extracted.confidence === "medium")) {
+            try {
+                if (docType === "passport") {
+                    await db_1.prisma.tbl_Worker_PersonalInfo.update({
+                        where: { Worker_Id: workerId },
+                        data: { Passport_Expire_Date: expiryValid },
+                    });
+                    autoFilled = true;
+                }
+                else if (docType === "permit" || docType === "work_permit") {
+                    await db_1.prisma.tbl_Worker_PermitInsurance.upsert({
+                        where: { Worker_Id: workerId },
+                        create: { Worker_Id: workerId, Permit_Expire_Date: expiryValid },
+                        update: { Permit_Expire_Date: expiryValid },
+                    });
+                    autoFilled = true;
+                }
+                else if (docType === "contract") {
+                    await db_1.prisma.tbl_Worker_EmployerInfo.upsert({
+                        where: { Worker_Id: workerId },
+                        create: { Worker_Id: workerId, Contract_Expiry_Date: expiryValid },
+                        update: { Contract_Expiry_Date: expiryValid },
+                    });
+                    autoFilled = true;
+                }
+            }
+            catch (autoErr) {
+                console.error("[attestation/submit] auto-fill failed", autoErr);
+            }
+        }
+        return res.status(201).json({
+            message: "Document uploaded",
+            attestationId,
+            documentPath,
+            extracted: {
+                name: extracted.fullName ?? null,
+                documentNumber: extracted.documentNumber ?? null,
+                expiryDate: extracted.expiryDate ?? null,
+                nationality: extracted.nationality ?? null,
+                dateOfBirth: extracted.dateOfBirth ?? null,
+                confidence: extracted.confidence,
+            },
+            autoFilled,
+        });
+    }
+    catch (e) {
+        return next(e);
+    }
+});
 app.get("/Api/Attestation/List", auth_1.requireAuth, (0, auth_1.checkRole)([1, 4, 5, 6, 7]), async (_req, res, next) => {
     try {
         await (0, schemaMigrations_1.ensureAttestationTableExists)();
-        const rows = (await db_1.prisma.$queryRawUnsafe(`SELECT "AttestationId", "Worker_Id", "Passport_Number", "DocumentType", "DocumentPath", "Status", "AdminRemarks", "Created_On", "Updated_On" FROM "Tbl_Attestation" ORDER BY "AttestationId" DESC LIMIT 500`));
+        const rows = (await db_1.prisma.$queryRawUnsafe(`SELECT "AttestationId", "Worker_Id", "Passport_Number", "DocumentType", "DocumentPath", "Status", "AdminRemarks", "Created_On", "Updated_On",
+              "Extracted_Name", "Extracted_Document_Number", "Extracted_Expiry_Date", "Extracted_Nationality", "Ai_Confidence"
+         FROM "Tbl_Attestation"
+         ORDER BY "AttestationId" DESC
+         LIMIT 500`));
         return res.json(rows ?? []);
     }
     catch (e) {

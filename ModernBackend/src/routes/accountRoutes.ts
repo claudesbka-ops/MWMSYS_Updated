@@ -268,52 +268,68 @@ accountRouter.put("/Api/Account/Profile", requireAuth, async (req, res, next) =>
  * `Tbl_Worker_PersonalInfo.Photo` (which is how the legacy mobile app reads
  * it). Other roles are rejected until a dedicated photo column is added.
  */
-accountRouter.post(
-  "/Api/Account/Photo",
-  requireAuth,
-  upload.single("photo"),
-  async (req, res, next) => {
-    try {
-      const user = (req as any).user as { userKey?: string; roleId?: number };
-      const userKey = (user?.userKey ?? "").toString().trim();
-      const roleId = user?.roleId != null ? Number(user.roleId) : null;
+async function handleAccountPhotoUpload(req: any, res: any, next: any) {
+  try {
+    const user = req.user as { userKey?: string; userId?: number; roleId?: number };
+    const userKey = (user?.userKey ?? "").toString().trim();
+    const roleId = user?.roleId != null ? Number(user.roleId) : null;
+    const userJwtId = user?.userId != null ? Number(user.userId) : null;
 
-      if (!userKey) return res.status(400).json({ error: "Missing user context" });
+    if (!userKey) return res.status(400).json({ error: "Missing user context" });
 
-      const file = (req as any).file as
-        | { path: string; originalname: string; mimetype: string; size: number }
-        | undefined;
-      if (!file) return res.status(400).json({ error: "photo file is required" });
+    const file = req.file as
+      | { filename: string; path: string; originalname: string; mimetype: string; size: number }
+      | undefined;
+    if (!file) return res.status(400).json({ error: "photo file is required" });
 
-      if (roleId !== 2) {
-        return res
-          .status(403)
-          .json({ error: "Photo uploads are currently supported for worker accounts only" });
-      }
+    const photoUrl = `/uploads/${file.filename}`;
 
-      const fs = await import("fs");
-      const buf = fs.readFileSync(file.path);
-      const base64 = buf.toString("base64");
-      const dataUrl = `data:${file.mimetype || "image/jpeg"};base64,${base64}`;
-
-      await prisma.tbl_Worker_PersonalInfo.update({
-        where: { Worker_Id: userKey },
-        data: {
-          Photo: dataUrl,
-          PhotoName: file.originalname.slice(0, 50),
-        },
-      });
-
-      // Clean up the temporary file — base64 is now in the DB.
+    // Mirror the photo path on Tbl_User.Profile_Photo so any role can have a
+    // profile picture and so the column is populated for non-worker users
+    // too (employer/agency/embassy/labour). Best-effort — column may not
+    // exist on legacy DBs until migrations run.
+    if (userJwtId && Number.isFinite(userJwtId)) {
       try {
-        fs.unlinkSync(file.path);
+        await prisma.$executeRawUnsafe(
+          `UPDATE "Tbl_User" SET "Profile_Photo" = $1 WHERE "ID" = $2`,
+          photoUrl,
+          userJwtId,
+        );
       } catch {
-        // ignore
+        // ignore — Profile_Photo column may not exist yet
       }
-
-      return res.json({ ok: true, photo: dataUrl });
-    } catch (e) {
-      return next(e);
     }
+
+    // Workers also keep a base64 copy in Tbl_Worker_PersonalInfo.Photo for
+    // backward compatibility with the legacy mobile app, which reads from
+    // that column directly.
+    if (roleId === 2) {
+      const fs = await import("fs");
+      try {
+        const buf = fs.readFileSync(file.path);
+        const base64 = buf.toString("base64");
+        const dataUrl = `data:${file.mimetype || "image/jpeg"};base64,${base64}`;
+        await prisma.tbl_Worker_PersonalInfo.update({
+          where: { Worker_Id: userKey },
+          data: {
+            Photo: dataUrl,
+            PhotoName: file.originalname.slice(0, 50),
+          },
+        });
+        return res.json({ ok: true, photo: dataUrl, photoUrl });
+      } catch (e) {
+        // Fall through to URL-only response if the worker row update fails.
+        console.error("[Account/Photo] worker photo persist failed", e);
+      }
+    }
+
+    return res.json({ ok: true, photo: photoUrl, photoUrl });
+  } catch (e) {
+    return next(e);
   }
-);
+}
+
+accountRouter.post("/Api/Account/Photo", requireAuth, upload.single("photo"), handleAccountPhotoUpload);
+// Alias used by the worker signup wizard and any new client code that
+// expects the more specific name. Both endpoints share the same handler.
+accountRouter.post("/Api/Account/UploadPhoto", requireAuth, upload.single("photo"), handleAccountPhotoUpload);

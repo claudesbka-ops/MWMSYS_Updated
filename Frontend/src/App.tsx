@@ -50,6 +50,7 @@ import AdminDashboard from "./pages/AdminDashboard.tsx";
 import AttestationPage from "./pages/AttestationPage.tsx";
 import LiveMapPage from "./pages/LiveMapPage.tsx";
 import AlertDetailPage from "./pages/AlertDetailPage.tsx";
+import WorkerAttestationSubmitPage from "./pages/WorkerAttestationSubmitPage.tsx";
 import BlogPage from "./pages/BlogPage.tsx";
 import VerifyEmailPage from "./pages/VerifyEmailPage.tsx";
 import AccountPage from "./pages/AccountPage.tsx";
@@ -296,7 +297,14 @@ function AnimatedRoutes() {
               </ProtectedRoute>
             }
           />
-          <Route path="/my-documents" element={<PlaceholderPage title="My Documents" />} />
+          <Route
+            path="/my-documents"
+            element={
+              <ProtectedRoute allow={["worker"]}>
+                <WorkerAttestationSubmitPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/panic-status" element={<PlaceholderPage title="Panic Status" />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
