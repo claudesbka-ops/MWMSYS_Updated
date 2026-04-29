@@ -33,6 +33,7 @@ import { resolveWorkerScopes } from "./services/workerScopes";
 import { initSocket } from "./services/socketService";
 import { findWorkerIdByJwtUserId, findWorkerPassportByJwtUserId } from "./services/workerLookup";
 import { extractDocumentData } from "./services/documentAiService";
+import { evaluateDocument } from "./services/documentValidity";
 import { accountRouter } from "./routes/accountRoutes";
 import { authRouter } from "./routes/authRoutes";
 import { broadcastRouter } from "./routes/broadcastRoutes";
@@ -877,6 +878,27 @@ app.post(
         }
       }
 
+      // Compute validity report against the worker's current profile so the
+      // worker sees the same checklist the agency will see.
+      const workerInfo = await prisma.tbl_Worker_PersonalInfo.findFirst({
+        where: { Worker_Id: workerId },
+        select: { Name: true, Passport_Number: true },
+      });
+      const validity = evaluateDocument(
+        docType,
+        {
+          name: extracted.fullName,
+          documentNumber: extracted.documentNumber,
+          expiryDate: extracted.expiryDate,
+          nationality: extracted.nationality,
+          confidence: extracted.confidence,
+        },
+        {
+          name: workerInfo?.Name ?? null,
+          passportNumber: workerInfo?.Passport_Number ?? passportNumber,
+        },
+      );
+
       return res.status(201).json({
         message: "Document uploaded",
         attestationId,
@@ -890,6 +912,7 @@ app.post(
           confidence: extracted.confidence,
         },
         autoFilled,
+        validity,
       });
     } catch (e) {
       return next(e);
@@ -897,7 +920,7 @@ app.post(
   },
 );
 
-app.get("/Api/Attestation/List", requireAuth, checkRole([1, 4, 5, 6, 7]), async (_req, res, next) => {
+app.get("/Api/Attestation/List", requireAuth, checkRole([1, 4, 5, 6, 7]), async (req, res, next) => {
   try {
     await ensureAttestationTableExists();
     const rows = (await prisma.$queryRawUnsafe(
@@ -907,7 +930,135 @@ app.get("/Api/Attestation/List", requireAuth, checkRole([1, 4, 5, 6, 7]), async 
          ORDER BY "AttestationId" DESC
          LIMIT 500`,
     )) as any[];
-    return res.json(rows ?? []);
+
+    const callerRoleId = Number((req as any).user?.roleId ?? 0);
+    const isAdmin = callerRoleId === 1;
+
+    // Compute validity per row against the worker's current profile and scrub
+    // raw file paths from the response for non-admin reviewers (only admins
+    // are allowed to open the actual document during attestation).
+    const workerIds = Array.from(new Set((rows ?? []).map((r: any) => (r.Worker_Id ?? "").toString()).filter(Boolean)));
+    const workerInfos = workerIds.length
+      ? await prisma.tbl_Worker_PersonalInfo.findMany({
+          where: { Worker_Id: { in: workerIds } },
+          select: { Worker_Id: true, Name: true, Passport_Number: true },
+        })
+      : [];
+    const workerMap = new Map(workerInfos.map((w) => [(w.Worker_Id ?? "").toString(), w]));
+
+    const enriched = (rows ?? []).map((r: any) => {
+      const w = workerMap.get((r.Worker_Id ?? "").toString());
+      const validity = evaluateDocument(
+        r.DocumentType,
+        {
+          name: r.Extracted_Name,
+          documentNumber: r.Extracted_Document_Number,
+          expiryDate: r.Extracted_Expiry_Date,
+          nationality: r.Extracted_Nationality,
+          confidence: r.Ai_Confidence,
+        },
+        {
+          name: w?.Name ?? null,
+          passportNumber: w?.Passport_Number ?? r.Passport_Number ?? null,
+        },
+      );
+      const hasDocument = !!(r.DocumentPath && String(r.DocumentPath).trim());
+      const out: any = {
+        ...r,
+        validity,
+        hasDocument,
+      };
+      // Hide the raw filesystem path from non-admin reviewers — they must use
+      // the gated `/Api/Attestation/:id/Document` endpoint instead.
+      if (!isAdmin) delete out.DocumentPath;
+      return out;
+    });
+
+    return res.json(enriched);
+  } catch (e) {
+    return next(e);
+  }
+});
+
+/**
+ * Streams the uploaded attestation document to the caller after enforcing
+ * the role-based access policy:
+ *   - Admin (1):    always allowed.
+ *   - Worker (2):   only their own submission.
+ *   - Employer (3): only after Status = 'Approved' AND the worker is
+ *                   linked to that employer (Tbl_Worker_PersonalInfo.Employer_Id).
+ *   - Anyone else:  403.
+ */
+app.get("/Api/Attestation/:id/Document", requireAuth, async (req, res, next) => {
+  try {
+    await ensureAttestationTableExists();
+    const id = Number(req.params?.id ?? 0);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ error: "Invalid attestation id" });
+    }
+
+    const callerRoleId = Number((req as any).user?.roleId ?? 0);
+    const callerKey = ((req as any).user?.userKey ?? "").toString().trim();
+
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT "AttestationId", "Worker_Id", "DocumentPath", "Status" FROM "Tbl_Attestation" WHERE "AttestationId" = $1 LIMIT 1`,
+      id,
+    )) as Array<{ AttestationId: number; Worker_Id: string; DocumentPath: string | null; Status: string | null }>;
+    const row = rows?.[0];
+    if (!row) return res.status(404).json({ error: "Attestation not found" });
+
+    const documentPath = (row.DocumentPath ?? "").toString().trim();
+    if (!documentPath) return res.status(404).json({ error: "Document not available" });
+
+    // Authorisation
+    let allowed = false;
+    if (callerRoleId === 1) {
+      allowed = true;
+    } else if (callerRoleId === 2) {
+      allowed = !!callerKey && callerKey === (row.Worker_Id ?? "").toString();
+    } else if (callerRoleId === 3) {
+      const status = (row.Status ?? "").toString().toLowerCase();
+      if (status === "approved") {
+        const link = await prisma.tbl_Worker_PersonalInfo.findFirst({
+          where: { Worker_Id: row.Worker_Id ?? "" },
+          select: { Employer_Id: true },
+        });
+        const linkedEmployer = (link?.Employer_Id ?? "").toString().trim();
+        allowed = !!callerKey && !!linkedEmployer && linkedEmployer === callerKey;
+      }
+    }
+
+    if (!allowed) return res.status(403).json({ error: "Not authorised to view this document" });
+
+    // Resolve the file from `uploadsDir` regardless of the stored path shape
+    // (`/uploads/{name}` for new rows, raw filename for legacy rows). The
+    // resolution is sandboxed to `uploadsDir` so a malicious DocumentPath
+    // cannot escape via `..`.
+    const path = await import("path");
+    const fs = await import("fs");
+    const fileName = documentPath.replace(/^\/+uploads\/+/, "").replace(/^\/+/, "");
+    const safeName = path.basename(fileName);
+    const fullPath = path.join(uploadsDir, safeName);
+    if (!fullPath.startsWith(uploadsDir) || !fs.existsSync(fullPath)) {
+      return res.status(404).json({ error: "Document file missing on disk" });
+    }
+
+    const ext = path.extname(safeName).toLowerCase();
+    const contentType =
+      ext === ".pdf"
+        ? "application/pdf"
+        : ext === ".png"
+          ? "image/png"
+          : ext === ".webp"
+            ? "image/webp"
+            : ext === ".jpg" || ext === ".jpeg"
+              ? "image/jpeg"
+              : "application/octet-stream";
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Disposition", `inline; filename="${safeName}"`);
+    res.setHeader("Cache-Control", "private, max-age=0, no-store");
+    return fs.createReadStream(fullPath).pipe(res);
   } catch (e) {
     return next(e);
   }
