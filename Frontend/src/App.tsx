@@ -80,7 +80,7 @@ function AnimatedRoutes() {
           <Route path="/complete-profile" element={<CompleteProfilePage />} />
           <Route path="/" element={<RootRedirect />} />
           <Route path="/dashboard" element={
-              <ProtectedRoute allow={["admin", "agency", "employer", "worker"]}>
+              <ProtectedRoute allow={["admin", "agency", "employer", "worker", "embassy_source", "embassy_destination", "labour"]}>
               <Index />
             </ProtectedRoute>
           } />
