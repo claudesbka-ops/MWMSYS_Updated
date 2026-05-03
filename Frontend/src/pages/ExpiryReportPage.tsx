@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Download, FileText, Eye, HeartPulse, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
@@ -29,7 +30,15 @@ function classifyExpiry(raw?: string | Date | null): ExpiryBand {
 }
 
 export default function ExpiryReportPage() {
-  const [reportType, setReportType] = useState<ReportType>("insurance");
+  const location = useLocation();
+  const typeFromPath: ReportType = location.pathname.includes("/reports/visa") ? "visa" : "insurance";
+  const [reportType, setReportType] = useState<ReportType>(typeFromPath);
+
+  // Keep state in sync when the user navigates between /reports/visa and
+  // /reports/insurance without a full page reload.
+  useEffect(() => {
+    setReportType(typeFromPath);
+  }, [typeFromPath]);
 
   const visaQuery = useQuery({
     queryKey: ["report_visa_expire", reportType],
