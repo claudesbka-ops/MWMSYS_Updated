@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { getInsuranceExpireReport, getVisaExpireReport } from "@/services/reportService";
 import { Skeleton } from "@/components/ui/skeleton";
+import { downloadCsv, downloadPdfSimpleTable } from "@/lib/exporters";
 
 type ReportType = "insurance" | "visa";
 
@@ -42,8 +43,36 @@ export default function ExpiryReportPage() {
     enabled: reportType === "insurance",
   });
 
-  const handleExport = (format: string) => {
-    toast.success(`Export to ${format} initiated (placeholder)`);
+  const handleExport = (format: "CSV" | "PDF") => {
+    if (activeRows.length === 0) {
+      toast.error("No rows to export");
+      return;
+    }
+    const dateHeader = reportType === "visa" ? "Permit Expire Date" : "Contract Expiry Date";
+    const headers = ["Worker ID", "Name", "Passport", "Company", dateHeader, "Status"];
+    const rows = activeRows.map((r) => {
+      const band = classifyExpiry(r.date);
+      const dateStr = r.date
+        ? (() => {
+            const d = r.date instanceof Date ? r.date : new Date(String(r.date));
+            return Number.isFinite(d.getTime()) ? d.toISOString().slice(0, 10) : String(r.date);
+          })()
+        : "";
+      return [r.workerId, r.name, r.passport, r.company, dateStr, band.label];
+    });
+    const base = reportType === "visa" ? "visa-expiry" : "insurance-expiry";
+    const ts = new Date().toISOString().slice(0, 10);
+    try {
+      if (format === "CSV") {
+        downloadCsv(`${base}-${ts}.csv`, headers, rows);
+      } else {
+        downloadPdfSimpleTable(`${base}-${ts}.pdf`, title, headers, rows);
+      }
+      toast.success(`${format} export ready (${rows.length} rows)`);
+    } catch (err) {
+      console.error("[ExpiryReportPage] export failed", err);
+      toast.error(`${format} export failed`);
+    }
   };
 
   const title = reportType === "insurance" ? "Contract / Insurance Expiry Report" : "Visa/Permit Expiry Report";

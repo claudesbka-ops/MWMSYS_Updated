@@ -395,43 +395,44 @@ export default function AdminView({ title = "Mission Control" }: { title?: strin
           </span>
         </div>
 
-        {panicMarkers.length === 0 ? (
-          <div className="rounded-2xl border border-border/60 bg-muted/20 p-6 text-center">
-            <p className="text-sm font-medium text-foreground">No mappable panic incidents</p>
-            <p className="text-xs text-muted-foreground mt-1">Panic alerts will appear here once GPS coordinates are available.</p>
-          </div>
-        ) : (
-          <div className="rounded-2xl overflow-hidden border border-border/60">
-            <MapContainerAny
-              center={[
-                (panicMarkers[0]?.lat as number) ?? 3.139,
-                (panicMarkers[0]?.lng as number) ?? 101.6869,
-              ]}
-              zoom={11}
-              scrollWheelZoom
-              style={{ height: 360, width: "100%" }}
-            >
-              <TileLayerAny
-                attribution="&copy; OpenStreetMap contributors"
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              {panicMarkers.map((a) => (
-                  <MarkerAny
-                    key={a.id}
-                    position={[a.lat as number, a.lng as number]}
-                    icon={panicPulseIcon ?? defaultMarkerIcon}
-                  >
-                    <PopupAny>
-                      <div>
-                        <div style={{ fontWeight: 700 }}>{a.name}</div>
-                        <div style={{ fontSize: 12, marginTop: 6 }}>{a.date}</div>
-                      </div>
-                    </PopupAny>
-                  </MarkerAny>
-                ))}
-            </MapContainerAny>
-          </div>
-        )}
+        {/* Always render the map so the panel is never blank. When no panic
+            markers exist we center on Kuala Lumpur and overlay a subtle hint. */}
+        <div className="relative rounded-2xl overflow-hidden border border-border/60">
+          <MapContainerAny
+            center={[
+              (panicMarkers[0]?.lat as number) ?? 3.139,
+              (panicMarkers[0]?.lng as number) ?? 101.6869,
+            ]}
+            zoom={panicMarkers.length > 0 ? 11 : 5}
+            scrollWheelZoom
+            style={{ height: 360, width: "100%" }}
+          >
+            <TileLayerAny
+              attribution="&copy; OpenStreetMap contributors"
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            {panicMarkers.map((a) => (
+              <MarkerAny
+                key={a.id}
+                position={[a.lat as number, a.lng as number]}
+                icon={panicPulseIcon ?? defaultMarkerIcon}
+              >
+                <PopupAny>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>{a.name}</div>
+                    <div style={{ fontSize: 12, marginTop: 6 }}>{a.date}</div>
+                  </div>
+                </PopupAny>
+              </MarkerAny>
+            ))}
+          </MapContainerAny>
+          {panicMarkers.length === 0 ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-background/85 backdrop-blur-sm border-t border-border/60 px-4 py-2 text-center">
+              <p className="text-xs font-medium text-foreground">No mappable panic incidents</p>
+              <p className="text-[11px] text-muted-foreground">Panic alerts will appear on the map once GPS coordinates are available.</p>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {/* Charts Row */}
