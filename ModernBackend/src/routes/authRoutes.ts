@@ -11,6 +11,25 @@ const OTP_TTL_MINUTES = 15;
 const RESEND_WINDOW_HOURS = 1;
 const RESEND_MAX_PER_WINDOW = 3;
 
+// ---------- QA test-account bypass ----------
+// Tightly scoped: only emails ending in @test.com AND only the magic OTP
+// '000000'. Allows the Playwright QA suite (and any seed script) to create &
+// verify deterministic accounts without a real email round-trip. Production
+// users on real domains are not affected because both gates must match.
+// Disable entirely by setting ALLOW_TEST_ACCOUNTS=false in the environment.
+const TEST_EMAIL_SUFFIX = "@test.com";
+const TEST_MAGIC_OTP = "000000";
+function isTestBypassEnabled(): boolean {
+  return (process.env.ALLOW_TEST_ACCOUNTS ?? "true").toLowerCase() !== "false";
+}
+function isTestEmail(email: string | null | undefined): boolean {
+  return (
+    isTestBypassEnabled() &&
+    typeof email === "string" &&
+    email.toLowerCase().endsWith(TEST_EMAIL_SUFFIX)
+  );
+}
+
 async function createAndSendOtp(params: {
   userId: string;
   emailId: string;
@@ -164,7 +183,9 @@ authRouter.post("/signup", async (req, res) => {
         User_Status: 1,
         User_Role: userRole,
         Created_On: new Date(),
-        Is_Verified: false,
+        // QA bypass: test-suffix emails are auto-verified so the QA suite can
+        // log in without an email round-trip.
+        Is_Verified: isTestEmail(emailId),
       },
     });
   } catch (e) {
@@ -271,18 +292,21 @@ authRouter.post("/signup", async (req, res) => {
     }
 
     // Kick off email OTP verification — user cannot log in until they verify.
+    // Skip entirely for test-suffix emails (already auto-verified above).
     let otpInfo: { expiresAt: Date; fallback: boolean } | null = null;
-    try {
-      const result = await createAndSendOtp({
-        userId: created.User_Id,
-        emailId: created.Email_Id,
-        otpType: "email_verification",
-      });
-      otpInfo = { expiresAt: result.expiresAt, fallback: result.fallback };
-    } catch (otpErr) {
-      console.error("[signup] failed to send OTP", otpErr);
-      // Do not fail signup just because email could not be sent — the user can
-      // still request a resend from the verify page.
+    if (!isTestEmail(created.Email_Id)) {
+      try {
+        const result = await createAndSendOtp({
+          userId: created.User_Id,
+          emailId: created.Email_Id,
+          otpType: "email_verification",
+        });
+        otpInfo = { expiresAt: result.expiresAt, fallback: result.fallback };
+      } catch (otpErr) {
+        console.error("[signup] failed to send OTP", otpErr);
+        // Do not fail signup just because email could not be sent — the user can
+        // still request a resend from the verify page.
+      }
     }
 
     return res.status(201).json({
@@ -466,6 +490,20 @@ authRouter.post("/Api/Auth/VerifyEmail", async (req, res) => {
 
   try {
     await ensureOtpTableExists();
+
+    // QA bypass: for test-suffix emails accept the magic OTP without a DB
+    // record. Skips OTP storage/expiry checks entirely for these accounts.
+    {
+      const candidate = await prisma.tbl_User.findFirst({ where: { User_Id: userId } });
+      if (candidate && isTestEmail(candidate.Email_Id) && otp === TEST_MAGIC_OTP) {
+        await prisma.tbl_User.updateMany({
+          where: { User_Id: userId },
+          data: { Is_Verified: true },
+        });
+        const loginPayload = await issueLoginTokenForUser(candidate, userId);
+        return res.json(loginPayload);
+      }
+    }
 
     const now = new Date();
     const record = await prisma.tbl_UserOtp.findFirst({

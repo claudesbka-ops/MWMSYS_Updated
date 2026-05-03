@@ -1,0 +1,27 @@
+{
+  "name": "mwmsys_master",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:seed": "node scripts/seed-test-accounts.js",
+    "test:report": "playwright show-report"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chjaved/MWMSYS_Master.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/chjaved/MWMSYS_Master/issues"
+  },
+  "homepage": "https://github.com/chjaved/MWMSYS_Master#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "playwright": "^1.59.1"
+  }
+}

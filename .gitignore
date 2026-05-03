@@ -1,0 +1,16 @@
+node_modules/
+
+# Playwright artifacts
+test-results/
+playwright-report/
+last-run.log
+
+# Probe artifacts (kept in repo only as reference; outputs are local)
+probe-output/
+
+# Local probe scripts (kept out of CI)
+probes/
+
+# Editor
+.vscode/
+.idea/
