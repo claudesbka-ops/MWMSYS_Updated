@@ -20,10 +20,17 @@ export function downloadCsv(filename: string, headers: string[], rows: Array<Arr
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  a.target = "_blank";
+  a.style.display = "none";
   document.body.appendChild(a);
+
+  // Delay cleanup to ensure Playwright (and browsers) can register the download.
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 1000);
+
   a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
 }
 
 export function downloadPdfSimpleTable(filename: string, title: string, headers: string[], rows: Array<Array<unknown>>): void {
@@ -69,5 +76,20 @@ export function downloadPdfSimpleTable(filename: string, title: string, headers:
     drawRow((r ?? []).map((x) => (x == null ? "" : String(x))), false);
   }
 
-  doc.save(filename);
+  // Use output() + manual download link to ensure Playwright can detect the download.
+  const pdfBlob = doc.output("blob");
+  const url = URL.createObjectURL(pdfBlob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.target = "_blank";
+  a.style.display = "none";
+  document.body.appendChild(a);
+
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 1000);
+
+  a.click();
 }
