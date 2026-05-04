@@ -263,7 +263,7 @@ export default function LeavePage() {
 
       {isWorker && (
         <div className="bg-card rounded-2xl border border-border/60 p-5 mb-4">
-          <h3 className="text-sm font-bold text-foreground mb-3">Apply for Leave</h3>
+          <h3 className="text-sm font-bold text-foreground mb-3">Apply Leave</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <select
               value={form.leaveType}
@@ -453,7 +453,7 @@ export default function LeavePage() {
               <div className="max-w-xl">
                 <div className="text-base font-semibold text-foreground">No leave applications yet</div>
                 <div className="text-sm text-muted-foreground mt-1">
-                  {isWorker ? "Apply for leave using the form above." : "When workers apply for leave, you’ll see and approve them here."}
+                  {isWorker ? "Apply Leave using the form above." : "When workers Apply Leave, you’ll see and approve them here."}
                 </div>
               </div>
             </div>

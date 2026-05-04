@@ -226,7 +226,7 @@ export default function WorkerPage() {
               className="flex items-center gap-2 border border-primary/40 text-primary px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary/10 transition-colors"
             >
               <Link2 className="w-4 h-4" />
-              Link Existing Worker
+              Link Worker
             </button>
           )}
           {currentRole !== "worker" && (
