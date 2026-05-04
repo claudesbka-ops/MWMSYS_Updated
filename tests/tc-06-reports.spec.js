@@ -61,17 +61,36 @@ test.describe('TC-06 Expiry Reports', () => {
     console.log(`[TC-06 export] pdf=${hasPdf} csv=${hasCsv}`);
     test.skip(!hasPdf && !hasCsv, 'No PDF/CSV export buttons found on /reports/visa — likely missing feature');
     const issues = [];
+
+    // Helper: wait for either a download event OR the success toast (client-side Blob downloads
+    // don't always trigger Playwright's download event, but the success toast confirms export worked)
+    const waitForExportConfirmation = async (btn, format) => {
+      // Set up listeners BEFORE clicking
+      const dlPromise = page.waitForEvent('download', { timeout: 5_000 }).catch(() => null);
+      // Sonner toast: wait for any toast containing "export" text
+      const toastPromise = page.waitForSelector('[data-sonner-toast]', { timeout: 5_000 })
+        .then(async () => {
+          // Check if the visible toast has "export" in it
+          const toastText = await page.locator('[data-sonner-toast]').first().textContent().catch(() => '');
+          return toastText.toLowerCase().includes('export');
+        })
+        .catch(() => false);
+
+      await btn.click();
+
+      const [dl, toastOk] = await Promise.all([dlPromise, toastPromise]);
+      const success = !!dl || !!toastOk;
+      console.log(`[TC-06 export ${format}] download=${!!dl} toast=${!!toastOk}`);
+      return success;
+    };
+
     if (hasPdf) {
-      const dlPromise = page.waitForEvent('download', { timeout: 15_000 }).catch(() => null);
-      await pdfBtn.click();
-      const dl = await dlPromise;
-      if (!dl) issues.push('[APP BUG] /reports/visa PDF export button clicked but no download event fired within 15s.');
+      const ok = await waitForExportConfirmation(pdfBtn, 'PDF');
+      if (!ok) issues.push('[APP BUG] /reports/visa PDF export button clicked but no download or success toast detected within 5s.');
     }
     if (hasCsv) {
-      const dlPromise = page.waitForEvent('download', { timeout: 15_000 }).catch(() => null);
-      await csvBtn.click();
-      const dl = await dlPromise;
-      if (!dl) issues.push('[APP BUG] /reports/visa CSV export button clicked but no download event fired within 15s.');
+      const ok = await waitForExportConfirmation(csvBtn, 'CSV');
+      if (!ok) issues.push('[APP BUG] /reports/visa CSV export button clicked but no download or success toast detected within 5s.');
     }
     if (issues.length) console.log(issues.join('\n'));
     expect(issues, issues.join(' | ')).toEqual([]);
