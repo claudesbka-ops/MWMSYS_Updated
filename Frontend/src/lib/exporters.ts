@@ -17,20 +17,28 @@ export function downloadCsv(filename: string, headers: string[], rows: Array<Arr
 
   const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
+
+  // Create a temporary link and programmatically click it.
+  // Playwright detects this as a download event when the link has download attribute.
   const a = document.createElement("a");
   a.href = url;
-  a.download = filename;
-  a.target = "_blank";
+  a.download = filename; // This triggers the download behavior
   a.style.display = "none";
   document.body.appendChild(a);
 
-  // Delay cleanup to ensure Playwright (and browsers) can register the download.
+  // Programmatic click using MouseEvent for better browser/Playwright compatibility
+  const clickEvent = new MouseEvent("click", {
+    bubbles: true,
+    cancelable: true,
+    view: window,
+  });
+  a.dispatchEvent(clickEvent);
+
+  // Cleanup after a delay to let the download start
   setTimeout(() => {
     a.remove();
     URL.revokeObjectURL(url);
-  }, 1000);
-
-  a.click();
+  }, 2000);
 }
 
 export function downloadPdfSimpleTable(filename: string, title: string, headers: string[], rows: Array<Array<unknown>>): void {
@@ -82,14 +90,20 @@ export function downloadPdfSimpleTable(filename: string, title: string, headers:
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
-  a.target = "_blank";
   a.style.display = "none";
   document.body.appendChild(a);
 
+  // Programmatic click using MouseEvent for better browser/Playwright compatibility
+  const clickEvent = new MouseEvent("click", {
+    bubbles: true,
+    cancelable: true,
+    view: window,
+  });
+  a.dispatchEvent(clickEvent);
+
+  // Cleanup after a delay to let the download start
   setTimeout(() => {
     a.remove();
     URL.revokeObjectURL(url);
-  }, 1000);
-
-  a.click();
+  }, 2000);
 }
