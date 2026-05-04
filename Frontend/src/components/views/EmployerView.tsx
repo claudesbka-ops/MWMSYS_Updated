@@ -150,9 +150,14 @@ export default function EmployerView() {
         <div className="bg-card rounded-2xl border border-border/60 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-foreground">Worker Status</h3>
-            <button className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1">
-              View all <ArrowRight className="w-3 h-3" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1">
+                Link Worker <Users className="w-3 h-3" />
+              </button>
+              <button className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1">
+                View all <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
           </div>
           <div className="space-y-1">
             {isLoading ? (

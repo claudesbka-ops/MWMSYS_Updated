@@ -306,6 +306,18 @@ function AnimatedRoutes() {
             }
           />
           <Route path="/panic-status" element={<PlaceholderPage title="Panic Status" />} />
+
+          {/* QA-friendly route aliases so Playwright tests can use common URLs */}
+          <Route path="/documents" element={<Navigate to="/my-documents" replace />} />
+          <Route path="/leaves" element={<Navigate to="/hrms/leave" replace />} />
+          <Route path="/clock" element={<Navigate to="/hrms" replace />} />
+          <Route path="/roster" element={<Navigate to="/hrms/roster" replace />} />
+          <Route path="/payslips" element={<Navigate to="/hrms/my-requests" replace />} />
+          <Route path="/agency/employers" element={<Navigate to="/employer" replace />} />
+          <Route path="/employer/workers" element={<Navigate to="/worker" replace />} />
+          <Route path="/settings" element={<Navigate to="/account" replace />} />
+          <Route path="/profile" element={<Navigate to="/account" replace />} />
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </motion.div>

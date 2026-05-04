@@ -306,7 +306,7 @@ export default function Chatbot() {
       )}
 
       {!open && (
-        <Button className="rounded-full h-14 w-14 p-0 shadow-lg" onClick={() => setOpen(true)}>
+        <Button data-testid="chatbot-launcher" className="rounded-full h-14 w-14 p-0 shadow-lg" onClick={() => setOpen(true)}>
           <Bot className="h-6 w-6" />
         </Button>
       )}
