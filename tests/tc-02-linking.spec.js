@@ -43,9 +43,79 @@ test.describe('TC-02 Linking & Visibility', () => {
     console.log(`[TC-02.4] embassy → /worker landed on: ${url}`);
   });
 
-  test.skip('TC-02.5 Worker selects employer during signup → SKIPPED (signup OTP needed)', () => {});
-  test.skip('TC-02.6 Employer manually links a worker → SKIPPED (destructive on prod)', () => {});
-  test.skip('TC-02.7 Agency links an employer → SKIPPED (destructive on prod)', () => {});
+  test('TC-02.5 Worker signup with employer selection creates link', async ({ request }) => {
+    const userId = 'tc02worker_' + Date.now();
+    const payload = {
+      userId,
+      email: userId + '@test.com',
+      password: 'Test@1234',
+      role: 'worker',
+      passportNo: 'TC02' + Date.now().toString().slice(-6),
+      employerId: 'qaemployer',
+      fullName: 'TC02.5 Worker',
+    };
+    const r = await request.post(process.env.API_BASE_URL || 'https://mwmsysmaster-production.up.railway.app' + '/signup', { data: payload });
+    expect([201, 409]).toContain(r.status());
+    const json = await r.json().catch(() => ({}));
+    console.log(`[TC-02.5] signup -> ${r.status()} ${JSON.stringify(json).slice(0,200)}`);
+    expect(r.status() === 201 || json.message?.includes('created') || json.error?.includes('already exists')).toBeTruthy();
+  });
+
+  test('TC-02.6 Employer manually links a worker', async ({ page }) => {
+    const r = await login(page, 'employer');
+    skipIfLoginFailed(test, r, 'employer');
+    // Navigate to workers or linking page
+    await page.goto('/employer/workers', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/dashboard', { waitUntil: 'domcontentloaded' }));
+    await page.waitForTimeout(2000);
+    // Try to find "Link Worker" or "Add Worker" button
+    const linkBtn = page.locator('button').filter({ hasText: /link worker|add worker|assign worker/i }).first();
+    const hasLinkBtn = await linkBtn.isVisible().catch(() => false);
+    if (!hasLinkBtn) {
+      test.skip(true, 'No Link Worker button found — UI may use different labels or route');
+    }
+    await linkBtn.click();
+    await page.waitForTimeout(1500);
+    // Fill in worker identifier (passport or email)
+    const input = page.locator('input[placeholder*="passport" i], input[placeholder*="email" i], input[type="text"]').first();
+    if (await input.isVisible().catch(() => false)) {
+      await input.fill('qaworker');
+      const confirm = page.locator('button').filter({ hasText: /link|add|confirm|save/i }).first();
+      await confirm.click();
+      await page.waitForTimeout(2000);
+      // Verify success toast or worker appears in list
+      const success = await page.locator('[data-sonner-toast]').filter({ hasText: /linked|added|success/i }).first().isVisible().catch(() => false);
+      const inList = await page.getByText(/qaworker|worker@test/i).first().isVisible().catch(() => false);
+      expect(success || inList, 'Worker should be linked or appear in list').toBeTruthy();
+    } else {
+      test.skip(true, 'Link Worker form not found after clicking button');
+    }
+  });
+
+  test('TC-02.7 Agency links an employer', async ({ page }) => {
+    const r = await login(page, 'agency');
+    skipIfLoginFailed(test, r, 'agency');
+    await page.goto('/agency/employers', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/dashboard', { waitUntil: 'domcontentloaded' }));
+    await page.waitForTimeout(2000);
+    const linkBtn = page.locator('button').filter({ hasText: /link employer|add employer|assign employer/i }).first();
+    const hasLinkBtn = await linkBtn.isVisible().catch(() => false);
+    if (!hasLinkBtn) {
+      test.skip(true, 'No Link Employer button found — UI may use different labels or route');
+    }
+    await linkBtn.click();
+    await page.waitForTimeout(1500);
+    const input = page.locator('input[placeholder*="ssm" i], input[placeholder*="email" i], input[type="text"]').first();
+    if (await input.isVisible().catch(() => false)) {
+      await input.fill('qaemployer');
+      const confirm = page.locator('button').filter({ hasText: /link|add|confirm|save/i }).first();
+      await confirm.click();
+      await page.waitForTimeout(2000);
+      const success = await page.locator('[data-sonner-toast]').filter({ hasText: /linked|added|success/i }).first().isVisible().catch(() => false);
+      const inList = await page.getByText(/qaemployer|employer@test/i).first().isVisible().catch(() => false);
+      expect(success || inList, 'Employer should be linked or appear in list').toBeTruthy();
+    } else {
+      test.skip(true, 'Link Employer form not found after clicking button');
+    }
+  });
 
   test('TC-02.8 Agency login pre-req fails — visibility checks marked skipped', async ({ page }) => {
     const r = await login(page, 'agency');

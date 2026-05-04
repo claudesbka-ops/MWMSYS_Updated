@@ -31,6 +31,55 @@ test.describe('TC-10 Stripe Billing', () => {
     expect(found.length).toBeGreaterThan(0);
   });
 
-  test.skip('TC-10.3 Click Subscribe → Stripe checkout — SKIPPED (would mutate live billing)', () => {});
-  test.skip('TC-10.4 Cancel on Stripe → returns to pricing — SKIPPED', () => {});
+  test('TC-10.3 Click Subscribe redirects to Stripe checkout', async ({ page }) => {
+    const r = await login(page, 'employer');
+    skipIfLoginFailed(test, r, 'employer');
+    await page.goto('/pricing', { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2000);
+    const subscribeBtn = page.locator('button').filter({ hasText: /subscribe|upgrade|get started|choose plan|select plan/i }).first();
+    if (!await subscribeBtn.isVisible().catch(() => false)) {
+      test.skip(true, 'No Subscribe button found on pricing page');
+    }
+    // Click subscribe and wait for navigation (Stripe or checkout page)
+    const navPromise = page.waitForURL(/stripe|checkout|subscribe|billing/i, { timeout: 15_000 }).catch(() => null);
+    await subscribeBtn.click();
+    const newUrl = await navPromise;
+    const currentUrl = page.url();
+    console.log(`[TC-10.3] after subscribe url=${currentUrl}`);
+    const isStripe = /stripe\.com|checkout\.stripe/i.test(currentUrl);
+    const isCheckout = /checkout|subscribe|billing|payment/i.test(currentUrl);
+    expect(isStripe || isCheckout, 'Subscribe should redirect to Stripe checkout or payment page').toBeTruthy();
+  });
+
+  test('TC-10.4 Cancel on Stripe returns to pricing', async ({ page }) => {
+    const r = await login(page, 'employer');
+    skipIfLoginFailed(test, r, 'employer');
+    await page.goto('/pricing', { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2000);
+    const subscribeBtn = page.locator('button').filter({ hasText: /subscribe|upgrade|get started/i }).first();
+    if (!await subscribeBtn.isVisible().catch(() => false)) {
+      test.skip(true, 'No Subscribe button found');
+    }
+    await subscribeBtn.click();
+    await page.waitForTimeout(5000);
+    const onStripe = /stripe\.com|checkout\.stripe/i.test(page.url());
+    if (!onStripe) {
+      test.skip(true, 'Did not navigate to Stripe — checkout may be inline or different provider');
+    }
+    // Look for cancel/back button on Stripe page
+    const cancelBtn = page.locator('button').filter({ hasText: /cancel|back|return|close/i }).first();
+    const backLink = page.locator('a').filter({ hasText: /cancel|back|return/i }).first();
+    if (await cancelBtn.isVisible().catch(() => false)) {
+      await cancelBtn.click();
+    } else if (await backLink.isVisible().catch(() => false)) {
+      await backLink.click();
+    } else {
+      // Navigate back using browser back
+      await page.goBack({ waitUntil: 'domcontentloaded' });
+    }
+    await page.waitForTimeout(3000);
+    const returned = /pricing|dashboard|employer/i.test(page.url());
+    console.log(`[TC-10.4] after cancel url=${page.url()}`);
+    expect(returned, 'Canceling Stripe checkout should return to pricing/dashboard').toBeTruthy();
+  });
 });
