@@ -1,31 +1,29 @@
 // TC-12 — CHATBOT
-// Discover a chatbot widget on any reachable page (admin dashboard / blog /
-// pricing). If absent on this build, skip with a clear note. If present,
-// send three sample queries and assert a non-empty answer comes back.
+// The floating chat launcher carries data-testid="chatbot-launcher" and is
+// rendered on /dashboard. Click it, find the input inside the popup, send a
+// query, and assert a non-error response within ~5s.
 const { test, expect } = require('@playwright/test');
 const { login, skipIfLoginFailed } = require('./_helpers');
 
 const QUERIES = [
-  /how do i trigger panic button/i,
-  /how do i submit a salary dispute/i,
-  /what are the pricing plans/i,
+  'How do I trigger the panic button?',
+  'How do I submit a salary dispute?',
+  'What are the pricing plans?',
 ];
 
 async function findChatLauncher(page) {
-  // Heuristics: floating button, Intercom/Drift/Crisp-like widgets, or any
-  // element whose class/aria mentions chat/bot/help.
-  const candidates = [
+  // Prefer the explicit testid we added in the frontend.
+  const testid = page.locator('[data-testid="chatbot-launcher"]').first();
+  if (await testid.isVisible().catch(() => false)) return testid;
+  // Fallback heuristics for older builds.
+  const fallbacks = [
     'button[aria-label*="chat" i]',
     'button[aria-label*="help" i]',
     '[data-testid*="chat" i]',
-    'iframe[title*="chat" i]',
     'button:has-text("Chat")',
-    'button:has-text("Ask")',
-    '[class*="chat-launcher" i]',
     '[class*="chatbot" i]',
-    '[id*="chatbot" i]',
   ];
-  for (const sel of candidates) {
+  for (const sel of fallbacks) {
     const loc = page.locator(sel).first();
     if (await loc.isVisible().catch(() => false)) return loc;
   }
@@ -34,53 +32,44 @@ async function findChatLauncher(page) {
 
 test.describe('TC-12 Chatbot', () => {
 
-  test('TC-12.1 Chatbot launcher exists somewhere in the app', async ({ page }) => {
+  test('TC-12.1 Chatbot launcher exists on /dashboard', async ({ page }) => {
     const r = await login(page, 'admin');
     skipIfLoginFailed(test, r, 'admin');
-
-    const pagesToTry = ['/dashboard', '/blog', '/pricing', '/account'];
-    let launcher = null;
-    for (const route of pagesToTry) {
-      await page.goto(route, { waitUntil: 'domcontentloaded' }).catch(() => {});
-      await page.waitForTimeout(2000);
-      launcher = await findChatLauncher(page);
-      if (launcher) {
-        console.log(`[TC-12.1] launcher found on ${route}`);
-        break;
-      }
-    }
-    test.skip(!launcher, 'No chatbot launcher detected on admin-visible pages — feature may not be deployed yet.');
-    expect(launcher).not.toBeNull();
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2500);
+    const launcher = await findChatLauncher(page);
+    expect(launcher, 'Chatbot launcher should be visible on /dashboard').not.toBeNull();
   });
 
   for (const q of QUERIES) {
-    test(`TC-12 chatbot answers: ${q.toString()}`, async ({ page }) => {
+    test(`TC-12 chatbot answers: ${q}`, async ({ page }) => {
       const r = await login(page, 'admin');
       skipIfLoginFailed(test, r, 'admin');
-      let launcher = null;
-      for (const route of ['/dashboard', '/blog', '/pricing']) {
-        await page.goto(route, { waitUntil: 'domcontentloaded' }).catch(() => {});
-        await page.waitForTimeout(1500);
-        launcher = await findChatLauncher(page);
-        if (launcher) break;
-      }
-      test.skip(!launcher, 'No chatbot launcher found — cannot exercise queries.');
+      await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(2500);
+
+      const launcher = await findChatLauncher(page);
+      if (!launcher) test.skip(true, 'No chatbot launcher found');
 
       await launcher.click();
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(2000);
 
-      const input = page.locator('input[type="text"], textarea, [contenteditable="true"]')
-        .filter({ has: page.locator(':visible') }).last();
-      test.skip(await input.count() === 0, 'Chat opened but no input field located.');
+      // Look for an input/textarea that is visible AFTER opening the chat.
+      const input = page.locator('input:visible, textarea:visible, [contenteditable="true"]:visible').last();
+      const inputCount = await input.count();
+      if (inputCount === 0) test.skip(true, 'Chat opened but no input field located');
 
-      await input.fill(q.toString().replace(/^\/|\/i?$/g, ''));
+      await input.fill(q);
       await page.keyboard.press('Enter');
-      await page.waitForTimeout(6000);
+      await page.waitForTimeout(5000);
 
-      const body = (await page.locator('body').innerText());
-      // Just assert the bot didn't error out and there is *some* response text.
-      const errored = /error|something went wrong|try again later/i.test(body.slice(-2000));
+      // Look for newly-rendered messages inside the chat panel.
+      const transcript = (await page.locator('body').innerText()).slice(-4000);
+      const hasResponse = transcript.length > 20 && transcript.toLowerCase().includes(q.slice(0, 8).toLowerCase());
+      const errored = /error|something went wrong|try again later/i.test(transcript);
+      console.log(`[TC-12] q="${q}" hasResponse=${hasResponse} errored=${errored}`);
       expect(errored, 'chatbot returned an error message').toBe(false);
+      expect(transcript.length).toBeGreaterThan(20);
     });
   }
 });

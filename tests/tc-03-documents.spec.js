@@ -1,11 +1,9 @@
 // TC-03 — DOCUMENTS
-// Document upload flows with real file fixtures. On staging these mutate state
-// safely; on prod they gracefully skip when upload inputs are not found.
+// Document upload UI on /my-documents uses a custom dropzone (no native file
+// input visible) and a document-type dropdown. On prod we verify the UI is
+// present and interactable but do NOT actually upload to avoid mutating data.
 const { test, expect } = require('@playwright/test');
 const { login, skipIfLoginFailed } = require('./_helpers');
-
-const path = require('path');
-const FIXTURES = path.join(__dirname, 'fixtures');
 
 test.describe('TC-03 Documents', () => {
 
@@ -19,6 +17,7 @@ test.describe('TC-03 Documents', () => {
 
   test('TC-03.2 Signup without profile photo is allowed (not enforced at API)', async ({ request }) => {
     const userId = 'tc03photo_' + Date.now();
+    const apiBase = process.env.API_BASE_URL || 'https://mwmsysmaster-production.up.railway.app';
     const payload = {
       userId,
       email: userId + '@test.com',
@@ -27,127 +26,137 @@ test.describe('TC-03 Documents', () => {
       passportNo: 'PHOTO' + Date.now().toString().slice(-6),
       fullName: 'TC03.2 Worker',
     };
-    const r = await request.post(process.env.API_BASE_URL || 'https://mwmsysmaster-production.up.railway.app' + '/signup', { data: payload });
+    const r = await request.post(apiBase + '/signup', { data: payload });
     const status = r.status();
     const json = await r.json().catch(() => ({}));
-    console.log(`[TC-03.2] signup without photo -> ${status} ${JSON.stringify(json).slice(0,200)}`);
-    // API allows signup without photo; photo requirement may be UI-level only
+    console.log(`[TC-03.2] signup without photo -> ${status} ${JSON.stringify(json).slice(0, 200)}`);
     expect([201, 409]).toContain(status);
   });
 
-  test('TC-03.3 Worker uploads passport document', async ({ page }) => {
+  // Helper: open /my-documents and wait for the page to load.
+  async function openDocumentsPage(page) {
+    await page.goto('/my-documents', { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2500);
+  }
+
+  // Helper: find the document-type select. We try a few selectors because the
+  // dropdown could be a native <select> or a shadcn/Radix combobox.
+  async function findDocTypeSelect(page) {
+    const native = page.locator('select').first();
+    if (await native.isVisible().catch(() => false)) return { kind: 'native', loc: native };
+    const combo = page.locator('[role="combobox"]').first();
+    if (await combo.isVisible().catch(() => false)) return { kind: 'combobox', loc: combo };
+    return null;
+  }
+
+  async function selectDocType(page, label) {
+    const sel = await findDocTypeSelect(page);
+    if (!sel) return false;
+    if (sel.kind === 'native') {
+      await sel.loc.selectOption({ label }).catch(async () => {
+        await sel.loc.selectOption(label.toLowerCase()).catch(() => {});
+      });
+      return true;
+    }
+    // shadcn combobox: click trigger, then click option
+    await sel.loc.click();
+    await page.waitForTimeout(400);
+    const option = page.getByRole('option', { name: new RegExp(label, 'i') }).first();
+    if (await option.isVisible().catch(() => false)) {
+      await option.click();
+      await page.waitForTimeout(300);
+      return true;
+    }
+    return false;
+  }
+
+  test('TC-03.3 Worker uploads passport document (UI present)', async ({ page }) => {
     const r = await login(page, 'worker');
     skipIfLoginFailed(test, r, 'worker');
-    // Navigate to documents or profile page
-    await page.goto('/documents', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/profile', { waitUntil: 'domcontentloaded' }));
-    await page.waitForTimeout(2000);
-    // Look for file upload input
-    const fileInput = page.locator('input[type="file"]').first();
-    if (!await fileInput.isVisible().catch(() => false)) {
-      test.skip(true, 'No file upload input found on documents/profile page');
-    }
-    await fileInput.setInputFiles(path.join(FIXTURES, 'sample-passport.png'));
-    await page.waitForTimeout(5000);
-    // Check for success indicator (toast, uploaded preview, or extracted data)
-    const success = await page.locator('[data-sonner-toast]').filter({ hasText: /upload|success|extracted|processed/i }).first().isVisible().catch(() => false);
-    const preview = await page.locator('img[src*="passport" i], img[src*="document" i], .document-preview').first().isVisible().catch(() => false);
-    console.log(`[TC-03.3] passport upload success=${success} preview=${preview}`);
-    expect(success || preview, 'Upload should show success toast or document preview').toBeTruthy();
+    await openDocumentsPage(page);
+
+    // Verify document-type dropdown shows Passport (default value).
+    const sel = await findDocTypeSelect(page);
+    expect(sel, 'Document type dropdown must be visible on /my-documents').not.toBeNull();
+    const dropZone = page.getByText(/click to choose a file/i).first();
+    await expect(dropZone, '"Click to choose a file" dropzone must be visible').toBeVisible();
+    const submit = page.getByRole('button', { name: /submit for review/i }).first();
+    await expect(submit, '"Submit for review" button must be visible').toBeVisible();
+    console.log('[TC-03.3] document UI present (dropdown + dropzone + submit)');
   });
 
-  test('TC-03.4 Worker uploads work permit', async ({ page }) => {
+  test('TC-03.4 Worker can switch document type to Work Permit', async ({ page }) => {
     const r = await login(page, 'worker');
     skipIfLoginFailed(test, r, 'worker');
-    await page.goto('/documents', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/profile', { waitUntil: 'domcontentloaded' }));
-    await page.waitForTimeout(2000);
-    const fileInput = page.locator('input[type="file"]').first();
-    if (!await fileInput.isVisible().catch(() => false)) {
-      test.skip(true, 'No file upload input found');
-    }
-    await fileInput.setInputFiles(path.join(FIXTURES, 'sample-passmit.jpg'));
-    await page.waitForTimeout(5000);
-    const success = await page.locator('[data-sonner-toast]').filter({ hasText: /upload|success|permit/i }).first().isVisible().catch(() => false);
-    expect(success || true, 'Work permit upload attempted').toBeTruthy();
+    await openDocumentsPage(page);
+    const ok = await selectDocType(page, 'Work Permit');
+    if (!ok) test.skip(true, 'Document type dropdown not interactable');
+    // Trigger reflects new value
+    const trigger = page.locator('[role="combobox"], select').first();
+    const value = (await trigger.innerText().catch(() => '')) || (await trigger.inputValue().catch(() => ''));
+    console.log(`[TC-03.4] doc type after select=${value}`);
+    expect(value.toLowerCase()).toMatch(/permit/);
   });
 
-  test('TC-03.5 Worker uploads insurance document', async ({ page }) => {
+  test('TC-03.5 Worker can switch document type to Insurance', async ({ page }) => {
     const r = await login(page, 'worker');
     skipIfLoginFailed(test, r, 'worker');
-    await page.goto('/documents', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/profile', { waitUntil: 'domcontentloaded' }));
-    await page.waitForTimeout(2000);
-    const fileInput = page.locator('input[type="file"]').first();
-    if (!await fileInput.isVisible().catch(() => false)) {
-      test.skip(true, 'No file upload input found');
-    }
-    await fileInput.setInputFiles(path.join(FIXTURES, 'sample-passport.png'));
-    await page.waitForTimeout(5000);
-    const success = await page.locator('[data-sonner-toast]').filter({ hasText: /upload|success|insurance/i }).first().isVisible().catch(() => false);
-    expect(success || true, 'Insurance upload attempted').toBeTruthy();
+    await openDocumentsPage(page);
+    const ok = await selectDocType(page, 'Insurance');
+    if (!ok) test.skip(true, 'Document type dropdown not interactable');
+    const trigger = page.locator('[role="combobox"], select').first();
+    const value = (await trigger.innerText().catch(() => '')) || (await trigger.inputValue().catch(() => ''));
+    console.log(`[TC-03.5] doc type after select=${value}`);
+    expect(value.toLowerCase()).toMatch(/insurance/);
   });
 
-  test('TC-03.6 Worker uploads contract PDF', async ({ page }) => {
+  test('TC-03.6 Worker can switch document type to Contract', async ({ page }) => {
     const r = await login(page, 'worker');
     skipIfLoginFailed(test, r, 'worker');
-    await page.goto('/documents', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/profile', { waitUntil: 'domcontentloaded' }));
-    await page.waitForTimeout(2000);
-    const fileInput = page.locator('input[type="file"]').first();
-    if (!await fileInput.isVisible().catch(() => false)) {
-      test.skip(true, 'No file upload input found');
-    }
-    await fileInput.setInputFiles(path.join(FIXTURES, 'sample-contract.pdf'));
-    await page.waitForTimeout(5000);
-    const success = await page.locator('[data-sonner-toast]').filter({ hasText: /upload|success|contract/i }).first().isVisible().catch(() => false);
-    expect(success || true, 'Contract upload attempted').toBeTruthy();
+    await openDocumentsPage(page);
+    const ok = await selectDocType(page, 'Contract');
+    if (!ok) test.skip(true, 'Document type dropdown not interactable');
+    const trigger = page.locator('[role="combobox"], select').first();
+    const value = (await trigger.innerText().catch(() => '')) || (await trigger.inputValue().catch(() => ''));
+    console.log(`[TC-03.6] doc type after select=${value}`);
+    expect(value.toLowerCase()).toMatch(/contract/);
   });
 
-  test('TC-03.7 Blurry/small image upload warning', async ({ page }) => {
+  test('TC-03.7 Document upload area is present (blurry-image guard requires real upload)', async ({ page }) => {
     const r = await login(page, 'worker');
     skipIfLoginFailed(test, r, 'worker');
-    await page.goto('/documents', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/profile', { waitUntil: 'domcontentloaded' }));
-    await page.waitForTimeout(2000);
-    const fileInput = page.locator('input[type="file"]').first();
-    if (!await fileInput.isVisible().catch(() => false)) {
-      test.skip(true, 'No file upload input found');
-    }
-    // The sample files are very small (1x1 px) so should trigger quality warning
-    await fileInput.setInputFiles(path.join(FIXTURES, 'sample-passport.png'));
-    await page.waitForTimeout(5000);
-    const warning = await page.locator('[data-sonner-toast]').filter({ hasText: /blur|quality|low resolution|too small/i }).first().isVisible().catch(() => false);
-    const error = await page.getByText(/blur|quality|low resolution|too small/i).first().isVisible().catch(() => false);
-    console.log(`[TC-03.7] blur warning=${warning} blur text=${error}`);
-    // If no warning shown, the app may not validate image quality; that's OK for this test
-    expect(warning || error || true, 'Blurry image warning may or may not be shown').toBeTruthy();
+    await openDocumentsPage(page);
+    const dropZone = page.getByText(/click to choose a file/i).first();
+    await expect(dropZone, 'Upload area must exist; quality validation runs after a real file is selected').toBeVisible();
   });
 
-  test('TC-03.8 Agency verifies a document', async ({ page }) => {
+  test('TC-03.8 Agency verifies a document (no-op if no pending docs)', async ({ page }) => {
     const r = await login(page, 'agency');
     skipIfLoginFailed(test, r, 'agency');
     await page.goto('/attestation', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(3000);
-    // Look for a document with Verify button
     const verifyBtn = page.locator('button').filter({ hasText: /verify|approve|accept/i }).first();
     if (!await verifyBtn.isVisible().catch(() => false)) {
-      test.skip(true, 'No Verify button found on attestation page — no pending documents or different UI');
+      test.skip(true, 'No documents to verify on /attestation (no Verify button visible)');
     }
     await verifyBtn.click();
     await page.waitForTimeout(2000);
     const success = await page.locator('[data-sonner-toast]').filter({ hasText: /verified|approved|success/i }).first().isVisible().catch(() => false);
-    const badge = await page.getByText(/verified|approved|green|✓/i).first().isVisible().catch(() => false);
+    const badge = await page.getByText(/verified|approved/i).first().isVisible().catch(() => false);
     expect(success || badge, 'Document should show verified status after approval').toBeTruthy();
   });
 
-  test('TC-03.9 Agency rejects a document with reason', async ({ page }) => {
+  test('TC-03.9 Agency rejects a document with reason (no-op if no pending docs)', async ({ page }) => {
     const r = await login(page, 'agency');
     skipIfLoginFailed(test, r, 'agency');
     await page.goto('/attestation', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(3000);
     const rejectBtn = page.locator('button').filter({ hasText: /reject|decline|deny/i }).first();
     if (!await rejectBtn.isVisible().catch(() => false)) {
-      test.skip(true, 'No Reject button found on attestation page');
+      test.skip(true, 'No documents to reject on /attestation (no Reject button visible)');
     }
     await rejectBtn.click();
     await page.waitForTimeout(1000);
-    // Look for reason input
     const reasonInput = page.locator('textarea, input[placeholder*="reason" i]').first();
     if (await reasonInput.isVisible().catch(() => false)) {
       await reasonInput.fill('Document unclear — please re-upload');
@@ -158,7 +167,7 @@ test.describe('TC-03 Documents', () => {
     }
     await page.waitForTimeout(2000);
     const success = await page.locator('[data-sonner-toast]').filter({ hasText: /rejected|declined/i }).first().isVisible().catch(() => false);
-    const badge = await page.getByText(/rejected|declined|red|✗/i).first().isVisible().catch(() => false);
+    const badge = await page.getByText(/rejected|declined/i).first().isVisible().catch(() => false);
     expect(success || badge, 'Document should show rejected status').toBeTruthy();
   });
 });

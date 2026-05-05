@@ -26,29 +26,32 @@ test.describe('TC-10 Stripe Billing', () => {
     const found = ['free', 'pro', 'enterprise', 'basic', 'premium', 'starter']
       .filter(p => body.includes(p));
     console.log(`[TC-10.2] plan-name hits on /pricing: ${found.join(', ') || '(none)'}`);
-    test.skip(found.length === 0,
-      'No plan-name keywords found on /pricing for admin role — pricing UI may be hidden for admins. Likely needs employer/agency role to view.');
+    
     expect(found.length).toBeGreaterThan(0);
   });
 
-  test('TC-10.3 Click Subscribe redirects to Stripe checkout', async ({ page }) => {
+  test('TC-10.3 Click Subscribe redirects to Stripe checkout', async ({ page, context }) => {
     const r = await login(page, 'employer');
     skipIfLoginFailed(test, r, 'employer');
     await page.goto('/pricing', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(2500);
     const subscribeBtn = page.locator('button').filter({ hasText: /subscribe|upgrade|get started|choose plan|select plan/i }).first();
     if (!await subscribeBtn.isVisible().catch(() => false)) {
       test.skip(true, 'No Subscribe button found on pricing page');
     }
-    // Click subscribe and wait for navigation (Stripe or checkout page)
-    const navPromise = page.waitForURL(/stripe|checkout|subscribe|billing/i, { timeout: 15_000 }).catch(() => null);
+    // The button may either navigate the current tab or open a new tab.
+    const popupPromise = context.waitForEvent('page', { timeout: 10_000 }).catch(() => null);
+    const navPromise = page.waitForURL(/stripe|checkout|subscribe|billing/i, { timeout: 10_000 }).catch(() => null);
     await subscribeBtn.click();
-    const newUrl = await navPromise;
+    await Promise.race([popupPromise, navPromise]);
+    const popup = await popupPromise;
+    const popupUrl = popup ? popup.url() : '';
     const currentUrl = page.url();
-    console.log(`[TC-10.3] after subscribe url=${currentUrl}`);
-    const isStripe = /stripe\.com|checkout\.stripe/i.test(currentUrl);
-    const isCheckout = /checkout|subscribe|billing|payment/i.test(currentUrl);
-    expect(isStripe || isCheckout, 'Subscribe should redirect to Stripe checkout or payment page').toBeTruthy();
+    console.log(`[TC-10.3] after subscribe page=${currentUrl} popup=${popupUrl}`);
+    const isStripe = /stripe\.com|checkout\.stripe/i.test(currentUrl) || /stripe\.com|checkout\.stripe/i.test(popupUrl);
+    const isCheckout = /checkout|subscribe|billing|payment/i.test(currentUrl) || /checkout|subscribe|billing|payment/i.test(popupUrl);
+    if (popup) await popup.close().catch(() => {});
+    expect(isStripe || isCheckout, 'Subscribe should reach Stripe checkout or a payment page (current tab or popup)').toBeTruthy();
   });
 
   test('TC-10.4 Cancel on Stripe returns to pricing', async ({ page }) => {
