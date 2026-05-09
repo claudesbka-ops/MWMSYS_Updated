@@ -1,0 +1,43 @@
+# 01 — Worker login → reach the bottom-tab Home screen
+# The login screen has no testIDs, so we match by visible text /
+# placeholder. The worker tab also requires the passport number.
+appId: com.jd12345.MobileApp
+---
+# Don't launch app - assume it's already running (dev build too slow to reload)
+- waitForAnimationToEnd
+
+# Check if already logged in - if home screen content is visible, skip login
+- runFlow:
+    when:
+      visible:
+        text: "Good morning"
+    commands:
+      - waitForAnimationToEnd
+
+# If not logged in (Panic not visible), perform login
+- runFlow:
+    when:
+      visible:
+        text: "Welcome back"
+    commands:
+      - tapOn:
+          text: "Worker"
+      - tapOn:
+          text: "you@example.com"
+      - inputText: "worker@test.com"
+      - hideKeyboard
+      - tapOn:
+          text: "••••••••"
+      - inputText: "Test@1234"
+      - hideKeyboard
+      - tapOn:
+          text: "A1234567"
+      - inputText: "TEST123456"
+      - hideKeyboard
+      - tapOn:
+          text: "Sign in as worker"
+      - waitForAnimationToEnd
+
+# After successful login the app routes to /(tabs) which renders the
+# home screen. Assert on home screen content instead of tab bar.
+- assertVisible: "Good morning"

@@ -1,0 +1,35 @@
+# 04 — Worker triggers panic → assert the success Alert
+# Reuses the login flow then navigates to the Panic tab. The big
+# button has accessibilityLabel="Send panic alert" and visible
+# label "TAP TO SEND". Success surfaces an Alert with title "Sent".
+appId: com.jd12345.MobileApp
+---
+- runFlow: 01-worker-login.yaml
+
+# Open the Panic tab in the bottom bar.
+- tapOn:
+    text: "Panic"
+- waitForAnimationToEnd
+
+- assertVisible: "TAP TO SEND"
+
+# Optional description so the alert has meaningful body text.
+- tapOn:
+    text: "What happened?"
+- inputText: "Maestro QA — automated panic alert"
+- hideKeyboard
+
+# Fire the alert. The button is a Pressable with an
+# accessibilityLabel; Maestro can also tap the visible text.
+- tapOn:
+    text: "TAP TO SEND"
+
+# After a successful POST the app shows a native Alert with title "Sent"
+# (or "Saved offline" if the device has no signal — both are acceptable
+# evidence the press fired the mutation).
+- extendedWaitUntil:
+    visible:
+      text: "Sent|Saved offline"
+
+# Dismiss the Alert.
+- tapOn: "OK"

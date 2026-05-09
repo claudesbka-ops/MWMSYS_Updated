@@ -1,0 +1,31 @@
+# 03 — Agency login → reach the bottom-tab Home screen
+appId: com.jd12345.MobileApp
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- waitForAnimationToEnd
+
+- assertVisible: "Welcome back"
+
+- tapOn:
+    text: "Agency"
+
+- tapOn:
+    text: "you@example.com"
+- inputText: "agency@test.com"
+- hideKeyboard
+
+- tapOn:
+    text: "••••••••"
+- inputText: "Test@1234"
+- hideKeyboard
+
+- tapOn:
+    text: "Sign in as agency"
+- waitForAnimationToEnd
+
+# Agency is also a manager → Incidents tab visible.
+- assertVisible: "Incidents"
+- assertVisible: "Home"
+- assertVisible: "More"

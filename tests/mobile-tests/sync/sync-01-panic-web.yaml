@@ -1,0 +1,9 @@
+# SYNC 01 — Worker triggers panic on mobile, then admin web should see it
+# Mobile half only. Run this together with the admin Playwright test via
+# the run-sync.ps1 wrapper at /tests/mobile-tests/sync/run-sync.ps1, or
+# manually:
+#   maestro test tests/mobile-tests/sync/sync-01-panic-web.yaml
+#   npx playwright test tests/tc-04-panic.spec.js --reporter=list
+appId: com.jd12345.MobileApp
+---
+- runFlow: ../04-panic-button.yaml

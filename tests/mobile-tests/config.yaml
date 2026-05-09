@@ -1,0 +1,3 @@
+# Shared Maestro config — referenced by individual flows via `appId`.
+# Pixel 6 / Android 33, debug APK installed as com.jd12345.MobileApp.
+appId: com.jd12345.MobileApp

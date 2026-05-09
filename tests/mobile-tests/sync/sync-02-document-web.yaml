@@ -1,0 +1,5 @@
+# SYNC 02 — Worker opens document upload on mobile; agency web sees it
+# Mobile half only. Web half: npx playwright test tests/tc-03-documents.spec.js
+appId: com.jd12345.MobileApp
+---
+- runFlow: ../06-document-upload.yaml

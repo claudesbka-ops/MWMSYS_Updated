@@ -21,7 +21,8 @@ const ACCOUNTS = {
 async function openRoleForm(page, role) {
   const acct = ACCOUNTS[role];
   if (!acct) throw new Error(`Unknown role: ${role}`);
-  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  const baseURL = 'https://mwmsys-master.vercel.app';
+  await page.goto(`${baseURL}/login`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1500); // let SPA hydrate
   await page.getByRole('button', { name: acct.tile }).first().click();
   await expect(page.getByPlaceholder(/Email Address/i)).toBeVisible({ timeout: 10_000 });
@@ -119,7 +120,8 @@ async function login(page, role, overrides = {}) {
     if (/\/complete-profile/i.test(url)) {
       // Still gated — navigate to /dashboard directly; many routes still
       // work because the session cookie is valid.
-      await page.goto('/dashboard', { waitUntil: 'domcontentloaded' }).catch(() => {});
+      const baseURL = 'https://mwmsys-master.vercel.app';
+      await page.goto(`${baseURL}/dashboard`, { waitUntil: 'domcontentloaded' }).catch(() => {});
       await page.waitForTimeout(1500);
       url = page.url();
     }

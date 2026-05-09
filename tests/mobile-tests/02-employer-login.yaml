@@ -1,0 +1,32 @@
+# 02 — Employer login → reach the bottom-tab Home screen
+appId: com.jd12345.MobileApp
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- waitForAnimationToEnd
+
+- assertVisible: "Welcome back"
+
+# Switch to the Employer role tab. Hides the passport field.
+- tapOn:
+    text: "Employer"
+
+- tapOn:
+    text: "you@example.com"
+- inputText: "employer@test.com"
+- hideKeyboard
+
+- tapOn:
+    text: "••••••••"
+- inputText: "Test@1234"
+- hideKeyboard
+
+- tapOn:
+    text: "Sign in as employer"
+- waitForAnimationToEnd
+
+# Employer sees Attendance + Requests + Incidents (manager-only) in the bar.
+- assertVisible: "Incidents"
+- assertVisible: "Home"
+- assertVisible: "Requests"
