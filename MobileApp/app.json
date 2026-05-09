@@ -56,7 +56,7 @@
       "@react-native-community/datetimepicker"
     ],
     "extra": {
-      "EXPO_PUBLIC_API_BASE_URL": "http://192.168.100.180:3000",
+      "EXPO_PUBLIC_API_BASE_URL": "https://mwmsysmaster-production.up.railway.app",
       "router": {},
       "eas": {
         "projectId": "005a6537-8ff2-4940-9d8f-cf591a2b8767"
