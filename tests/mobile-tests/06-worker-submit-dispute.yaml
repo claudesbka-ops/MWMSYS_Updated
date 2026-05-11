@@ -1,0 +1,47 @@
+# TC-M-03a — Worker submits a salary dispute (no proof file)
+appId: com.jd12345.MobileApp
+---
+- runFlow: 01-worker-login.yaml
+
+# Navigate via More → Salary disputes
+- tapOn:
+    id: "nav-more"
+- waitForAnimationToEnd
+- tapOn:
+    id: "more-disputes"
+- waitForAnimationToEnd
+
+- assertVisible: "Submit a salary dispute"
+
+- tapOn:
+    id: "dispute-month"
+- inputText: "2025-09"
+- hideKeyboard
+
+- tapOn:
+    id: "dispute-amount"
+- inputText: "3500"
+- hideKeyboard
+
+- tapOn:
+    id: "dispute-received"
+- inputText: "2800"
+- hideKeyboard
+
+- tapOn:
+    id: "dispute-description"
+- inputText: "Maestro QA - short paid by 700 in September 2025"
+- hideKeyboard
+
+- tapOn:
+    id: "submit-dispute-btn"
+
+- extendedWaitUntil:
+    visible: "Submitted|Dispute sent"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+
+- assertVisible: "Pending"

@@ -208,9 +208,9 @@ export default function AccountScreen() {
         </Card>
       ) : profile.profile.kind === "worker" ? (
         <Card>
-          <Field label="Full name" value={fields.name ?? ""} onChange={(v) => setFields({ ...fields, name: v })} />
+          <Field label="Full name" value={fields.name ?? ""} onChange={(v) => setFields({ ...fields, name: v })} testID="name-input" />
           <Field label="Email" value={fields.email ?? ""} onChange={(v) => setFields({ ...fields, email: v })} keyboardType="email-address" />
-          <Field label="Contact number" value={fields.contactNumber ?? ""} onChange={(v) => setFields({ ...fields, contactNumber: v })} keyboardType="phone-pad" />
+          <Field label="Contact number" value={fields.contactNumber ?? ""} onChange={(v) => setFields({ ...fields, contactNumber: v })} keyboardType="phone-pad" testID="phone-input" />
           <Field label="Address" value={fields.address ?? ""} onChange={(v) => setFields({ ...fields, address: v })} multiline />
           <Field label="Passport number" value={fields.passportNumber ?? ""} onChange={(v) => setFields({ ...fields, passportNumber: v })} autoCapitalize="characters" />
         </Card>
@@ -236,7 +236,7 @@ export default function AccountScreen() {
       )}
 
       {profile?.profile ? (
-        <PrimaryButton title={saving ? "⏳ Saving…" : "💾 Save profile"} loading={saving} onPress={save} style={{ marginTop: 18 }} />
+        <PrimaryButton title={saving ? "⏳ Saving…" : "💾 Save profile"} loading={saving} onPress={save} style={{ marginTop: 18 }} testID="save-profile-btn" />
       ) : null}
 
       <SectionTitle title="⚙️ Account actions" />
@@ -280,6 +280,7 @@ function Field({
   multiline,
   keyboardType,
   autoCapitalize,
+  testID,
 }: {
   label: string;
   value: string;
@@ -287,6 +288,7 @@ function Field({
   multiline?: boolean;
   keyboardType?: "default" | "email-address" | "phone-pad" | "numeric";
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  testID?: string;
 }) {
   return (
     <View>
@@ -299,6 +301,7 @@ function Field({
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         placeholderTextColor="rgba(15,23,42,0.4)"
+        testID={testID}
       />
     </View>
   );

@@ -56,7 +56,7 @@ export default function MoreScreen() {
       <SectionTitle title={`🔧 ${visible.length} tools`} />
       <View style={styles.grid}>
         {visible.map((t) => (
-          <TouchableOpacity key={t.key} activeOpacity={0.88} onPress={() => router.push(t.href as any)} style={styles.card}>
+          <TouchableOpacity key={t.key} activeOpacity={0.88} onPress={() => router.push(t.href as any)} testID={`more-${t.key}`} style={styles.card}>
             <LinearGradient colors={t.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.iconBadge}>
               <FontAwesome name={t.icon} size={16} color="white" />
             </LinearGradient>

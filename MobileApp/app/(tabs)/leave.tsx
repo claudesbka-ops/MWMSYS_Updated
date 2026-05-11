@@ -159,9 +159,9 @@ export default function LeaveScreen() {
 
           <Text style={[styles.sectionTitle, { marginTop: 18 }]}>📅 When?</Text>
           <View style={styles.dateRow}>
-            <DateField label="From" value={startDate} onPress={() => setPicker("start")} />
+            <DateField label="From" value={startDate} onPress={() => setPicker("start")} testID="start-date-input" />
             <FontAwesome name="long-arrow-right" size={16} color="rgba(15,23,42,0.45)" style={{ marginHorizontal: 4 }} />
-            <DateField label="To" value={endDate} onPress={() => setPicker("end")} />
+            <DateField label="To" value={endDate} onPress={() => setPicker("end")} testID="end-date-input" />
           </View>
 
           {days > 0 ? (
@@ -173,7 +173,7 @@ export default function LeaveScreen() {
             </View>
           ) : null}
 
-          <PrimaryButton title="📤 Submit request" loading={busy} onPress={apply} style={{ marginTop: 18 }} />
+          <PrimaryButton title="📤 Submit request" loading={busy} onPress={apply} style={{ marginTop: 18 }} testID="submit-leave-btn" />
 
           {picker !== null && (
             <DateTimePicker
@@ -247,8 +247,8 @@ export default function LeaveScreen() {
                 </View>
                 {canDecide ? (
                   <View style={styles.decideRow}>
-                    <PrimaryButton title="✅ Approve" variant="success" onPress={() => decide(id, "Approved")} disabled={busy} style={{ flex: 1 }} />
-                    <PrimaryButton title="❌ Reject" variant="danger" onPress={() => decide(id, "Rejected")} disabled={busy} style={{ flex: 1 }} />
+                    <PrimaryButton title="✅ Approve" variant="success" onPress={() => decide(id, "Approved")} disabled={busy} style={{ flex: 1 }} testID="approve-leave-btn" />
+                    <PrimaryButton title="❌ Reject" variant="danger" onPress={() => decide(id, "Rejected")} disabled={busy} style={{ flex: 1 }} testID="reject-leave-btn" />
                   </View>
                 ) : null}
               </Card>
@@ -280,10 +280,10 @@ function LeaveTypeChip({
   );
 }
 
-function DateField({ label, value, onPress }: { label: string; value: string; onPress: () => void }) {
+function DateField({ label, value, onPress, testID }: { label: string; value: string; onPress: () => void; testID?: string }) {
   const display = value ? new Date(value).toLocaleDateString() : "Select date";
   return (
-    <Pressable style={styles.dateField} onPress={onPress}>
+    <Pressable style={styles.dateField} onPress={onPress} testID={testID}>
       <Text style={styles.dateLabel}>{label}</Text>
       <View style={styles.dateValueRow}>
         <FontAwesome name="calendar" size={14} color="#4f46e5" />

@@ -1,0 +1,22 @@
+# TC-M-08 — Employer navigation → workers list reachable
+appId: com.jd12345.MobileApp
+---
+- runFlow: 02-employer-login.yaml
+
+- tapOn:
+    id: "nav-home"
+- waitForAnimationToEnd
+- assertVisible: "Good morning|Employer Dashboard"
+
+# Open More hub
+- tapOn:
+    id: "nav-more"
+- waitForAnimationToEnd
+
+# Workers
+- tapOn:
+    id: "more-workers"
+- waitForAnimationToEnd
+- assertVisible: "Workers"
+- assertVisible:
+    id: "link-worker-btn"

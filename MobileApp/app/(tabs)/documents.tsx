@@ -117,7 +117,7 @@ export default function DocumentsScreen() {
         <Text style={styles.sectionTitle}>📌 Document type</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {DOC_TYPES.map((t) => (
-            <Pressable key={t.key} onPress={() => setDocType(t.key)} style={[styles.chip, docType === t.key && styles.chipActive]}>
+            <Pressable key={t.key} onPress={() => setDocType(t.key)} testID={`doc-type-${t.key}`} style={[styles.chip, docType === t.key && styles.chipActive]}>
               {docType === t.key ? (
                 <LinearGradient colors={t.gradient as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.chipIconActive}>
                   <FontAwesome name={t.icon} size={13} color="#fff" />
@@ -133,7 +133,7 @@ export default function DocumentsScreen() {
         </ScrollView>
 
         <View style={styles.row}>
-          <PrimaryButton title={busy ? "⏳ Working…" : "⬆️ Upload file"} loading={busy} onPress={upload} style={{ flex: 1 }} />
+          <PrimaryButton title={busy ? "⏳ Working…" : "⬆️ Upload file"} loading={busy} onPress={upload} style={{ flex: 1 }} testID="upload-btn" />
           <GhostButton title="🔄 Refresh" onPress={refresh} disabled={busy} />
         </View>
         <Text style={styles.help}>PDF or images up to 10MB. Pick a category above before uploading.</Text>

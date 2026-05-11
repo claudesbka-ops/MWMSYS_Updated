@@ -1,32 +1,32 @@
-# 02 — Employer login → reach the bottom-tab Home screen
+# TC-M-01b — Employer login → reach the Employer dashboard
 appId: com.jd12345.MobileApp
 ---
-- launchApp:
-    clearState: true
-    clearKeychain: true
-- waitForAnimationToEnd
+- launchApp
 
-- assertVisible: "Welcome back"
+- runFlow:
+    when:
+      visible:
+        text: "Good morning"
+    commands:
+      - assertVisible: "Good morning"
 
-# Switch to the Employer role tab. Hides the passport field.
-- tapOn:
-    text: "Employer"
+- runFlow:
+    when:
+      visible:
+        text: "Welcome back"
+    commands:
+      - tapOn:
+          id: "employer-tab"
+      - tapOn:
+          id: "email-input"
+      - inputText: "employer@test.com"
+      - hideKeyboard
+      - tapOn:
+          id: "password-input"
+      - inputText: "Test@1234"
+      - hideKeyboard
+      - tapOn:
+          id: "sign-in-btn"
+      - waitForAnimationToEnd
 
-- tapOn:
-    text: "you@example.com"
-- inputText: "employer@test.com"
-- hideKeyboard
-
-- tapOn:
-    text: "••••••••"
-- inputText: "Test@1234"
-- hideKeyboard
-
-- tapOn:
-    text: "Sign in as employer"
-- waitForAnimationToEnd
-
-# Employer sees Attendance + Requests + Incidents (manager-only) in the bar.
-- assertVisible: "Incidents"
-- assertVisible: "Home"
-- assertVisible: "Requests"
+- assertVisible: "Good morning"

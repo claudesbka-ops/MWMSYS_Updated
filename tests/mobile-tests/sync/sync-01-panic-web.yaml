@@ -6,4 +6,4 @@
 #   npx playwright test tests/tc-04-panic.spec.js --reporter=list
 appId: com.jd12345.MobileApp
 ---
-- runFlow: ../04-panic-button.yaml
+- runFlow: ../05-panic-button.yaml

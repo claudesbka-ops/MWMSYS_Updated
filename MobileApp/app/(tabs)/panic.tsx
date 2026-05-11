@@ -171,6 +171,7 @@ function BigPanicButton({
           }}
           accessibilityRole="button"
           accessibilityLabel="Send panic alert"
+          testID="panic-send-btn"
           hitSlop={20}
         >
           <Animated.View style={buttonStyle}>

@@ -1,0 +1,22 @@
+# TC-M-09 — Agency navigation → attestation page with verify button
+appId: com.jd12345.MobileApp
+---
+- runFlow: 03-agency-login.yaml
+
+- tapOn:
+    id: "nav-home"
+- waitForAnimationToEnd
+- assertVisible: "Good morning|Agency Dashboard"
+
+# Open More hub
+- tapOn:
+    id: "nav-more"
+- waitForAnimationToEnd
+
+# Attestation entry
+- tapOn:
+    id: "more-attestation"
+- waitForAnimationToEnd
+
+# The Attestation screen renders with either pending rows or an empty state.
+- assertVisible: "Attestation"

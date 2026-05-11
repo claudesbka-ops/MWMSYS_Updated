@@ -78,49 +78,55 @@ export default function TabLayout() {
         name="index"
         options={{
           title: '🏠 Home',
-          tabBarIcon: ({ color, focused }) => <TabBarIcon name="home" color={color} focused={focused} />,
-        }}
+          tabBarTestID: 'nav-home',
+          tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => <TabBarIcon name="home" color={color} focused={focused} />,
+        } as any}
       />
       <Tabs.Screen
         name="attendance"
         options={{
           href: showAttendance ? undefined : null,
           title: '⏰ Attendance',
-          tabBarIcon: ({ color, focused }) => <TabBarIcon name="clock-o" color={color} focused={focused} />,
-        }}
+          tabBarTestID: 'nav-attendance',
+          tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => <TabBarIcon name="clock-o" color={color} focused={focused} />,
+        } as any}
       />
       <Tabs.Screen
         name="requests"
         options={{
           href: showRequests ? undefined : null,
           title: '✅ Requests',
-          tabBarIcon: ({ color, focused }) => <TabBarIcon name="check-circle" color={color} focused={focused} />,
-        }}
+          tabBarTestID: 'nav-requests',
+          tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => <TabBarIcon name="check-circle" color={color} focused={focused} />,
+        } as any}
       />
       <Tabs.Screen
         name="panic"
         options={{
           href: showPanic ? undefined : null,
           title: '🚨 Panic',
-          tabBarIcon: ({ color, focused }) => <TabBarIcon name="exclamation-triangle" color={color} focused={focused} />,
+          tabBarTestID: 'nav-panic',
+          tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => <TabBarIcon name="exclamation-triangle" color={color} focused={focused} />,
           tabBarBadge: emergencyCount > 0 ? emergencyCount : undefined,
           tabBarBadgeStyle: styles.badge,
-        }}
+        } as any}
       />
       <Tabs.Screen
         name="incidents"
         options={{
           href: showIncidents ? undefined : null,
           title: '⚠️ Incidents',
-          tabBarIcon: ({ color, focused }) => <TabBarIcon name="warning" color={color} focused={focused} />,
-        }}
+          tabBarTestID: 'nav-incidents',
+          tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => <TabBarIcon name="warning" color={color} focused={focused} />,
+        } as any}
       />
       <Tabs.Screen
         name="more"
         options={{
           title: '✨ More',
-          tabBarIcon: ({ color, focused }) => <TabBarIcon name="ellipsis-h" color={color} focused={focused} />,
-        }}
+          tabBarTestID: 'nav-more',
+          tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => <TabBarIcon name="ellipsis-h" color={color} focused={focused} />,
+        } as any}
       />
 
       {/* Routes hidden from the primary bar but still routable (accessed via More) */}

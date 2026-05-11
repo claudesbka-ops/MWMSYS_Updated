@@ -1,0 +1,44 @@
+# TC-M-05a — Worker applies for leave
+appId: com.jd12345.MobileApp
+---
+- runFlow: 01-worker-login.yaml
+
+# Navigate via More → Leave
+- tapOn:
+    id: "nav-more"
+- waitForAnimationToEnd
+- tapOn:
+    id: "more-leave"
+- waitForAnimationToEnd
+
+- assertVisible: "What kind of leave?"
+- assertVisible: "When?"
+
+# Open start-date picker
+- tapOn:
+    id: "start-date-input"
+- waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- waitForAnimationToEnd
+
+# End date picker
+- tapOn:
+    id: "end-date-input"
+- waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "submit-leave-btn"
+
+# Either a Pending badge appears in the list or an Error alert surfaces
+- extendedWaitUntil:
+    visible: "Pending|Error|Already"

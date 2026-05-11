@@ -1,0 +1,27 @@
+# TC-M-02 — Worker triggers panic → assert the success Alert
+appId: com.jd12345.MobileApp
+---
+- runFlow: 01-worker-login.yaml
+
+# Open the Panic tab from the bottom bar (id set in _layout.tsx).
+- tapOn:
+    id: "nav-panic"
+- waitForAnimationToEnd
+
+- assertVisible: "TAP TO SEND"
+
+# Fire the alert
+- tapOn:
+    id: "panic-send-btn"
+
+# After a successful POST the app shows a native Alert with title "Sent"
+# (or "Saved offline" if the device has no signal).
+- extendedWaitUntil:
+    visible: "Sent|Saved offline|MWMSYS has received"
+
+# Dismiss the Alert.
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"

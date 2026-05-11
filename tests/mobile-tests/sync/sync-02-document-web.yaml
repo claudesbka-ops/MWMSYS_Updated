@@ -2,4 +2,4 @@
 # Mobile half only. Web half: npx playwright test tests/tc-03-documents.spec.js
 appId: com.jd12345.MobileApp
 ---
-- runFlow: ../06-document-upload.yaml
+- runFlow: ../08-worker-upload-document.yaml

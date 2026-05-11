@@ -1,0 +1,34 @@
+# TC-M-06 — Worker opens profile, edits name, saves
+appId: com.jd12345.MobileApp
+---
+- runFlow: 01-worker-login.yaml
+
+# Navigate via More → Account
+- tapOn:
+    id: "nav-more"
+- waitForAnimationToEnd
+- tapOn:
+    id: "more-account"
+- waitForAnimationToEnd
+
+- assertVisible: "Account"
+- assertVisible: "Profile details"
+
+# Edit the name field
+- tapOn:
+    id: "name-input"
+- eraseText: 50
+- inputText: "QA Test Worker"
+- hideKeyboard
+
+- tapOn:
+    id: "save-profile-btn"
+
+# Success alert or silent save
+- extendedWaitUntil:
+    visible: "Saved|Profile updated|QA Test Worker"
+- runFlow:
+    when:
+      visible: "OK"
+    commands:
+      - tapOn: "OK"

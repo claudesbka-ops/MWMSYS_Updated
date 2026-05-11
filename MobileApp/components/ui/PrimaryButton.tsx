@@ -9,6 +9,7 @@ type Props = {
   loading?: boolean;
   variant?: 'primary' | 'danger' | 'success';
   style?: ViewStyle | ViewStyle[];
+  testID?: string;
 };
 
 const VARIANTS: Record<NonNullable<Props['variant']>, readonly [string, string]> = {
@@ -17,7 +18,7 @@ const VARIANTS: Record<NonNullable<Props['variant']>, readonly [string, string]>
   success: ['#10b981', '#22d3ee'],
 };
 
-export function PrimaryButton({ title, onPress, disabled, loading, variant = 'primary', style }: Props) {
+export function PrimaryButton({ title, onPress, disabled, loading, variant = 'primary', style, testID }: Props) {
   const isDisabled = disabled || loading;
   const colors = VARIANTS[variant];
   return (
@@ -25,6 +26,7 @@ export function PrimaryButton({ title, onPress, disabled, loading, variant = 'pr
       activeOpacity={0.85}
       onPress={onPress}
       disabled={isDisabled}
+      testID={testID}
       style={[styles.wrap, isDisabled && styles.disabled, style as any]}
     >
       <LinearGradient colors={colors as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.inner}>
@@ -34,12 +36,13 @@ export function PrimaryButton({ title, onPress, disabled, loading, variant = 'pr
   );
 }
 
-export function GhostButton({ title, onPress, disabled, style }: Omit<Props, 'variant' | 'loading'>) {
+export function GhostButton({ title, onPress, disabled, style, testID }: Omit<Props, 'variant' | 'loading'>) {
   return (
     <TouchableOpacity
       activeOpacity={0.8}
       onPress={onPress}
       disabled={disabled}
+      testID={testID}
       style={[styles.ghostWrap, disabled && styles.disabled, style as any]}
     >
       <Text style={styles.ghostText}>{title}</Text>

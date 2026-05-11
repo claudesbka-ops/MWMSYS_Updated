@@ -1,0 +1,26 @@
+# TC-M-05b — Employer reviews leave requests (approve if pending)
+appId: com.jd12345.MobileApp
+---
+- runFlow: 02-employer-login.yaml
+
+# Navigate to Leave via More
+- tapOn:
+    id: "nav-more"
+- waitForAnimationToEnd
+- tapOn:
+    id: "more-leave"
+- waitForAnimationToEnd
+
+# Manager-flavoured subtitle
+- assertVisible: "Leave Requests"
+
+# If at least one Pending row exists, approve the first.
+- runFlow:
+    when:
+      visible:
+        text: "Pending"
+    commands:
+      - tapOn:
+          id: "approve-leave-btn"
+      - extendedWaitUntil:
+          visible: "Approved"

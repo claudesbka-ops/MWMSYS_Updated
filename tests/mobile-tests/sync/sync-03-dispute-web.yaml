@@ -2,4 +2,4 @@
 # Mobile half only. Web half: npx playwright test tests/tc-05-disputes.spec.js
 appId: com.jd12345.MobileApp
 ---
-- runFlow: ../05-salary-dispute.yaml
+- runFlow: ../06-worker-submit-dispute.yaml

@@ -230,6 +230,7 @@ function WorkerPanicHero({ onPress }: { onPress: () => void }) {
           }}
           accessibilityRole="button"
           accessibilityLabel="Send panic alert"
+          testID="panic-btn"
           hitSlop={20}
         >
           <Animated.View style={buttonStyle}>

@@ -110,6 +110,7 @@ export default function LoginScreen() {
                       onPress={() => setRole(r.key)}
                       disabled={busy}
                       activeOpacity={0.85}
+                      testID={`${r.key}-tab`}
                       style={[styles.rolePill, selected && styles.rolePillActive]}
                     >
                       {selected ? (
@@ -135,6 +136,7 @@ export default function LoginScreen() {
                 autoCapitalize="none"
                 editable={!busy}
                 placeholder="you@example.com"
+                testID="email-input"
               />
 
               <Text style={[styles.label, { marginTop: 14 }]}>Password</Text>
@@ -146,6 +148,7 @@ export default function LoginScreen() {
                 autoCapitalize="none"
                 editable={!busy}
                 placeholder="••••••••"
+                testID="password-input"
               />
 
               {role === "worker" && (
@@ -158,6 +161,7 @@ export default function LoginScreen() {
                     autoCapitalize="characters"
                     editable={!busy}
                     placeholder="A1234567"
+                    testID="passport-input"
                   />
                 </>
               )}
@@ -167,6 +171,7 @@ export default function LoginScreen() {
                 loading={busy}
                 onPress={doLogin}
                 style={{ marginTop: 20 }}
+                testID="sign-in-btn"
               />
 
               <View style={styles.divider}>

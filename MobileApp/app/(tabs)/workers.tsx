@@ -60,7 +60,7 @@ export default function WorkersScreen() {
       onRefresh={refresh}
     >
       {canCreate ? (
-        <PrimaryButton title="+ Add new worker" onPress={() => router.push('/(tabs)/new-worker' as any)} />
+        <PrimaryButton title="+ Add new worker" onPress={() => router.push('/(tabs)/new-worker' as any)} testID="link-worker-btn" />
       ) : null}
 
       <View style={styles.searchWrap}>

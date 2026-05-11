@@ -1,0 +1,44 @@
+# TC-M-07 — Worker bottom-tab navigation smoke test
+appId: com.jd12345.MobileApp
+---
+- runFlow: 01-worker-login.yaml
+
+# Home tab → dashboard greeting
+- tapOn:
+    id: "nav-home"
+- waitForAnimationToEnd
+- assertVisible: "Good morning"
+
+# Panic tab → emergency screen
+- tapOn:
+    id: "nav-panic"
+- waitForAnimationToEnd
+- assertVisible: "TAP TO SEND|Emergency"
+
+# More tab → tools hub
+- tapOn:
+    id: "nav-more"
+- waitForAnimationToEnd
+- assertVisible: "More|tools"
+
+# Into Disputes
+- tapOn:
+    id: "more-disputes"
+- waitForAnimationToEnd
+- assertVisible: "Disputes"
+
+# Back to More, then Documents
+- pressKey: Back
+- waitForAnimationToEnd
+- tapOn:
+    id: "more-documents"
+- waitForAnimationToEnd
+- assertVisible: "My Documents"
+
+# Back to More, then HRMS (leave)
+- pressKey: Back
+- waitForAnimationToEnd
+- tapOn:
+    id: "more-leave"
+- waitForAnimationToEnd
+- assertVisible: "Leave|When?"

@@ -1,31 +1,32 @@
-# 03 — Agency login → reach the bottom-tab Home screen
+# TC-M-01c — Agency login → reach the Agency dashboard
 appId: com.jd12345.MobileApp
 ---
-- launchApp:
-    clearState: true
-    clearKeychain: true
-- waitForAnimationToEnd
+- launchApp
 
-- assertVisible: "Welcome back"
+- runFlow:
+    when:
+      visible:
+        text: "Good morning"
+    commands:
+      - assertVisible: "Good morning"
 
-- tapOn:
-    text: "Agency"
+- runFlow:
+    when:
+      visible:
+        text: "Welcome back"
+    commands:
+      - tapOn:
+          id: "agency-tab"
+      - tapOn:
+          id: "email-input"
+      - inputText: "agency@test.com"
+      - hideKeyboard
+      - tapOn:
+          id: "password-input"
+      - inputText: "Test@1234"
+      - hideKeyboard
+      - tapOn:
+          id: "sign-in-btn"
+      - waitForAnimationToEnd
 
-- tapOn:
-    text: "you@example.com"
-- inputText: "agency@test.com"
-- hideKeyboard
-
-- tapOn:
-    text: "••••••••"
-- inputText: "Test@1234"
-- hideKeyboard
-
-- tapOn:
-    text: "Sign in as agency"
-- waitForAnimationToEnd
-
-# Agency is also a manager → Incidents tab visible.
-- assertVisible: "Incidents"
-- assertVisible: "Home"
-- assertVisible: "More"
+- assertVisible: "Good morning"

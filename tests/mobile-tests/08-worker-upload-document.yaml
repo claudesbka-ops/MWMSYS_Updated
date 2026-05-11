@@ -1,0 +1,36 @@
+# TC-M-04 — Worker opens the Documents screen and verifies upload UI
+# The actual upload opens the system DocumentPicker which Maestro cannot
+# reliably script across devices, so this flow asserts the upload UI is
+# reachable and that tapping "Upload file" launches the picker.
+appId: com.jd12345.MobileApp
+---
+- runFlow: 01-worker-login.yaml
+
+# Navigate via More → Documents
+- tapOn:
+    id: "nav-more"
+- waitForAnimationToEnd
+- tapOn:
+    id: "more-documents"
+- waitForAnimationToEnd
+
+- assertVisible: "My Documents"
+- assertVisible: "Document type"
+
+# Chip selector should be wired
+- tapOn:
+    id: "doc-type-permit"
+- tapOn:
+    id: "doc-type-passport"
+
+- assertVisible: "Missing|Uploaded"
+
+# Tap Upload to launch the system picker
+- tapOn:
+    id: "upload-btn"
+- waitForAnimationToEnd
+
+# Return to Documents screen
+- pressKey: Back
+- waitForAnimationToEnd
+- assertVisible: "My Documents"

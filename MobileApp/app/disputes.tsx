@@ -211,15 +211,16 @@ export default function DisputesScreen() {
               style={styles.input}
               placeholder="e.g. 2025-01 or January 2025"
               placeholderTextColor="rgba(15,23,42,0.4)"
+              testID="dispute-month"
             />
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.label}>Expected (RM)</Text>
-                <TextInput value={expected} onChangeText={setExpected} keyboardType="decimal-pad" style={styles.input} />
+                <TextInput value={expected} onChangeText={setExpected} keyboardType="decimal-pad" style={styles.input} testID="dispute-amount" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.label}>Received (RM)</Text>
-                <TextInput value={received} onChangeText={setReceived} keyboardType="decimal-pad" style={styles.input} />
+                <TextInput value={received} onChangeText={setReceived} keyboardType="decimal-pad" style={styles.input} testID="dispute-received" />
               </View>
             </View>
             <Text style={styles.label}>Description</Text>
@@ -230,9 +231,10 @@ export default function DisputesScreen() {
               style={[styles.input, styles.multiline]}
               placeholder="Describe the issue clearly so it can be routed properly"
               placeholderTextColor="rgba(15,23,42,0.4)"
+              testID="dispute-description"
             />
 
-            <TouchableOpacity onPress={pickProof} activeOpacity={0.85} style={styles.proofPicker}>
+            <TouchableOpacity onPress={pickProof} activeOpacity={0.85} style={styles.proofPicker} testID="attach-proof-btn">
               <FontAwesome name="paperclip" size={14} color="#4f46e5" />
               <Text style={styles.proofText} numberOfLines={1}>
                 {proof ? `📎 ${proof.name}` : "📎 Attach proof (optional, ≤5 MB)"}
@@ -249,6 +251,7 @@ export default function DisputesScreen() {
               loading={submitting}
               onPress={submit}
               style={{ marginTop: 16 }}
+              testID="submit-dispute-btn"
             />
           </Card>
         </>
@@ -389,10 +392,10 @@ function DisputeCard({
             placeholderTextColor="rgba(15,23,42,0.4)"
           />
           <View style={styles.decisionRow}>
-            <TouchableOpacity disabled={busy} onPress={() => onReview("Rejected")} style={[styles.rejectBtn, busy && styles.btnDisabled]}>
+            <TouchableOpacity disabled={busy} onPress={() => onReview("Rejected")} style={[styles.rejectBtn, busy && styles.btnDisabled]} testID="reject-dispute-btn">
               <Text style={styles.rejectText}>❌ Reject</Text>
             </TouchableOpacity>
-            <TouchableOpacity disabled={busy} onPress={() => onReview("Accepted")} style={[styles.approveBtn, busy && styles.btnDisabled]}>
+            <TouchableOpacity disabled={busy} onPress={() => onReview("Accepted")} style={[styles.approveBtn, busy && styles.btnDisabled]} testID="accept-dispute-btn">
               {busy ? <ActivityIndicator color="white" /> : <Text style={styles.approveText}>✅ Accept</Text>}
             </TouchableOpacity>
           </View>

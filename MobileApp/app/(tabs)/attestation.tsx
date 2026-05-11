@@ -94,8 +94,8 @@ export default function AttestationScreen() {
                 ) : null}
 
                 <View style={styles.actions}>
-                  <PrimaryButton title="Approve" variant="success" onPress={() => approve(id)} style={{ flex: 1 }} />
-                  <PrimaryButton title="Reject" variant="danger" onPress={() => reject(id)} style={{ flex: 1 }} />
+                  <PrimaryButton title="Approve" variant="success" onPress={() => approve(id)} style={{ flex: 1 }} testID="verify-doc-btn" />
+                  <PrimaryButton title="Reject" variant="danger" onPress={() => reject(id)} style={{ flex: 1 }} testID="reject-doc-btn" />
                 </View>
               </Card>
             );
