@@ -21,9 +21,13 @@ export async function convertFileToBase64(
 
     const isPdf = mimeType === "application/pdf" || filePath.toLowerCase().endsWith(".pdf");
     const isImage = mimeType.startsWith("image/") || 
-      [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"].some(ext => 
+      [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".tif"].some(ext => 
         filePath.toLowerCase().endsWith(ext)
       );
+    const isWord = mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || 
+      mimeType === "application/msword" ||
+      filePath.toLowerCase().endsWith(".docx") || 
+      filePath.toLowerCase().endsWith(".doc");
 
     if (isPdf) {
       return await convertPdfFirstPageToBase64(filePath);
@@ -34,8 +38,14 @@ export async function convertFileToBase64(
       return buffer.toString("base64");
     }
 
+    if (isWord) {
+      // Word documents not supported for AI extraction - return special marker
+      console.log("[pdfToImage] Word document detected - AI extraction skipped (manual review required)");
+      return "__UNSUPPORTED_WORD_DOC__";
+    }
+
     console.error("[pdfToImage] Unsupported file type:", mimeType);
-    return null;
+    return "__UNSUPPORTED_TYPE__";
   } catch (err) {
     console.error("[pdfToImage] Conversion failed:", err);
     return null;

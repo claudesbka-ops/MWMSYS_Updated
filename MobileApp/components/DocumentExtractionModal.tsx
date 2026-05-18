@@ -81,6 +81,7 @@ export function DocumentExtractionModal({
   const data = document.aiExtractedData || {};
   const scores = document.aiConfidenceScores || {};
   const hasError = document.aiExtractionStatus === "failed";
+  const isUnsupported = document.aiExtractionStatus === "unsupported";
   const hasData = !!data.full_name || !!data.document_number || !!data.expiry_date;
 
   const fields = [
@@ -141,6 +142,17 @@ export function DocumentExtractionModal({
                 <Text style={styles.loadingSubtext}>
                   AI is extracting information from your {document.name}
                 </Text>
+              </View>
+            ) : isUnsupported ? (
+              <View style={styles.errorContainer}>
+                <FontAwesome name="file-text-o" size={48} color="#6b7280" />
+                <Text style={styles.errorTitle}>File Type Not Supported</Text>
+                <Text style={styles.errorText}>
+                  AI extraction is not available for this file type. Please fill in the details manually in your profile.
+                </Text>
+                <Pressable style={styles.errorButton} onPress={onClose}>
+                  <Text style={styles.errorButtonText}>Got it</Text>
+                </Pressable>
               </View>
             ) : hasError ? (
               <View style={styles.errorContainer}>

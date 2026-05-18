@@ -1232,6 +1232,31 @@ app.post("/Api/Worker/Documents", requireAuth, upload.single("file"), async (req
         const filePath = path.join(uploadsDir, uploaded.filename);
         const base64Image = await convertFileToBase64(filePath, (req as any).file?.mimetype || "image/jpeg");
         
+        // Handle unsupported file types
+        if (base64Image === "__UNSUPPORTED_WORD_DOC__") {
+          await prisma.tbl_Worker_Attachments.update({
+            where: { Worker_Id: workerId },
+            data: {
+              Ai_Extraction_Status: "unsupported",
+              Ai_Extraction_Error: "Word documents not supported for AI extraction. Please fill in details manually.",
+              Ai_Extracted_At: new Date(),
+            },
+          });
+          return;
+        }
+        
+        if (base64Image === "__UNSUPPORTED_TYPE__") {
+          await prisma.tbl_Worker_Attachments.update({
+            where: { Worker_Id: workerId },
+            data: {
+              Ai_Extraction_Status: "unsupported",
+              Ai_Extraction_Error: "File type not supported for AI extraction. Please fill in details manually.",
+              Ai_Extracted_At: new Date(),
+            },
+          });
+          return;
+        }
+        
         if (base64Image) {
           const extraction = await extractWorkerDocumentData(base64Image, t);
           
