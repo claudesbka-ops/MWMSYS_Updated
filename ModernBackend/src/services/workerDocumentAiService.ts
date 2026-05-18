@@ -86,38 +86,38 @@ function buildPromptForDocType(type: string): string {
   if (t === "passport") {
     return `${base}
 
-For passports, extract CAREFULLY - do not confuse issue date with expiry date:
-1. FULL NAME: Read from visual zone or MRZ Line 1 after country code. Format: Surname<<GivenNames
-2. DOCUMENT NUMBER: 9 characters from top of passport OR from MRZ Line 2 positions 1-9. STOP at the < separator, do NOT include check digit or anything after.
-3. EXPIRY DATE: Look for "Date of Expiry" in visual zone OR in MRZ Line 2 positions 22-27 (6 digits YYMMDD). This is NOT the issue date. Common error: confusing with Date of Issue - do NOT use that.
-4. DATE OF BIRTH: Look for "Date of Birth" in visual zone OR in MRZ Line 2 positions 14-19 (6 digits YYMMDD)
-5. NATIONALITY: Three-letter country code from MRZ Line 2 positions 11-13
-6. ISSUING COUNTRY: Same as nationality for most passports
+For Pakistani/ICAO passports, extract from VISUAL ZONE first, MRZ second:
+1. FULL NAME: Read from visual zone (e.g., "Surname GivenNames" format). MRZ Line 1 also has it after P<XXX
+2. DOCUMENT NUMBER: Read from top of passport visual zone - it's clearly printed. Common format: BU8020002 (8 chars). In MRZ Line 2, it's variable length followed by <
+3. EXPIRY DATE: Look for "Date of Expiry" in visual zone (e.g., "13 JAN 2036"). For MRZ: positions 22-27 are YYMMDD. If YY < 50, add 2000 (e.g., 36 = 2036). If YY >= 50, add 1900.
+4. DATE OF BIRTH: Look for "Date of Birth" in visual zone. MRZ positions 14-19 (YYMMDD).
+5. NATIONALITY: Three-letter code from MRZ Line 2 positions 11-13 (e.g., PAK)
+6. ISSUING COUNTRY: Same as nationality
 
-IMPORTANT - MRZ Line 2 format (44 characters total):
-Positions 1-9:   Document Number (letters/numbers)
-Position 10:     Check digit (< separator)
-Positions 11-13: Nationality (3 letters, e.g., PAK)
-Positions 14-19: Date of Birth (YYMMDD)
-Position 20:     Check digit
-Position 21:     Sex (M/F)
-Positions 22-27: EXPIRY DATE (YYMMDD) - THIS is what you want for expiry_date
-Positions 28:  Check digit
-Positions 29-42: Personal number
-Positions 43-44: Final check digits
+CRITICAL - Document Number Extraction:
+- Read from the TOP of the passport page where it says "Passport No." or similar
+- Do NOT include check digits or trailing filler characters
+- Example visual: BU8020002
+- In MRZ: BU8020002< (the < marks the end, do NOT include it)
 
-Example MRZ Line 2: BU80200023<PAK0305129M2601137<<<<<<<<<<<<<<04
-- Document Number: BU80200023 (NOT BU802000233!)
-- Nationality: PAK
-- Date of Birth: 030512 = 2003-05-12
-- Expiry Date: 260113 = 2026-01-13 (NOT the issue date 230113!)
+CRITICAL - Date Century Calculation:
+- MRZ uses 2-digit year (YY)
+- If YY < 50: year = 2000 + YY (e.g., 36 = 2036 for expiry)
+- If YY >= 50: year = 1900 + YY (e.g., 03 = 2003 for birth year)
+
+Example Pakistani passport:
+- Visual zone: Passport No. BU8020002, Date of Expiry: 13 JAN 2036
+- MRZ Line 2: BU8020002<PAK0305129M360113...
+- Document Number: BU8020002 (from visual zone, NOT BU80200023)
+- Expiry: 360113 = 2036-01-13 (36 < 50, so 2000+36=2036)
+- Birth: 030512 = 2003-05-12 (03 < 50, so 2000+03=2003)
 
 {
-  "full_name": "surname followed by given names, clean up << separators",
-  "document_number": "9-char passport number only, no check digits",
-  "expiry_date": "expiry date YYYY-MM-DD - from visual zone 'Date of Expiry' or MRZ positions 22-27",
-  "date_of_birth": "birth date YYYY-MM-DD - from visual zone 'Date of Birth' or MRZ positions 14-19",
-  "nationality": "3-letter country code from MRZ",
+  "full_name": "full name from visual zone, surname first",
+  "document_number": "passport number from visual zone top of page",
+  "expiry_date": "expiry YYYY-MM-DD, prefer visual zone 'Date of Expiry'",
+  "date_of_birth": "birth date YYYY-MM-DD, prefer visual zone 'Date of Birth'",
+  "nationality": "nationality code",
   "issuing_country": "issuing country",
   "confidence_scores": {
     "full_name": 0-100,
@@ -253,9 +253,23 @@ function normaliseDate(value: unknown): string | undefined {
   const raw = value.toString().trim();
   if (!raw || raw.toLowerCase() === "null" || raw === "-") return undefined;
 
+  // Already ISO format
   const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
 
+  // MRZ format: YYMMDD (6 digits)
+  const mrzMatch = raw.match(/^(\d{2})(\d{2})(\d{2})$/);
+  if (mrzMatch) {
+    let yy = parseInt(mrzMatch[1], 10);
+    const mm = mrzMatch[2];
+    const dd = mrzMatch[3];
+    
+    // MRZ century rule: YY < 50 = 20xx, YY >= 50 = 19xx
+    const year = yy < 50 ? 2000 + yy : 1900 + yy;
+    return `${year}-${mm}-${dd}`;
+  }
+
+  // Try standard date parsing as fallback
   const d = new Date(raw);
   if (Number.isFinite(d.getTime())) {
     const y = d.getUTCFullYear();
