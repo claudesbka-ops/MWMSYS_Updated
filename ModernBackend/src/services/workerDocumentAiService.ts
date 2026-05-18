@@ -290,70 +290,85 @@ function normaliseConfidenceScore(value: unknown): number {
 }
 
 /**
- * Parse MRZ (Machine Readable Zone) lines from passport
- * Returns structured data with proper field extraction
+ * Parse MRZ (Machine Readable Zone) lines from passport using ICAO 9303 fixed positions
+ * TD3 format (passports): 2 lines x 44 characters each
  */
 function parseMRZ(mrzLine1: string, mrzLine2: string): ExtractedWorkerDocumentData | null {
   try {
-    // Clean up MRZ lines
+    // Clean up MRZ lines - remove whitespace but preserve all characters
     const line1 = mrzLine1.replace(/\s+/g, "").trim().toUpperCase();
     const line2 = mrzLine2.replace(/\s+/g, "").trim().toUpperCase();
     
     if (line1.length < 44 || line2.length < 44) {
+      console.log('[MRZ PARSE] Lines too short:', line1.length, line2.length);
       return null;
     }
     
-    // Line 1: P<XXX[NAME]...
-    // Skip "P<" and country code (3 chars) to get name
-    const nameStart = 5; // P< + 3 char country code
-    const namePart = line1.substring(nameStart);
-    const nameEnd = namePart.indexOf("<<");
-    const surname = nameEnd > 0 ? namePart.substring(0, nameEnd).replace(/</g, " ") : "";
-    const givenNames = nameEnd > 0 ? namePart.substring(nameEnd + 2).replace(/</g, " ").trim() : "";
+    // === LINE 1: Name parsing ===
+    // Format: P<XXX[SURNAME]<<[GIVEN_NAMES]<<<<<<<<<<<<<<
+    // Positions 0-1: Document type (P<)
+    // Positions 2-4: Issuing country (3 chars)
+    // Positions 5-43: Name field
+    const nameField = line1.substring(5, 44);
+    const nameParts = nameField.split("<<");
+    const surname = (nameParts[0] ?? "").replace(/</g, " ").trim();
+    const givenNames = (nameParts[1] ?? "").replace(/</g, " ").trim();
     const fullName = `${surname} ${givenNames}`.trim().replace(/\s+/g, " ");
     
-    // Line 2 parsing with proper field boundaries
-    // Format: DOC_NUM<CHK>NATION<CHK>DOB<CHK>SEX<CHK>EXP<CHK>PERSONAL<CHK><<FINAL
+    // === LINE 2: Fixed position parsing per ICAO 9303 ===
+    // Positions 0-8: Document number (9 chars, pad with < if shorter)
+    const docNumber = line2.substring(0, 9).replace(/</g, "").trim();
     
-    // Find document number (variable length, ends at first <)
-    let docNumEnd = line2.indexOf("<");
-    if (docNumEnd < 0) docNumEnd = 9;
-    const documentNumber = line2.substring(0, docNumEnd).trim();
+    // Position 9: Check digit for document number (ignored)
     
-    // Nationality at positions 10-13 (after doc num check digit)
+    // Positions 10-12: Nationality (3 chars)
     const nationality = line2.substring(10, 13);
     
-    // Date of Birth at positions 13-19 (YYMMDD)
-    const dobRaw = line2.substring(13, 19);
-    const dobYear = parseInt(dobRaw.substring(0, 2), 10);
-    const dobFullYear = dobYear < 50 ? 2000 + dobYear : 1900 + dobYear;
-    const dob = `${dobFullYear}-${dobRaw.substring(2, 4)}-${dobRaw.substring(4, 6)}`;
+    // Position 13: Check digit for nationality (ignored)
     
-    // Sex at position 20
-    // const sex = line2.substring(20, 21);
+    // Positions 14-19: Date of birth YYMMDD (6 chars)
+    const dobRaw = line2.substring(14, 20);
+    const dobYY = parseInt(dobRaw.substring(0, 2), 10);
+    const dobMM = dobRaw.substring(2, 4);
+    const dobDD = dobRaw.substring(4, 6);
+    // For DOB: if year seems like future (> current year), use 1900s
+    const currentYear = new Date().getFullYear() % 100;
+    const dobYear = dobYY > currentYear ? 1900 + dobYY : 2000 + dobYY;
+    const dob = `${dobYear}-${dobMM}-${dobDD}`;
     
-    // Expiry at positions 21-27 (YYMMDD) - THIS is what we want
-    const expRaw = line2.substring(21, 27);
-    const expYear = parseInt(expRaw.substring(0, 2), 10);
-    const expFullYear = expYear < 50 ? 2000 + expYear : 1900 + expYear;
-    const expiry = `${expFullYear}-${expRaw.substring(2, 4)}-${expRaw.substring(4, 6)}`;
+    // Position 20: Check digit for DOB (ignored)
+    
+    // Position 21: Sex (M/F/<)
+    // const sex = line2.substring(21, 22);
+    
+    // Positions 22-27: Expiry date YYMMDD (6 chars)
+    const expRaw = line2.substring(22, 28);
+    const expYY = parseInt(expRaw.substring(0, 2), 10);
+    const expMM = expRaw.substring(2, 4);
+    const expDD = expRaw.substring(4, 6);
+    // For expiry: YY < 50 = 20xx, YY >= 50 = 19xx
+    const expYear = expYY < 50 ? 2000 + expYY : 1900 + expYY;
+    const expiry = `${expYear}-${expMM}-${expDD}`;
+    
+    // LOGGING: Parsed values
+    console.log('[MRZ PARSED]', { docNumber, expiryDate: expiry, dob });
     
     return {
       full_name: fullName || undefined,
-      document_number: documentNumber || undefined,
+      document_number: docNumber || undefined,
       expiry_date: expiry,
       date_of_birth: dob,
       nationality: nationality || undefined,
       issuing_country: nationality || undefined,
       confidence_scores: {
-        full_name: fullName ? 90 : 0,
-        document_number: documentNumber ? 95 : 0,
-        expiry_date: 95,
-        date_of_birth: 95,
-        nationality: nationality ? 98 : 0,
-        issuing_country: nationality ? 98 : 0,
+        full_name: fullName ? 95 : 0,
+        document_number: docNumber ? 98 : 0,
+        expiry_date: 98,
+        date_of_birth: 98,
+        nationality: nationality ? 99 : 0,
+        issuing_country: nationality ? 99 : 0,
       },
-      overall_confidence: 95,
+      overall_confidence: 98,
     };
   } catch (err) {
     console.error("[MRZ Parser] Failed to parse:", err);
@@ -495,17 +510,15 @@ async function extractPassportWithMRZ(
   client: OpenAI,
   dataUrl: string
 ): Promise<WorkerDocumentExtractionResult> {
-  const mrzPrompt = `You are an OCR engine. Read this passport image and output ONLY the Machine Readable Zone (MRZ) lines at the bottom.
-
-The MRZ consists of:
-- Line 1: Starting with P< followed by country code and name (44 characters)
-- Line 2: Document number, nationality, dates, personal number (44 characters)
-
-Output EXACTLY these two lines, no other text:
-P<XXX[NAME FIELD - 39 characters]
-[DOCUMENT DATA LINE - 44 characters]
-
-If MRZ is not readable, output "MRZ NOT READABLE".`;
+  const mrzPrompt = `Look at the bottom of this passport image. 
+There are two lines of text containing only uppercase letters, digits, and < symbols. These are the MRZ lines.
+Return ONLY this JSON, no other text, no markdown:
+{
+  "mrz_line1": "<exact characters of line 1>",
+  "mrz_line2": "<exact characters of line 2>"
+}
+Do NOT interpret, correct, or modify any characters.
+Copy them exactly as they appear.`;
 
   try {
     const response = await client.chat.completions.create({
@@ -519,16 +532,34 @@ If MRZ is not readable, output "MRZ NOT READABLE".`;
           ] as any,
         },
       ],
-      max_tokens: 200,
+      max_tokens: 300,
       temperature: 0,
     });
 
     const text = response.choices?.[0]?.message?.content ?? "";
     
-    // Try to extract and parse MRZ
-    const mrzLines = extractMRZFromText(text);
-    if (mrzLines) {
-      const parsed = parseMRZ(mrzLines.line1, mrzLines.line2);
+    // Parse JSON response from AI
+    let line1 = "";
+    let line2 = "";
+    try {
+      const cleaned = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(cleaned);
+      line1 = (parsed.mrz_line1 ?? "").toString().trim();
+      line2 = (parsed.mrz_line2 ?? "").toString().trim();
+    } catch (e) {
+      // Fallback to old extraction method if JSON parsing fails
+      const mrzLines = extractMRZFromText(text);
+      if (mrzLines) {
+        line1 = mrzLines.line1;
+        line2 = mrzLines.line2;
+      }
+    }
+    
+    // LOGGING: Raw MRZ extraction
+    console.log('[MRZ RAW]', { line1, line2, line2length: line2.length });
+    
+    if (line1 && line2 && line2.length >= 44) {
+      const parsed = parseMRZ(line1, line2);
       if (parsed) {
         return {
           success: true,
