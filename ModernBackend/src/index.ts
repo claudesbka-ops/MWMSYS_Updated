@@ -1225,10 +1225,11 @@ app.post("/Api/Worker/Documents", requireAuth, upload.single("file"), async (req
     // Fire-and-forget: upload succeeds even if AI fails
     (async () => {
       try {
-        const { extractWorkerDocumentData } = await import("./services/workerDocumentAiService");
-        const { convertFileToBase64 } = await import("./utils/pdfToImage");
+        const { extractWorkerDocumentData } = await import("./services/workerDocumentAiService.js");
+        const { convertFileToBase64 } = await import("./utils/pdfToImage.js");
         const path = await import("path");
         
+        if (!uploaded?.filename) return;
         const filePath = path.join(uploadsDir, uploaded.filename);
         const base64Image = await convertFileToBase64(filePath, (req as any).file?.mimetype || "image/jpeg");
         
@@ -1261,17 +1262,25 @@ app.post("/Api/Worker/Documents", requireAuth, upload.single("file"), async (req
           const extraction = await extractWorkerDocumentData(base64Image, t);
           
           // Update record with extraction results
+          // Use conditional spread to avoid Prisma JSON null type issues
+          const updateData: any = {
+            Ai_Extraction_Status: extraction.success ? "completed" : "failed",
+            Ai_Confidence_Overall: extraction.success ? extraction.overallConfidence : null,
+            Ai_Raw_Response: extraction.rawResponse || null,
+            Ai_Extraction_Error: extraction.error || null,
+            Ai_Extracted_At: new Date(),
+          };
+          
+          if (extraction.success && extraction.data) {
+            updateData.Ai_Extracted_Data = extraction.data;
+          }
+          if (extraction.success && extraction.confidenceScores) {
+            updateData.Ai_Confidence_Scores = extraction.confidenceScores;
+          }
+          
           await prisma.tbl_Worker_Attachments.update({
             where: { Worker_Id: workerId },
-            data: {
-              Ai_Extraction_Status: extraction.success ? "completed" : "failed",
-              Ai_Extracted_Data: extraction.success ? extraction.data : null,
-              Ai_Confidence_Scores: extraction.success ? extraction.confidenceScores : null,
-              Ai_Confidence_Overall: extraction.success ? extraction.overallConfidence : null,
-              Ai_Raw_Response: extraction.rawResponse || null,
-              Ai_Extraction_Error: extraction.error || null,
-              Ai_Extracted_At: new Date(),
-            },
+            data: updateData,
           });
         }
       } catch (aiErr) {
