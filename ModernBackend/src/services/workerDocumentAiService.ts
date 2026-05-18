@@ -77,20 +77,34 @@ function getOpenAIClient(): OpenAI | null {
 function buildPromptForDocType(type: string): string {
   const t = (type ?? "").toString().trim().toLowerCase();
   const base =
-    "Extract the following information from this document image. " +
-    "Return ONLY a JSON object with these exact fields, no other text, " +
-    "no markdown, no commentary. Use null for missing fields. " +
-    "Include confidence_score (0-100) for each extracted field.";
+    "You are an expert OCR system for document data extraction. " +
+    "Analyze this document image carefully, even if quality is low, blurry, or text is faint. " +
+    "Look for Machine Readable Zone (MRZ) at the bottom - it contains reliable data even when other text is unclear. " +
+    "Return ONLY a JSON object with these exact fields, no other text, no markdown, no commentary. " +
+    "Use null for missing fields. Include confidence_score (0-100) for each extracted field based on clarity.";
 
   if (t === "passport") {
     return `${base}
+
+For passports, extract:
+1. FULL NAME: Combine all name parts in order shown (surname first if indicated, then given names)
+2. DOCUMENT NUMBER: Usually at top or in MRZ line 1 (after country code)
+3. EXPIRY DATE: Look for 'Date of Expiry' or similar
+4. DATE OF BIRTH: Look for 'Date of Birth' or in MRZ
+5. NATIONALITY: Three-letter code or full country name
+6. ISSUING COUNTRY: Country that issued the passport
+
+MRZ FORMAT (if visible at bottom):
+- Line 1: P<XXX[NAME]... (XXX=country, name follows)
+- Line 2: DocumentNumberCountryCodeDOBSexExpiryPersonalNumber
+
 {
-  "full_name": "full name on document",
-  "document_number": "passport number",
-  "expiry_date": "expiry date in YYYY-MM-DD format",
-  "date_of_birth": "date of birth in YYYY-MM-DD format",
+  "full_name": "complete name as shown, surname first if indicated",
+  "document_number": "passport number from top or MRZ",
+  "expiry_date": "expiry date YYYY-MM-DD",
+  "date_of_birth": "birth date YYYY-MM-DD",
   "nationality": "nationality/country",
-  "issuing_country": "country that issued the passport",
+  "issuing_country": "issuing country",
   "confidence_scores": {
     "full_name": 0-100,
     "document_number": 0-100,
@@ -203,6 +217,23 @@ function buildPromptForDocType(type: string): string {
 }`;
 }
 
+function normaliseName(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  const raw = value.toString().trim();
+  if (!raw || raw.toLowerCase() === "null" || raw === "-") return undefined;
+  
+  // Clean up MRZ-style names (<< separators become spaces)
+  let cleaned = raw.replace(/<<+/g, " ").replace(/</g, " ");
+  
+  // Normalize multiple spaces
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+  
+  // Handle common MRZ artifacts
+  cleaned = cleaned.replace(/\s*,\s*/g, ", "); // Fix comma spacing
+  
+  return cleaned || undefined;
+}
+
 function normaliseDate(value: unknown): string | undefined {
   if (value == null) return undefined;
   const raw = value.toString().trim();
@@ -254,10 +285,7 @@ function parseWorkerAiResponse(text: string): WorkerDocumentExtractionResult {
       : 0;
 
     const data: ExtractedWorkerDocumentData = {
-      full_name:
-        typeof parsed.full_name === "string" && parsed.full_name.trim()
-          ? parsed.full_name.trim()
-          : undefined,
+      full_name: normaliseName(parsed.full_name),
       document_number:
         typeof parsed.document_number === "string" && parsed.document_number.trim()
           ? parsed.document_number.trim()
@@ -325,12 +353,19 @@ export async function extractWorkerDocumentData(
         {
           role: "user",
           content: [
-            { type: "image_url", image_url: { url: dataUrl } },
+            { 
+              type: "image_url", 
+              image_url: { 
+                url: dataUrl,
+                detail: "high"  // Request high detail for better OCR on low-quality images
+              } 
+            },
             { type: "text", text: prompt },
           ] as any,
         },
       ],
-      max_tokens: 800,
+      max_tokens: 1000,  // Increased for more detailed low-quality extraction
+      temperature: 0.1,   // Lower temperature for more consistent results
     });
 
     const text = response.choices?.[0]?.message?.content ?? "";
