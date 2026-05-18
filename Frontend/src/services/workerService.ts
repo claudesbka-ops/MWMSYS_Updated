@@ -56,6 +56,22 @@ export type WorkerDocumentRow = {
   adminRemarks?: string | null;
   submittedOn?: string | null;
   verifiedOn?: string | null;
+  // AI extraction fields
+  aiExtractionStatus?: string | null;
+  aiExtractedData?: {
+    full_name?: string;
+    document_number?: string;
+    expiry_date?: string;
+    date_of_birth?: string;
+    nationality?: string;
+    issuing_country?: string;
+  } | null;
+  aiConfidenceScores?: Record<string, number> | null;
+  aiOverallConfidence?: number | null;
+  aiNeedsReview?: boolean;
+  aiExtractedAt?: string | null;
+  workerConfirmedAt?: string | null;
+  workerCorrectedData?: Record<string, any> | null;
 };
 
 export async function getWorkerProfile(workerId: string): Promise<WorkerProfileResponse> {

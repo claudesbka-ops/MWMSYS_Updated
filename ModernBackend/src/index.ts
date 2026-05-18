@@ -1139,6 +1139,12 @@ app.get("/Api/Worker/Documents", requireAuth, async (req, res, next) => {
       const isUrl = p.startsWith("http://") || p.startsWith("https://") || p.startsWith("/uploads/");
       const url = p ? (isUrl ? (p.startsWith("/uploads/") ? `${req.protocol}://${req.get("host")}${p}` : p) : "") : "";
       const attestation = latestAttestationByType.get(d.type);
+      
+      // AI extraction data
+      const aiData = (row as any)?.Ai_Extracted_Data;
+      const aiScores = (row as any)?.Ai_Confidence_Scores;
+      const aiNeedsReview = aiScores ? Object.values(aiScores).some((s: any) => (s as number) < 60) : false;
+      
       return {
         ...d,
         url,
@@ -1149,6 +1155,15 @@ app.get("/Api/Worker/Documents", requireAuth, async (req, res, next) => {
         adminRemarks: attestation?.AdminRemarks ?? null,
         submittedOn: attestation?.Created_On ?? null,
         verifiedOn: attestation?.Updated_On ?? null,
+        // NEW: AI extraction fields
+        aiExtractionStatus: (row as any)?.Ai_Extraction_Status ?? null,
+        aiExtractedData: aiData,
+        aiConfidenceScores: aiScores,
+        aiOverallConfidence: (row as any)?.Ai_Confidence_Overall ?? null,
+        aiExtractedAt: (row as any)?.Ai_Extracted_At ?? null,
+        aiNeedsReview,
+        workerConfirmedAt: (row as any)?.Worker_Confirmed_At ?? null,
+        workerCorrectedData: (row as any)?.Worker_Corrected_Data ?? null,
       };
     });
 
@@ -1206,7 +1221,41 @@ app.post("/Api/Worker/Documents", requireAuth, upload.single("file"), async (req
       update: data,
     });
 
-    return res.json({ ok: true, docType: t, url: `${req.protocol}://${req.get("host")}${uploadPath}` });
+    // Trigger non-blocking AI extraction
+    // Fire-and-forget: upload succeeds even if AI fails
+    (async () => {
+      try {
+        const { extractWorkerDocumentData } = await import("./services/workerDocumentAiService");
+        const { convertFileToBase64 } = await import("./utils/pdfToImage");
+        const path = await import("path");
+        
+        const filePath = path.join(uploadsDir, uploaded.filename);
+        const base64Image = await convertFileToBase64(filePath, (req as any).file?.mimetype || "image/jpeg");
+        
+        if (base64Image) {
+          const extraction = await extractWorkerDocumentData(base64Image, t);
+          
+          // Update record with extraction results
+          await prisma.tbl_Worker_Attachments.update({
+            where: { Worker_Id: workerId },
+            data: {
+              Ai_Extraction_Status: extraction.success ? "completed" : "failed",
+              Ai_Extracted_Data: extraction.success ? extraction.data : null,
+              Ai_Confidence_Scores: extraction.success ? extraction.confidenceScores : null,
+              Ai_Confidence_Overall: extraction.success ? extraction.overallConfidence : null,
+              Ai_Raw_Response: extraction.rawResponse || null,
+              Ai_Extraction_Error: extraction.error || null,
+              Ai_Extracted_At: new Date(),
+            },
+          });
+        }
+      } catch (aiErr) {
+        console.error("[Worker/Documents] AI extraction failed:", aiErr);
+        // Silently fail - document already saved
+      }
+    })();
+
+    return res.json({ ok: true, docType: t, url: `${req.protocol}://${req.get("host")}${uploadPath}`, extractionPending: true });
   } catch (e) {
     return next(e);
   }
@@ -1254,6 +1303,28 @@ app.delete("/Api/Worker/Documents", requireAuth, async (req, res, next) => {
     await prisma.tbl_Worker_Attachments.update({
       where: { Worker_Id: workerId },
       data,
+    });
+
+    return res.json({ ok: true });
+  } catch (e) {
+    return next(e);
+  }
+});
+
+app.post("/Api/Worker/Documents/Confirm", requireAuth, async (req, res, next) => {
+  try {
+    const jwtUserId = Number((req as any).user?.userId ?? 0);
+    const workerId = await findWorkerIdByJwtUserId(jwtUserId);
+    if (!workerId) return res.status(400).json({ error: "Worker not found" });
+
+    const corrections = req.body?.corrections || null;
+    
+    await prisma.tbl_Worker_Attachments.update({
+      where: { Worker_Id: workerId },
+      data: {
+        Worker_Confirmed_At: new Date(),
+        Worker_Corrected_Data: corrections,
+      },
     });
 
     return res.json({ ok: true });
@@ -1358,6 +1429,12 @@ app.get("/Api/HRMS/Workers/:workerId/Documents", requireAuth, checkRole([1, 3, 4
       const isUrl = p.startsWith("http://") || p.startsWith("https://") || p.startsWith("/uploads/");
       const url = p ? (isUrl ? (p.startsWith("/uploads/") ? `${req.protocol}://${req.get("host")}${p}` : p) : "") : "";
       const attestation = latestAttestationByType.get(d.type);
+      
+      // AI extraction data
+      const aiData = (row as any)?.Ai_Extracted_Data;
+      const aiScores = (row as any)?.Ai_Confidence_Scores;
+      const aiNeedsReview = aiScores ? Object.values(aiScores).some((s: any) => (s as number) < 60) : false;
+      
       return {
         ...d,
         url,
@@ -1368,6 +1445,15 @@ app.get("/Api/HRMS/Workers/:workerId/Documents", requireAuth, checkRole([1, 3, 4
         adminRemarks: attestation?.AdminRemarks ?? null,
         submittedOn: attestation?.Created_On ?? null,
         verifiedOn: attestation?.Updated_On ?? null,
+        // NEW: AI extraction fields
+        aiExtractionStatus: (row as any)?.Ai_Extraction_Status ?? null,
+        aiExtractedData: aiData,
+        aiConfidenceScores: aiScores,
+        aiOverallConfidence: (row as any)?.Ai_Confidence_Overall ?? null,
+        aiExtractedAt: (row as any)?.Ai_Extracted_At ?? null,
+        aiNeedsReview,
+        workerConfirmedAt: (row as any)?.Worker_Confirmed_At ?? null,
+        workerCorrectedData: (row as any)?.Worker_Corrected_Data ?? null,
       };
     });
 

@@ -300,6 +300,16 @@ model Tbl_Worker_Attachments {
   Insurance_Policy             String?   @db.Text
   Created_By                   String?   @db.VarChar(50)
   Created_On                   DateTime?
+  // AI Document Extraction fields
+  Ai_Extraction_Status         String?   @db.VarChar(20)
+  Ai_Extracted_Data            Json?
+  Ai_Confidence_Scores         Json?
+  Ai_Confidence_Overall        Int?
+  Ai_Raw_Response              String?   @db.Text
+  Ai_Extraction_Error          String?   @db.Text
+  Ai_Extracted_At              DateTime?
+  Worker_Confirmed_At          DateTime?
+  Worker_Corrected_Data        Json?
 }
 
 model Tbl_Worker_EmployerInfo {

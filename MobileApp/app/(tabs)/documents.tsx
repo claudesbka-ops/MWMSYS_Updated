@@ -7,8 +7,39 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useApiClient } from "@/services/apiClient";
 import { useSession } from "@/contexts/SessionContext";
 import { Screen, Card, PrimaryButton, GhostButton, SectionTitle } from "@/components/ui";
+import { DocumentExtractionModal } from "@/components/DocumentExtractionModal";
 
-type DocRow = { type: string; name: string; url: string; hasFile: boolean };
+type AIExtractedData = {
+  full_name?: string;
+  document_number?: string;
+  expiry_date?: string;
+  date_of_birth?: string;
+  nationality?: string;
+  issuing_country?: string;
+};
+
+type AIConfidenceScores = {
+  full_name?: number;
+  document_number?: number;
+  expiry_date?: number;
+  date_of_birth?: number;
+  nationality?: number;
+  issuing_country?: number;
+};
+
+type DocRow = {
+  type: string;
+  name: string;
+  url: string;
+  hasFile: boolean;
+  aiExtractionStatus?: string | null;
+  aiExtractedData?: AIExtractedData | null;
+  aiConfidenceScores?: AIConfidenceScores | null;
+  aiOverallConfidence?: number | null;
+  aiNeedsReview?: boolean;
+  workerConfirmedAt?: string | null;
+  workerCorrectedData?: Record<string, any> | null;
+};
 
 const DOC_TYPES: { key: string; label: string; icon: keyof typeof FontAwesome.glyphMap; gradient: readonly [string, string] }[] = [
   { key: "passport", label: "🛫 Passport", icon: "id-card-o", gradient: ["#0ea5e9", "#6366f1"] },
@@ -25,6 +56,8 @@ export default function DocumentsScreen() {
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [docType, setDocType] = useState<string>("passport");
   const [busy, setBusy] = useState(false);
+  const [extractingDoc, setExtractingDoc] = useState<DocRow | null>(null);
+  const [isExtractionLoading, setIsExtractionLoading] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
@@ -79,7 +112,44 @@ export default function DocumentsScreen() {
       if (!res.ok) throw new Error(data?.error ?? "Upload failed");
 
       await refresh();
-      Alert.alert("✅ Uploaded", "Your document is saved.");
+      
+      // Show extraction modal for uploaded document
+      if (data?.extractionPending) {
+        const uploadedDoc: DocRow = {
+          type: docType,
+          name: asset.name ?? "document",
+          url: data?.url ?? "",
+          hasFile: true,
+          aiExtractionStatus: null,
+        };
+        setExtractingDoc(uploadedDoc);
+        setIsExtractionLoading(true);
+        
+        // Poll for extraction completion
+        const pollInterval = setInterval(async () => {
+          try {
+            const pollRes = await api.get<{ workerId: string; documents: DocRow[] }>("/Api/Worker/Documents");
+            const pollDocs = Array.isArray(pollRes?.documents) ? pollRes.documents : [];
+            const updatedDoc = pollDocs.find((d) => d.type === docType && d.aiExtractionStatus);
+            
+            if (updatedDoc?.aiExtractionStatus === "completed" || updatedDoc?.aiExtractionStatus === "failed") {
+              clearInterval(pollInterval);
+              setExtractingDoc(updatedDoc);
+              setIsExtractionLoading(false);
+            }
+          } catch {
+            // Continue polling
+          }
+        }, 2000);
+        
+        // Stop polling after 30 seconds
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          setIsExtractionLoading(false);
+        }, 30000);
+      } else {
+        Alert.alert("✅ Uploaded", "Your document is saved.");
+      }
     } catch (e: any) {
       Alert.alert("⚠️ Error", e?.message ?? "Upload failed");
     } finally {
@@ -101,7 +171,13 @@ export default function DocumentsScreen() {
 
   const merged = DOC_TYPES.map((meta) => {
     const existing = docs.find((d) => d.type === meta.key);
-    return { ...meta, hasFile: !!existing?.hasFile, name: existing?.name ?? meta.label, url: existing?.url ?? "" };
+    return {
+      ...meta,
+      hasFile: !!existing?.hasFile,
+      name: existing?.name ?? meta.label,
+      url: existing?.url ?? "",
+      aiNeedsReview: existing?.aiNeedsReview,
+    };
   });
   const uploadedCount = merged.filter((m) => m.hasFile).length;
 
@@ -152,6 +228,7 @@ export default function DocumentsScreen() {
               gradient={doc.gradient}
               label={doc.label}
               hasFile={doc.hasFile}
+              aiNeedsReview={doc.aiNeedsReview}
               onPress={
                 doc.hasFile
                   ? () =>
@@ -165,6 +242,22 @@ export default function DocumentsScreen() {
           ))}
         </View>
       )}
+      
+      <DocumentExtractionModal
+        document={extractingDoc}
+        isLoading={isExtractionLoading}
+        onClose={() => setExtractingDoc(null)}
+        onConfirm={async (corrections) => {
+          try {
+            await api.post("/Api/Worker/Documents/Confirm", { corrections });
+            await refresh();
+            setExtractingDoc(null);
+            Alert.alert("✅ Confirmed", "Document data saved.");
+          } catch (e: any) {
+            Alert.alert("⚠️ Error", "Failed to save confirmation");
+          }
+        }}
+      />
     </Screen>
   );
 }
@@ -174,12 +267,14 @@ function DocumentTile({
   gradient,
   label,
   hasFile,
+  aiNeedsReview,
   onPress,
 }: {
   icon: keyof typeof FontAwesome.glyphMap;
   gradient: readonly [string, string];
   label: string;
   hasFile: boolean;
+  aiNeedsReview?: boolean;
   onPress?: () => void;
 }) {
   return (
@@ -195,14 +290,20 @@ function DocumentTile({
       <Text style={styles.tileLabel} numberOfLines={1}>
         {label}
       </Text>
-      <View style={[styles.tileBadge, hasFile ? styles.tileBadgeReady : styles.tileBadgeMissing]}>
+      <View style={[
+        styles.tileBadge,
+        hasFile ? (aiNeedsReview ? styles.tileBadgeReview : styles.tileBadgeReady) : styles.tileBadgeMissing
+      ]}>
         <FontAwesome
-          name={hasFile ? "check-circle" : "exclamation-circle"}
+          name={hasFile ? (aiNeedsReview ? "warning" : "check-circle") : "exclamation-circle"}
           size={10}
-          color={hasFile ? "#047857" : "#92400e"}
+          color={hasFile ? (aiNeedsReview ? "#f59e0b" : "#047857") : "#92400e"}
         />
-        <Text style={[styles.tileBadgeText, hasFile ? styles.tileBadgeTextReady : styles.tileBadgeTextMissing]}>
-          {hasFile ? "✅ Uploaded" : "⚠️ Missing"}
+        <Text style={[
+          styles.tileBadgeText,
+          hasFile ? (aiNeedsReview ? styles.tileBadgeTextReview : styles.tileBadgeTextReady) : styles.tileBadgeTextMissing
+        ]}>
+          {hasFile ? (aiNeedsReview ? "⚠️ Review" : "✅ Uploaded") : "⚠️ Missing"}
         </Text>
       </View>
     </Pressable>
@@ -255,7 +356,9 @@ const styles = StyleSheet.create({
   },
   tileBadgeReady: { backgroundColor: "rgba(16,185,129,0.14)" },
   tileBadgeMissing: { backgroundColor: "rgba(245,158,11,0.16)" },
+  tileBadgeReview: { backgroundColor: "rgba(245,158,11,0.25)" },
   tileBadgeText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.3, textTransform: "uppercase" },
   tileBadgeTextReady: { color: "#047857" },
   tileBadgeTextMissing: { color: "#92400e" },
+  tileBadgeTextReview: { color: "#b45309" },
 });

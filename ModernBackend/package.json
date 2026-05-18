@@ -26,7 +26,9 @@
     "multer": "^1.4.5-lts.2",
     "nodemailer": "^8.0.5",
     "openai": "^6.34.0",
+    "pdf2pic": "^3.2.0",
     "resend": "^6.12.2",
+    "sharp": "^0.33.5",
     "socket.io": "^4.8.1",
     "stripe": "^14.25.0",
     "typescript": "^6.0.2"
