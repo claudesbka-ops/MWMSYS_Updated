@@ -86,24 +86,38 @@ function buildPromptForDocType(type: string): string {
   if (t === "passport") {
     return `${base}
 
-For passports, extract:
-1. FULL NAME: Combine all name parts in order shown (surname first if indicated, then given names)
-2. DOCUMENT NUMBER: Usually at top or in MRZ line 1 (after country code)
-3. EXPIRY DATE: Look for 'Date of Expiry' or similar
-4. DATE OF BIRTH: Look for 'Date of Birth' or in MRZ
-5. NATIONALITY: Three-letter code or full country name
-6. ISSUING COUNTRY: Country that issued the passport
+For passports, extract CAREFULLY - do not confuse issue date with expiry date:
+1. FULL NAME: Read from visual zone or MRZ Line 1 after country code. Format: Surname<<GivenNames
+2. DOCUMENT NUMBER: 9 characters from top of passport OR from MRZ Line 2 positions 1-9. STOP at the < separator, do NOT include check digit or anything after.
+3. EXPIRY DATE: Look for "Date of Expiry" in visual zone OR in MRZ Line 2 positions 22-27 (6 digits YYMMDD). This is NOT the issue date. Common error: confusing with Date of Issue - do NOT use that.
+4. DATE OF BIRTH: Look for "Date of Birth" in visual zone OR in MRZ Line 2 positions 14-19 (6 digits YYMMDD)
+5. NATIONALITY: Three-letter country code from MRZ Line 2 positions 11-13
+6. ISSUING COUNTRY: Same as nationality for most passports
 
-MRZ FORMAT (if visible at bottom):
-- Line 1: P<XXX[NAME]... (XXX=country, name follows)
-- Line 2: DocumentNumberCountryCodeDOBSexExpiryPersonalNumber
+IMPORTANT - MRZ Line 2 format (44 characters total):
+Positions 1-9:   Document Number (letters/numbers)
+Position 10:     Check digit (< separator)
+Positions 11-13: Nationality (3 letters, e.g., PAK)
+Positions 14-19: Date of Birth (YYMMDD)
+Position 20:     Check digit
+Position 21:     Sex (M/F)
+Positions 22-27: EXPIRY DATE (YYMMDD) - THIS is what you want for expiry_date
+Positions 28:  Check digit
+Positions 29-42: Personal number
+Positions 43-44: Final check digits
+
+Example MRZ Line 2: BU80200023<PAK0305129M2601137<<<<<<<<<<<<<<04
+- Document Number: BU80200023 (NOT BU802000233!)
+- Nationality: PAK
+- Date of Birth: 030512 = 2003-05-12
+- Expiry Date: 260113 = 2026-01-13 (NOT the issue date 230113!)
 
 {
-  "full_name": "complete name as shown, surname first if indicated",
-  "document_number": "passport number from top or MRZ",
-  "expiry_date": "expiry date YYYY-MM-DD",
-  "date_of_birth": "birth date YYYY-MM-DD",
-  "nationality": "nationality/country",
+  "full_name": "surname followed by given names, clean up << separators",
+  "document_number": "9-char passport number only, no check digits",
+  "expiry_date": "expiry date YYYY-MM-DD - from visual zone 'Date of Expiry' or MRZ positions 22-27",
+  "date_of_birth": "birth date YYYY-MM-DD - from visual zone 'Date of Birth' or MRZ positions 14-19",
+  "nationality": "3-letter country code from MRZ",
   "issuing_country": "issuing country",
   "confidence_scores": {
     "full_name": 0-100,
