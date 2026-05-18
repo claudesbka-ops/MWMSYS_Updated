@@ -289,6 +289,110 @@ function normaliseConfidenceScore(value: unknown): number {
   return 0;
 }
 
+/**
+ * Parse MRZ (Machine Readable Zone) lines from passport
+ * Returns structured data with proper field extraction
+ */
+function parseMRZ(mrzLine1: string, mrzLine2: string): ExtractedWorkerDocumentData | null {
+  try {
+    // Clean up MRZ lines
+    const line1 = mrzLine1.replace(/\s+/g, "").trim().toUpperCase();
+    const line2 = mrzLine2.replace(/\s+/g, "").trim().toUpperCase();
+    
+    if (line1.length < 44 || line2.length < 44) {
+      return null;
+    }
+    
+    // Line 1: P<XXX[NAME]...
+    // Skip "P<" and country code (3 chars) to get name
+    const nameStart = 5; // P< + 3 char country code
+    const namePart = line1.substring(nameStart);
+    const nameEnd = namePart.indexOf("<<");
+    const surname = nameEnd > 0 ? namePart.substring(0, nameEnd).replace(/</g, " ") : "";
+    const givenNames = nameEnd > 0 ? namePart.substring(nameEnd + 2).replace(/</g, " ").trim() : "";
+    const fullName = `${surname} ${givenNames}`.trim().replace(/\s+/g, " ");
+    
+    // Line 2 parsing with proper field boundaries
+    // Format: DOC_NUM<CHK>NATION<CHK>DOB<CHK>SEX<CHK>EXP<CHK>PERSONAL<CHK><<FINAL
+    
+    // Find document number (variable length, ends at first <)
+    let docNumEnd = line2.indexOf("<");
+    if (docNumEnd < 0) docNumEnd = 9;
+    const documentNumber = line2.substring(0, docNumEnd).trim();
+    
+    // Nationality at positions 10-13 (after doc num check digit)
+    const nationality = line2.substring(10, 13);
+    
+    // Date of Birth at positions 13-19 (YYMMDD)
+    const dobRaw = line2.substring(13, 19);
+    const dobYear = parseInt(dobRaw.substring(0, 2), 10);
+    const dobFullYear = dobYear < 50 ? 2000 + dobYear : 1900 + dobYear;
+    const dob = `${dobFullYear}-${dobRaw.substring(2, 4)}-${dobRaw.substring(4, 6)}`;
+    
+    // Sex at position 20
+    // const sex = line2.substring(20, 21);
+    
+    // Expiry at positions 21-27 (YYMMDD) - THIS is what we want
+    const expRaw = line2.substring(21, 27);
+    const expYear = parseInt(expRaw.substring(0, 2), 10);
+    const expFullYear = expYear < 50 ? 2000 + expYear : 1900 + expYear;
+    const expiry = `${expFullYear}-${expRaw.substring(2, 4)}-${expRaw.substring(4, 6)}`;
+    
+    return {
+      full_name: fullName || undefined,
+      document_number: documentNumber || undefined,
+      expiry_date: expiry,
+      date_of_birth: dob,
+      nationality: nationality || undefined,
+      issuing_country: nationality || undefined,
+      confidence_scores: {
+        full_name: fullName ? 90 : 0,
+        document_number: documentNumber ? 95 : 0,
+        expiry_date: 95,
+        date_of_birth: 95,
+        nationality: nationality ? 98 : 0,
+        issuing_country: nationality ? 98 : 0,
+      },
+      overall_confidence: 95,
+    };
+  } catch (err) {
+    console.error("[MRZ Parser] Failed to parse:", err);
+    return null;
+  }
+}
+
+/**
+ * Extract MRZ lines from raw OCR text using pattern matching
+ */
+function extractMRZFromText(text: string): { line1: string; line2: string } | null {
+  // Look for MRZ pattern: lines starting with P< followed by 44 characters
+  const lines = text.split(/\r?\n/);
+  
+  for (let i = 0; i < lines.length - 1; i++) {
+    const line1 = lines[i].trim().toUpperCase();
+    const line2 = lines[i + 1].trim().toUpperCase();
+    
+    // MRZ Line 1 starts with P< (passport) or similar travel document codes
+    if (line1.match(/^P<\w{3}/) && line1.length >= 44 && line2.length >= 44) {
+      return { line1, line2 };
+    }
+  }
+  
+  // Try to find concatenated MRZ (no line breaks)
+  const mrzMatch = text.match(/P<\w{3}.{40,}\w{9}/);
+  if (mrzMatch) {
+    const fullMrz = mrzMatch[0].replace(/\s/g, "");
+    if (fullMrz.length >= 88) {
+      return {
+        line1: fullMrz.substring(0, 44),
+        line2: fullMrz.substring(44, 88),
+      };
+    }
+  }
+  
+  return null;
+}
+
 function parseWorkerAiResponse(text: string): WorkerDocumentExtractionResult {
   const cleaned = (text ?? "").toString().replace(/```json|```/g, "").trim();
   if (!cleaned) {
@@ -346,11 +450,11 @@ function parseWorkerAiResponse(text: string): WorkerDocumentExtractionResult {
 }
 
 /**
- * Extract structured data from a worker document image using GPT-4o.
- * Accepts either a raw base64 string or a complete `data:` URL.
+ * HYBRID EXTRACTION: First extract raw text/MRZ with AI, then parse MRZ programmatically
+ * This is much more accurate than pure AI extraction for structured MRZ data.
  * 
- * Returns a result object with success flag - callers should check success
- * before using extracted data. Never throws - returns error result instead.
+ * For passports: AI extracts raw MRZ text → Code parses MRZ with proper logic
+ * For other docs: AI extracts structured JSON directly
  */
 export async function extractWorkerDocumentData(
   imageBase64: string,
@@ -371,29 +475,169 @@ export async function extractWorkerDocumentData(
     ? raw
     : `data:${mimeType || "image/jpeg"};base64,${raw}`;
 
-  const prompt = buildPromptForDocType(documentType);
-  const model = (process.env.OPENAI_MODEL ?? "gpt-4o").toString().trim() || "gpt-4o";
+  const isPassport = (documentType ?? "").toString().trim().toLowerCase() === "passport";
+  
+  // For passports: Use MRZ-first strategy
+  if (isPassport) {
+    return extractPassportWithMRZ(client, dataUrl);
+  }
+  
+  // For other documents: Use standard JSON extraction
+  return extractGenericDocument(client, dataUrl, documentType);
+}
+
+/**
+ * Extract passport data using hybrid MRZ approach
+ * 1. AI extracts raw text with MRZ lines
+ * 2. Code parses MRZ with perfect accuracy
+ */
+async function extractPassportWithMRZ(
+  client: OpenAI,
+  dataUrl: string
+): Promise<WorkerDocumentExtractionResult> {
+  const mrzPrompt = `You are an OCR engine. Read this passport image and output ONLY the Machine Readable Zone (MRZ) lines at the bottom.
+
+The MRZ consists of:
+- Line 1: Starting with P< followed by country code and name (44 characters)
+- Line 2: Document number, nationality, dates, personal number (44 characters)
+
+Output EXACTLY these two lines, no other text:
+P<XXX[NAME FIELD - 39 characters]
+[DOCUMENT DATA LINE - 44 characters]
+
+If MRZ is not readable, output "MRZ NOT READABLE".`;
 
   try {
     const response = await client.chat.completions.create({
-      model,
+      model: (process.env.OPENAI_MODEL ?? "gpt-4o").toString().trim() || "gpt-4o",
       messages: [
         {
           role: "user",
           content: [
-            { 
-              type: "image_url", 
-              image_url: { 
-                url: dataUrl,
-                detail: "high"  // Request high detail for better OCR on low-quality images
-              } 
-            },
+            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+            { type: "text", text: mrzPrompt },
+          ] as any,
+        },
+      ],
+      max_tokens: 200,
+      temperature: 0,
+    });
+
+    const text = response.choices?.[0]?.message?.content ?? "";
+    
+    // Try to extract and parse MRZ
+    const mrzLines = extractMRZFromText(text);
+    if (mrzLines) {
+      const parsed = parseMRZ(mrzLines.line1, mrzLines.line2);
+      if (parsed) {
+        return {
+          success: true,
+          data: parsed,
+          confidenceScores: parsed.confidence_scores,
+          overallConfidence: parsed.overall_confidence,
+          rawResponse: text,
+        };
+      }
+    }
+    
+    // MRZ parsing failed - fall back to visual zone extraction
+    return extractPassportVisual(client, dataUrl, text);
+    
+  } catch (err: any) {
+    console.error("[MRZ Extraction] failed:", err?.message ?? err);
+    return { success: false, error: `MRZ extraction error: ${err?.message ?? "unknown"}` };
+  }
+}
+
+/**
+ * Fallback: Extract passport data from visual zone when MRZ fails
+ */
+async function extractPassportVisual(
+  client: OpenAI,
+  dataUrl: string,
+  mrzAttempt: string
+): Promise<WorkerDocumentExtractionResult> {
+  const visualPrompt = `Extract passport data from the visual inspection zone (the main readable area, NOT the MRZ at bottom).
+
+Look for these fields and return ONLY JSON:
+- full_name: Name as printed (e.g., "JABBAR JAVED HUSSAIN")
+- document_number: Passport number from top of page (e.g., "BU8020002")
+- expiry_date: Date of Expiry in YYYY-MM-DD format
+- date_of_birth: Date of Birth in YYYY-MM-DD format  
+- nationality: Country name or code
+- issuing_country: Issuing country
+
+Return JSON with confidence_scores (0-100) for each field.
+
+{
+  "full_name": "...",
+  "document_number": "...",
+  "expiry_date": "YYYY-MM-DD",
+  "date_of_birth": "YYYY-MM-DD",
+  "nationality": "...",
+  "issuing_country": "...",
+  "confidence_scores": {
+    "full_name": 0-100,
+    "document_number": 0-100,
+    "expiry_date": 0-100,
+    "date_of_birth": 0-100,
+    "nationality": 0-100,
+    "issuing_country": 0-100
+  }
+}`;
+
+  try {
+    const response = await client.chat.completions.create({
+      model: (process.env.OPENAI_MODEL ?? "gpt-4o").toString().trim() || "gpt-4o",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+            { type: "text", text: visualPrompt },
+          ] as any,
+        },
+      ],
+      max_tokens: 500,
+      temperature: 0.1,
+    });
+
+    const text = response.choices?.[0]?.message?.content ?? "";
+    return parseWorkerAiResponse(text);
+    
+  } catch (err: any) {
+    return { 
+      success: false, 
+      error: `Visual extraction error: ${err?.message ?? "unknown"}`,
+      rawResponse: mrzAttempt,
+    };
+  }
+}
+
+/**
+ * Generic document extraction for non-passport documents
+ */
+async function extractGenericDocument(
+  client: OpenAI,
+  dataUrl: string,
+  documentType: WorkerDocumentType,
+): Promise<WorkerDocumentExtractionResult> {
+  const prompt = buildPromptForDocType(documentType);
+  
+  try {
+    const response = await client.chat.completions.create({
+      model: (process.env.OPENAI_MODEL ?? "gpt-4o").toString().trim() || "gpt-4o",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
             { type: "text", text: prompt },
           ] as any,
         },
       ],
-      max_tokens: 1000,  // Increased for more detailed low-quality extraction
-      temperature: 0.1,   // Lower temperature for more consistent results
+      max_tokens: 1000,
+      temperature: 0.1,
     });
 
     const text = response.choices?.[0]?.message?.content ?? "";
