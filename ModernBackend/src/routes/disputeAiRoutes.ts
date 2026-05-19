@@ -14,7 +14,7 @@ const router = Router();
  * Score a single dispute (Admin + Agency)
  */
 router.post(
-  "/Score/:disputeId",
+  "/Api/Disputes/Ai/Score/:disputeId",
   requireAuth,
   checkRole([1, 2]),
   async (req, res, next) => {
@@ -46,7 +46,7 @@ router.post(
  * Score ALL unscored disputes in one batch (Admin only)
  */
 router.post(
-  "/ScoreAll",
+  "/Api/Disputes/Ai/ScoreAll",
   requireAuth,
   checkRole([1]), // Admin only
   async (req, res, next) => {
@@ -67,7 +67,7 @@ router.post(
  * Get severity counts summary (Admin + Agency)
  */
 router.get(
-  "/Summary",
+  "/Api/Disputes/Ai/Summary",
   requireAuth,
   checkRole([1, 2]),
   async (req, res, next) => {
@@ -85,7 +85,7 @@ router.get(
  * Get AI-scored disputes with filters (Admin + Agency)
  */
 router.get(
-  "/Disputes",
+  "/Api/Disputes/Ai/Disputes",
   requireAuth,
   checkRole([1, 2]),
   async (req, res, next) => {

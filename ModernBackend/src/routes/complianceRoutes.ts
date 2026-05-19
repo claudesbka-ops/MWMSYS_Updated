@@ -70,7 +70,7 @@ async function buildWorkerScopeWhere(user: any): Promise<any> {
  * Trigger full compliance scan (Admin + Agency only)
  */
 router.post(
-  "/Scan",
+  "/Api/Compliance/Scan",
   requireAuth,
   checkRole([1, 2]),
   async (req, res, next) => {
@@ -123,7 +123,7 @@ router.post(
  * GET /Api/Compliance/Alerts
  * Get compliance alerts with filtering (Admin + Agency)
  */
-router.get("/Alerts", requireAuth, checkRole([1, 2]), async (req, res, next) => {
+router.get("/Api/Compliance/Alerts", requireAuth, checkRole([1, 2]), async (req, res, next) => {
   try {
     const user = (req as any).user;
     const roleId = Number(user?.roleId ?? 0);
@@ -178,7 +178,7 @@ router.get("/Alerts", requireAuth, checkRole([1, 2]), async (req, res, next) => 
  * GET /Api/Compliance/Scores
  * Get employer compliance scores (Admin + Agency)
  */
-router.get("/Scores", requireAuth, checkRole([1, 2]), async (req, res, next) => {
+router.get("/Api/Compliance/Scores", requireAuth, checkRole([1, 2]), async (req, res, next) => {
   try {
     const user = (req as any).user;
     const roleId = Number(user?.roleId ?? 0);
@@ -232,7 +232,7 @@ router.patch(
  * GET /Api/Compliance/Dashboard
  * Get dashboard summary stats (Admin + Agency)
  */
-router.get("/Dashboard", requireAuth, checkRole([1, 2]), async (req, res, next) => {
+router.get("/Api/Compliance/Dashboard", requireAuth, checkRole([1, 2]), async (req, res, next) => {
   try {
     const user = (req as any).user;
     const roleId = Number(user?.roleId ?? 0);
@@ -255,4 +255,4 @@ router.get("/Dashboard", requireAuth, checkRole([1, 2]), async (req, res, next) 
   }
 });
 
-export default router;
+export const complianceRouter = router;

@@ -43,7 +43,7 @@ import { hrmsRouter } from "./routes/hrmsRoutes";
 import { panicRouter } from "./routes/panicRoutes";
 import { relationshipRouter } from "./routes/relationshipRoutes";
 import { subscriptionRouter } from "./routes/subscriptionRoutes";
-import complianceRouter from "./routes/complianceRoutes";
+import { complianceRouter } from "./routes/complianceRoutes";
 import { disputeAiRouter } from "./routes/disputeAiRoutes";
 import { workerRiskRouter } from "./routes/workerRiskRoutes";
 
@@ -352,8 +352,8 @@ app.use(hrmsRouter);
 app.use(panicRouter);
 app.use(relationshipRouter);
 app.use(subscriptionRouter);
-app.use("/Api/Compliance", complianceRouter);
-app.use("/Api/Disputes/Ai", disputeAiRouter);
+app.use(complianceRouter);
+app.use(disputeAiRouter);
 app.use(workerRiskRouter);
 
 
