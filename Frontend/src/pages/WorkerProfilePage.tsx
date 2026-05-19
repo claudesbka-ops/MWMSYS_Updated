@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { deleteWorkerDocument, getWorkerDocuments, getWorkerProfile, openAttestationDocument, uploadWorkerDocument, type WorkerDocumentRow } from "@/services/workerService";
+import { RiskScoreGauge } from "@/components/risk/RiskScoreGauge";
 
 export default function WorkerProfilePage() {
   const { workerId } = useParams();
@@ -73,6 +74,10 @@ export default function WorkerProfilePage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-card rounded-2xl border border-border/60 p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-4">Risk Assessment</h3>
+          <RiskScoreGauge workerId={id} />
+        </div>
         <div className="bg-card rounded-2xl border border-border/60 p-5">
           <h3 className="text-sm font-semibold text-foreground">Profile</h3>
           {(profileLoading || !profile) && (

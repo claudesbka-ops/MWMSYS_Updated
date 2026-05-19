@@ -45,6 +45,7 @@ import { relationshipRouter } from "./routes/relationshipRoutes";
 import { subscriptionRouter } from "./routes/subscriptionRoutes";
 import complianceRouter from "./routes/complianceRoutes";
 import { disputeAiRouter } from "./routes/disputeAiRoutes";
+import { workerRiskRouter } from "./routes/workerRiskRoutes";
 
 const app = express();
 
@@ -353,6 +354,7 @@ app.use(relationshipRouter);
 app.use(subscriptionRouter);
 app.use("/Api/Compliance", complianceRouter);
 app.use("/Api/Disputes/Ai", disputeAiRouter);
+app.use(workerRiskRouter);
 
 
 app.get("/Api/Workers/:workerId", requireAuth, async (req, res, next) => {

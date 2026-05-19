@@ -23,6 +23,7 @@ const navItems: NavItem[] = [
   { label: "Worker", icon: Users, path: "/worker", roles: ["admin", "agency", "employer"] },
   { label: "Attestation", icon: FileCheck, path: "/attestation", roles: ["admin", "agency"] },
   { label: "Salary Disputes", icon: Scale, path: "/dispute", roles: ["admin", "agency", "employer", "worker", "labour"] },
+  { label: "Risk Dashboard", icon: AlertTriangle, path: "/risk-dashboard", roles: ["admin", "agency"] },
   { label: "Search", icon: Search, path: "/search", roles: ["admin", "agency", "embassy_source", "embassy_destination", "labour"] },
   {
     label: "HRMS",
