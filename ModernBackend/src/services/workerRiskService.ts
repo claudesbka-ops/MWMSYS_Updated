@@ -25,11 +25,10 @@ export interface RiskBreakdown {
  * Max score: 75 (25 per component)
  */
 export async function calculateWorkerRisk(workerId: string): Promise<RiskBreakdown> {
-  // Get document data
-  const attachments = await prisma.tbl_Worker_Attachments.findUnique({
+  // Get document data from Tbl_Worker_PermitInsurance (where expire dates are stored)
+  const permitInfo = await prisma.tbl_Worker_PermitInsurance.findUnique({
     where: { Worker_Id: workerId },
     select: {
-      Passport_Expire_Date: true,
       Permit_Expire_Date: true,
       Insurance_Expire_Date: true,
     },
@@ -61,9 +60,8 @@ export async function calculateWorkerRisk(workerId: string): Promise<RiskBreakdo
     }
   };
 
-  checkDate(attachments?.Passport_Expire_Date);
-  checkDate(attachments?.Permit_Expire_Date);
-  checkDate(attachments?.Insurance_Expire_Date);
+  checkDate(permitInfo?.Permit_Expire_Date);
+  checkDate(permitInfo?.Insurance_Expire_Date);
   checkDate(personal?.Passport_Expire_Date);
 
   docScore = Math.min(25,

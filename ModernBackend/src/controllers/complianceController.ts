@@ -464,11 +464,9 @@ export async function getDashboardSummary(agencyId?: string) {
     prisma.tbl_Compliance_Alerts.count({ where: { ...alertWhere, Severity: "CRITICAL" } }),
     prisma.tbl_Compliance_Alerts.count({ where: { ...alertWhere, Severity: "HIGH" } }),
     prisma.tbl_Compliance_Scores.aggregate({
-      where: agencyId ? { Agency_Id: agencyId } : undefined,
       _avg: { Score: true },
     }),
     prisma.tbl_Compliance_Scores.findFirst({
-      where: agencyId ? { Agency_Id: agencyId } : undefined,
       orderBy: { Scanned_At: "desc" },
       select: { Scanned_At: true },
     }),
@@ -476,7 +474,6 @@ export async function getDashboardSummary(agencyId?: string) {
 
   // Find most at-risk employer
   const mostAtRisk = await prisma.tbl_Compliance_Scores.findFirst({
-    where: agencyId ? { Agency_Id: agencyId } : undefined,
     orderBy: { Score: "asc" },
     select: { Employer_Id: true, Score: true },
   });
