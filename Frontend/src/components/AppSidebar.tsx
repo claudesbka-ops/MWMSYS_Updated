@@ -5,7 +5,7 @@ import {
   Home, Building2, Users, FileCheck, Search, CreditCard,
   Wallet, BarChart3, Shield, ChevronRight,
   FileText, HeartPulse, Eye, AlertTriangle, UserCheck, Menu, X, Clock,
-  User, MessageSquare, Megaphone, BookOpen, Scale, Upload
+  User, MessageSquare, Megaphone, BookOpen, Scale, Upload, Calendar
 } from "lucide-react";
 
 interface NavItem {
@@ -38,7 +38,7 @@ const navItems: NavItem[] = [
       { label: "My Requests", icon: FileText, path: "/hrms/my-requests" },
       { label: "Payroll", icon: Wallet, path: "/hrms/payroll" },
       { label: "Contracts", icon: Shield, path: "/hrms/contracts" },
-      { label: "Roster", icon: Clock, path: "/hrms/roster" },
+      { label: "Shift Schedule", icon: Calendar, path: "/hrms/roster" },
       { label: "Timesheets", icon: BarChart3, path: "/hrms/timesheets" },
       { label: "Requests", icon: FileText, path: "/hrms/requests" },
       { label: "Report", icon: BarChart3, path: "/hrms/report" },

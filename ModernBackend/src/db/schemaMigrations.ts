@@ -47,6 +47,15 @@ export async function ensureRosterTablesExist(): Promise<void> {
   } catch {
     // ignore
   }
+
+  // Add shiftType column to existing Tbl_Shift_Template
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "Tbl_Shift_Template" ADD COLUMN IF NOT EXISTS "shiftType" VARCHAR(50) DEFAULT 'Morning'`
+    );
+  } catch {
+    // ignore - column may already exist
+  }
 }
 
 export async function ensureHrmsRequestTablesExist(): Promise<void> {

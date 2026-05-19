@@ -141,8 +141,16 @@ export function useAttendance() {
     },
   });
 
-  const clockOut = useMutation<AttendanceRow, unknown, void>({
-    mutationFn: () => hrms.clockOut(),
+  const clockOut = useMutation<
+    AttendanceRow,
+    unknown,
+    { lat?: number | null; lng?: number | null }
+  >({
+    mutationFn: (input) =>
+      hrms.clockOut({
+        lat: input?.lat ?? null,
+        lng: input?.lng ?? null,
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ATTENDANCE_QK });
     },

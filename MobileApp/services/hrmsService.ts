@@ -41,7 +41,11 @@ export function useHrmsService() {
         lng: params?.lng ?? null,
         photoUrl: params?.photoUrl ?? null,
       }),
-    clockOut: () => api.post<AttendanceRow>("/Api/HRMS/Attendance/ClockOut", {}),
+    clockOut: (params: { lat?: number | null; lng?: number | null }) =>
+      api.post<AttendanceRow>("/Api/HRMS/Attendance/ClockOut", {
+        lat: params?.lat ?? null,
+        lng: params?.lng ?? null,
+      }),
 
     getMyLeaves: () => api.get<LeaveRow[]>("/Api/HRMS/Leave"),
     applyLeave: (params: { leaveType: string; startDate: string; endDate: string }) =>

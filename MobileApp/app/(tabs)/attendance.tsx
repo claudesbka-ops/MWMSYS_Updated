@@ -64,13 +64,17 @@ function WorkerView() {
   const handleClockOut = useCallback(async () => {
     setBusy(true);
     try {
-      await attendance.clockOut.mutateAsync();
+      const fix = await geo.acquire({ timeoutMs: 12000 });
+      await attendance.clockOut.mutateAsync({
+        lat: fix?.lat ?? null,
+        lng: fix?.lng ?? null,
+      });
     } catch (e: any) {
       Alert.alert("⚠️ Clock-out failed", e?.error ?? e?.message ?? "Unexpected error");
     } finally {
       setBusy(false);
     }
-  }, [attendance]);
+  }, [attendance, geo]);
 
   const handleDrainQueue = useCallback(async () => {
     const r = await attendance.queue.drain();

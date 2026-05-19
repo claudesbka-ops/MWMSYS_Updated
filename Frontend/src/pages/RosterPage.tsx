@@ -15,6 +15,8 @@ import { Calendar as CalendarIcon, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { downloadCsv, downloadPdfSimpleTable } from "@/lib/exporters";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ShiftCalendar } from "@/components/shift/ShiftCalendar";
+import { ShiftAssignModal } from "@/components/shift/ShiftAssignModal";
 import {
   createShiftTemplate,
   getShiftTemplates,

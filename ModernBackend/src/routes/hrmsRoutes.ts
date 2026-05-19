@@ -187,6 +187,9 @@ hrmsRouter.post("/Api/HRMS/Attendance/ClockOut", requireAuth, checkRole([2]), as
     const userKey = ((req as any).user?.userKey ?? "").toString().trim();
     if (!userKey) return res.status(400).json({ error: "Missing worker id" });
 
+    const lat = req.body?.lat != null ? Number(req.body.lat) : null;
+    const lng = req.body?.lng != null ? Number(req.body.lng) : null;
+
     const open = await prisma.tbl_Attendance.findFirst({
       where: { workerId: userKey, checkOut: null },
       orderBy: [{ id: "desc" }],
@@ -194,9 +197,26 @@ hrmsRouter.post("/Api/HRMS/Attendance/ClockOut", requireAuth, checkRole([2]), as
 
     if (!open) return res.status(409).json({ error: "No open attendance record" });
 
+    // Calculate hours worked
+    const checkIn = open.checkIn ? new Date(open.checkIn) : null;
+    const checkOut = new Date();
+    let hoursWorked: number | null = null;
+    let status = 'present';
+
+    if (checkIn) {
+      const diffMs = checkOut.getTime() - checkIn.getTime();
+      hoursWorked = Number((diffMs / (1000 * 60 * 60)).toFixed(2));
+    }
+
     const updated = await prisma.tbl_Attendance.update({
       where: { id: open.id },
-      data: { checkOut: new Date() },
+      data: {
+        checkOut: checkOut,
+        clockOutLat: lat,
+        clockOutLng: lng,
+        hoursWorked: hoursWorked,
+        status: status,
+      },
     });
     return res.json(updated);
   } catch (e) {

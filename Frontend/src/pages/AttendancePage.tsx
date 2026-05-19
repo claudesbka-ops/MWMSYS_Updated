@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { downloadCsv, downloadPdfSimpleTable } from "@/lib/exporters";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AttendanceTable } from "@/components/attendance/AttendanceTable";
+import { AttendanceSummary } from "@/components/attendance/AttendanceSummary";
 
 export default function AttendancePage() {
   const { data = [], isLoading } = useQuery({
