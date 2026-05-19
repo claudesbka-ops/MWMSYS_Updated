@@ -556,3 +556,18 @@ model Tbl_Worker_Risk_Scores {
   @@index([Risk_Level])
   @@index([Risk_Score])
 }
+
+model Tbl_Import_Jobs {
+  Id            Int       @id @default(autoincrement())
+  Agency_Id     String    @db.VarChar(100)
+  File_Name     String    @db.VarChar(255)
+  Total_Rows    Int
+  Successful    Int       @default(0)
+  Failed        Int       @default(0)
+  Status        String    @db.VarChar(20) // processing|done|failed
+  Error_Log     Json?
+  Imported_At   DateTime  @default(now())
+
+  @@index([Agency_Id])
+  @@index([Status])
+}

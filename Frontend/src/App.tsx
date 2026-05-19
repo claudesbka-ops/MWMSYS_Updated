@@ -58,6 +58,7 @@ import DisputePage from "./pages/DisputePage.tsx";
 import CompleteProfilePage from "./pages/CompleteProfilePage.tsx";
 import ComplianceDashboardPage from "./pages/ComplianceDashboardPage.tsx";
 import RiskDashboardPage from "./pages/RiskDashboardPage.tsx";
+import BulkImportPage from "./pages/BulkImportPage.tsx";
 import RequireCompleteProfile from "@/components/RequireCompleteProfile";
 
 const queryClient = new QueryClient();
@@ -159,6 +160,14 @@ function AnimatedRoutes() {
             element={
               <ProtectedRoute allow={["admin", "agency"]}>
                 <RiskDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bulk-import"
+            element={
+              <ProtectedRoute allow={["agency"]}>
+                <BulkImportPage />
               </ProtectedRoute>
             }
           />
