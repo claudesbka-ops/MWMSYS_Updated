@@ -47,7 +47,6 @@ import { complianceRouter } from "./routes/complianceRoutes";
 import { disputeAiRouter } from "./routes/disputeAiRoutes";
 import { workerRiskRouter } from "./routes/workerRiskRoutes";
 import { bulkImportRouter } from "./routes/bulkImportRoutes";
-import { shiftRouter } from "./routes/shiftRoutes";
 import { authorityRouter } from "./routes/authorityRoutes";
 
 const app = express();

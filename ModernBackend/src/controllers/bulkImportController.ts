@@ -98,7 +98,7 @@ export async function confirmImport(
       return res.status(403).json({ error: "Only agencies can import workers" });
     }
 
-    const jobId = parseInt(req.params.jobId, 10);
+    const jobId = parseInt(Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId, 10);
     if (!Number.isFinite(jobId)) {
       return res.status(400).json({ error: "Invalid job ID" });
     }
@@ -146,7 +146,7 @@ export async function executeImport(
       return res.status(403).json({ error: "Only agencies can import workers" });
     }
 
-    const jobId = parseInt(req.params.jobId, 10);
+    const jobId = parseInt(Array.isArray(req.params.jobId) ? req.params.jobId[0] : req.params.jobId, 10);
     if (!Number.isFinite(jobId)) {
       return res.status(400).json({ error: "Invalid job ID" });
     }

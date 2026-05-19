@@ -105,13 +105,18 @@ model Tbl_Subscription {
 }
 
 model Tbl_Attendance {
-  id       Int       @id(map: "PK_Tbl_Attendance") @default(autoincrement())
-  workerId String    @db.VarChar(100)
-  checkIn  DateTime?
-  checkOut DateTime?
-  lat      Decimal?  @db.Decimal(10, 7)
-  lng      Decimal?  @db.Decimal(10, 7)
-  photoUrl String?   @db.VarChar(500)
+  id          Int       @id(map: "PK_Tbl_Attendance") @default(autoincrement())
+  workerId    String    @db.VarChar(100)
+  checkIn     DateTime?
+  checkOut    DateTime?
+  lat         Decimal?  @db.Decimal(10, 7)
+  lng         Decimal?  @db.Decimal(10, 7)
+  photoUrl    String?   @db.VarChar(500)
+  employerId  String?   @db.VarChar(100)
+  status      String?   @db.VarChar(20)
+  hoursWorked Decimal?  @db.Decimal(5, 2)
+  clockOutLat Decimal?  @db.Decimal(10, 7)
+  clockOutLng Decimal?  @db.Decimal(10, 7)
 }
 
 model Tbl_Leave {

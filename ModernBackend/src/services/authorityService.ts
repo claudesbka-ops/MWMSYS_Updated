@@ -466,7 +466,7 @@ export async function getLabourDisputeOverview(
   const disputes = await prisma.tbl_SalaryDispute.findMany({
     where,
     take: limit,
-    orderBy: { Created_On: "desc" },
+    orderBy: { Submitted_At: "desc" },
   });
 
   const workerIds = disputes.map(d => d.Worker_Id);
@@ -494,7 +494,7 @@ export async function getLabourDisputeOverview(
     description: d.Description,
     status: d.Status,
     aiSeverity: severityMap.get(d.Worker_Id) || "unknown",
-    submittedDate: d.Created_On,
+    submittedDate: d.Submitted_At,
   })).filter(d => !severity || d.aiSeverity === severity);
 }
 

@@ -1,4 +1,5 @@
 import { prisma } from "../db";
+import { Prisma } from "@prisma/client";
 import { parse } from "csv-parse/sync";
 import { encryptLegacyPassword } from "../cryptoLegacy";
 
@@ -190,7 +191,9 @@ export async function processImport(
       Status: result.failed > 0 ? "done" : "done",
       Successful: result.successful,
       Failed: result.failed,
-      Error_Log: result.errors.length > 0 ? result.errors : null,
+      Error_Log: result.errors.length > 0 
+        ? { errors: result.errors.map(e => ({ row: e.row, reason: e.reason })) } as Prisma.InputJsonValue
+        : Prisma.DbNull,
     },
   });
 
