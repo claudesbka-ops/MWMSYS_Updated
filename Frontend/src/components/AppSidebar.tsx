@@ -5,7 +5,8 @@ import {
   Home, Building2, Users, FileCheck, Search, CreditCard,
   Wallet, BarChart3, Shield, ChevronRight,
   FileText, HeartPulse, Eye, AlertTriangle, UserCheck, Menu, X, Clock,
-  User, MessageSquare, Megaphone, BookOpen, Scale, Upload, Calendar, Globe2, ShieldCheck
+  User, MessageSquare, Megaphone, BookOpen, Scale, Upload, Calendar, Globe2, ShieldCheck,
+  Bell, Sparkles
 } from "lucide-react";
 
 interface NavItem {
@@ -28,6 +29,8 @@ const navItems: NavItem[] = [
   { label: "Search", icon: Search, path: "/search", roles: ["admin", "agency", "embassy_source", "embassy_destination", "labour"] },
   { label: "Embassy Dashboard", icon: Globe2, path: "/embassy-dashboard", roles: ["embassy_source", "embassy_destination"] },
   { label: "Labour Dashboard", icon: ShieldCheck, path: "/labour-dashboard", roles: ["labour"] },
+  { label: "Notifications", icon: Bell, path: "/notification-settings", roles: ["admin", "agency", "employer", "worker"] },
+  { label: "AI Copilot", icon: Sparkles, path: "/copilot", roles: ["admin", "agency"] },
   {
     label: "HRMS",
     icon: FileText,
