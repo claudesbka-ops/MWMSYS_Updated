@@ -59,6 +59,8 @@ import CompleteProfilePage from "./pages/CompleteProfilePage.tsx";
 import ComplianceDashboardPage from "./pages/ComplianceDashboardPage.tsx";
 import RiskDashboardPage from "./pages/RiskDashboardPage.tsx";
 import BulkImportPage from "./pages/BulkImportPage.tsx";
+import EmbassyDashboardPage from "./pages/EmbassyDashboardPage.tsx";
+import LabourDashboardPage from "./pages/LabourDashboardPage.tsx";
 import RequireCompleteProfile from "@/components/RequireCompleteProfile";
 
 const queryClient = new QueryClient();
@@ -168,6 +170,22 @@ function AnimatedRoutes() {
             element={
               <ProtectedRoute allow={["agency"]}>
                 <BulkImportPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/embassy-dashboard"
+            element={
+              <ProtectedRoute allow={["embassy_source", "embassy_destination"]}>
+                <EmbassyDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/labour-dashboard"
+            element={
+              <ProtectedRoute allow={["labour"]}>
+                <LabourDashboardPage />
               </ProtectedRoute>
             }
           />

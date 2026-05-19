@@ -47,6 +47,8 @@ import { complianceRouter } from "./routes/complianceRoutes";
 import { disputeAiRouter } from "./routes/disputeAiRoutes";
 import { workerRiskRouter } from "./routes/workerRiskRoutes";
 import { bulkImportRouter } from "./routes/bulkImportRoutes";
+import { shiftRouter } from "./routes/shiftRoutes";
+import { authorityRouter } from "./routes/authorityRoutes";
 
 const app = express();
 
@@ -357,6 +359,7 @@ app.use(complianceRouter);
 app.use(disputeAiRouter);
 app.use(workerRiskRouter);
 app.use(bulkImportRouter);
+app.use(authorityRouter);
 
 
 app.get("/Api/Workers/:workerId", requireAuth, async (req, res, next) => {
