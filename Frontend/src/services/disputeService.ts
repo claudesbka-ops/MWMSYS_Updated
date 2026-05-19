@@ -19,6 +19,11 @@ export type Dispute = {
   submittedAt: string | null;
   reviewedAt: string | null;
   reviewedBy: string | null;
+  aiSeverity: "critical" | "high" | "medium" | "low" | null;
+  aiSeverityScore: number | null;
+  aiSeverityReason: string | null;
+  aiEscalationRisk: "likely" | "possible" | "unlikely" | null;
+  aiScoredAt: string | null;
 };
 
 export async function submitDispute(params: {

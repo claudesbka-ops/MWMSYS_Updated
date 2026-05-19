@@ -454,8 +454,13 @@ model Tbl_SalaryDispute {
   Status           String    @default("Pending") @db.VarChar(20)
   Employer_Comment String?   @db.VarChar(500)
   Submitted_At     DateTime  @default(now())
-  Reviewed_At      DateTime?
-  Reviewed_By      String?   @db.VarChar(100)
+  Reviewed_At         DateTime?
+  Reviewed_By         String?   @db.VarChar(100)
+  Ai_Severity         String?   @db.VarChar(20)
+  Ai_Severity_Score   Int?
+  Ai_Severity_Reason  String?   @db.VarChar(500)
+  Ai_Escalation_Risk  String?   @db.VarChar(20)
+  Ai_Scored_At        DateTime?
 
   @@index([Worker_Id], map: "IX_Tbl_SalaryDispute_Worker_Id")
   @@index([Employer_Id], map: "IX_Tbl_SalaryDispute_Employer_Id")

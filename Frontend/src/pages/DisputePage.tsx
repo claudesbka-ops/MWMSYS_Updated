@@ -57,6 +57,54 @@ function StatusChip({ status }: { status: DisputeStatus }) {
   );
 }
 
+type Severity = "critical" | "high" | "medium" | "low";
+
+function severityBadge(severity: Severity | null | undefined, score: number | null | undefined) {
+  if (!severity) {
+    return {
+      label: "Scoring...",
+      cls: "bg-slate-100 text-slate-600 border-slate-200",
+      showScore: false,
+    };
+  }
+  switch (severity) {
+    case "critical":
+      return {
+        label: "CRITICAL",
+        cls: "bg-red-100 text-red-700 border-red-200",
+        showScore: true,
+      };
+    case "high":
+      return {
+        label: "HIGH",
+        cls: "bg-orange-100 text-orange-700 border-orange-200",
+        showScore: true,
+      };
+    case "medium":
+      return {
+        label: "MEDIUM",
+        cls: "bg-amber-100 text-amber-700 border-amber-200",
+        showScore: true,
+      };
+    case "low":
+      return {
+        label: "LOW",
+        cls: "bg-blue-100 text-blue-700 border-blue-200",
+        showScore: true,
+      };
+  }
+}
+
+function SeverityChip({ severity, score }: { severity: Severity | null; score: number | null }) {
+  const b = severityBadge(severity, score);
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold ${b.cls}`}>
+      {b.label}
+      {b.showScore && score !== null && <span className="opacity-75">{score}</span>}
+    </span>
+  );
+}
+
 function formatAmount(n: number): string {
   return `RM ${Number(n ?? 0).toFixed(2)}`;
 }
@@ -382,12 +430,22 @@ function EmployerDisputeView() {
 
 // ---------- Agency + Admin + Labour view ----------
 
+type SeverityFilter = "All" | Severity | "unscored";
+
 function ReadOnlyDisputeView() {
   const [statusFilter, setStatusFilter] = useState<"All" | DisputeStatus>("All");
+  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("All");
 
   const allQuery = useQuery({
-    queryKey: ["all_disputes", statusFilter],
+    queryKey: ["all_disputes", statusFilter, severityFilter],
     queryFn: () => getAllDisputes({ status: statusFilter }),
+  });
+
+  // Filter disputes by severity client-side
+  const filteredDisputes = allQuery.data?.filter((d) => {
+    if (severityFilter === "All") return true;
+    if (severityFilter === "unscored") return !d.aiSeverity;
+    return d.aiSeverity === severityFilter;
   });
 
   return (
@@ -399,22 +457,39 @@ function ReadOnlyDisputeView() {
             {allQuery.data?.length ?? 0} record{(allQuery.data?.length ?? 0) === 1 ? "" : "s"}
           </p>
         </div>
-        <div className="w-40">
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as "All" | DisputeStatus)}>
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All">All statuses</SelectItem>
-              <SelectItem value="Pending">Pending</SelectItem>
-              <SelectItem value="Accepted">Accepted</SelectItem>
-              <SelectItem value="Rejected">Rejected</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-2">
+          <div className="w-40">
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as "All" | DisputeStatus)}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All statuses</SelectItem>
+                <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="Accepted">Accepted</SelectItem>
+                <SelectItem value="Rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-40">
+            <Select value={severityFilter} onValueChange={(v) => setSeverityFilter(v as SeverityFilter)}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="AI Severity" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All severities</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="unscored">Not scored</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
       <DisputeTable
-        rows={allQuery.data ?? []}
+        rows={filteredDisputes ?? []}
         loading={allQuery.isLoading}
         showEmployer
         showActions={false}
@@ -473,6 +548,7 @@ function DisputeTable({
             <th className="text-right px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Diff</th>
             <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Submitted</th>
             <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Status</th>
+            <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">AI Severity</th>
             <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Comment</th>
             <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Proof</th>
             {showActions ? (
@@ -515,6 +591,9 @@ function DisputeTable({
                 <td className="px-4 py-3 text-muted-foreground text-xs">{formatDate(d.submittedAt)}</td>
                 <td className="px-4 py-3">
                   <StatusChip status={d.status} />
+                </td>
+                <td className="px-4 py-3">
+                  <SeverityChip severity={d.aiSeverity} score={d.aiSeverityScore} />
                 </td>
                 <td
                   className="px-4 py-3 text-xs max-w-[220px] truncate text-muted-foreground"
