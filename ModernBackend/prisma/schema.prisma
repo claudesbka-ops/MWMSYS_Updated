@@ -339,6 +339,7 @@ model Tbl_Worker_PermitInsurance {
   Worker_Id                String    @id(map: "PK_Tbl_Worker_PermitInsurance") @db.VarChar(100)
   Permit_Issue_Date        DateTime?
   Permit_Expire_Date       DateTime?
+  Insurance_Expire_Date    DateTime?
   Permit_Issue_Place       String?   @db.VarChar(100)
   Insurance_Policy_Number  String?   @db.VarChar(20)
   Source_Country_Insurance String?   @db.VarChar(20)
@@ -486,4 +487,43 @@ model Tbl_Worker_EmployerLink {
   @@unique([workerId, employerId, startDate], map: "UX_Tbl_Worker_EmployerLink_w_e_s")
   @@index([workerId], map: "IX_Tbl_Worker_EmployerLink_workerId")
   @@index([employerId], map: "IX_Tbl_Worker_EmployerLink_employerId")
+}
+
+model Tbl_Compliance_Alerts {
+  Id                Int       @id @default(autoincrement())
+  Worker_Id         String    @db.VarChar(100)
+  Employer_Id       String?   @db.VarChar(100)
+  Agency_Id         String?   @db.VarChar(100)
+  Alert_Type        String    @db.VarChar(50)
+  Severity          String    @db.VarChar(20)
+  Days_Until_Expiry Int?
+  Document_Type     String?   @db.VarChar(50)
+  Expiry_Date       DateTime?
+  Ai_Summary        String?   @db.Text
+  Is_Resolved       Boolean   @default(false)
+  Resolved_At       DateTime?
+  Scan_Run_At       DateTime  @default(now())
+  Created_At        DateTime  @default(now())
+
+  @@index([Worker_Id])
+  @@index([Employer_Id])
+  @@index([Severity])
+  @@index([Is_Resolved])
+  @@index([Scan_Run_At])
+}
+
+model Tbl_Compliance_Scores {
+  Id                Int       @id @default(autoincrement())
+  Employer_Id       String    @db.VarChar(100)
+  Score             Int
+  Total_Workers     Int
+  Expired_Docs      Int
+  Expiring_Soon     Int
+  Missing_Docs      Int
+  Active_Disputes   Int
+  Score_Breakdown   Json?
+  Scanned_At        DateTime  @default(now())
+
+  @@index([Employer_Id])
+  @@index([Scanned_At])
 }

@@ -3,12 +3,17 @@ appId: com.jd12345.MobileApp
 ---
 - launchApp
 
+# Wait for the app to finish loading (splash + Metro) before probing screen state.
+- extendedWaitUntil:
+    visible: "At a glance|Welcome back"
+    timeout: 60000
+
 - runFlow:
     when:
       visible:
-        text: "Good morning"
+        text: "At a glance"
     commands:
-      - assertVisible: "Good morning"
+      - assertVisible: "At a glance"
 
 - runFlow:
     when:
@@ -33,4 +38,6 @@ appId: com.jd12345.MobileApp
           id: "sign-in-btn"
       - waitForAnimationToEnd
 
-- assertVisible: "Good morning"
+- extendedWaitUntil:
+    visible: "At a glance"
+    timeout: 30000

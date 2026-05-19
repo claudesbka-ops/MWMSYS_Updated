@@ -7,7 +7,7 @@ appId: com.jd12345.MobileApp
 - tapOn:
     id: "nav-home"
 - waitForAnimationToEnd
-- assertVisible: "Good morning"
+- assertVisible: "At a glance"
 
 # Panic tab → emergency screen
 - tapOn:

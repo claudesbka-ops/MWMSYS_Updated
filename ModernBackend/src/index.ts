@@ -43,6 +43,7 @@ import { hrmsRouter } from "./routes/hrmsRoutes";
 import { panicRouter } from "./routes/panicRoutes";
 import { relationshipRouter } from "./routes/relationshipRoutes";
 import { subscriptionRouter } from "./routes/subscriptionRoutes";
+import complianceRouter from "./routes/complianceRoutes";
 
 const app = express();
 
@@ -349,6 +350,7 @@ app.use(hrmsRouter);
 app.use(panicRouter);
 app.use(relationshipRouter);
 app.use(subscriptionRouter);
+app.use("/Api/Compliance", complianceRouter);
 
 
 app.get("/Api/Workers/:workerId", requireAuth, async (req, res, next) => {

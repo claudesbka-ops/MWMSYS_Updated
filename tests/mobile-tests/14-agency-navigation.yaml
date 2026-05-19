@@ -6,7 +6,7 @@ appId: com.jd12345.MobileApp
 - tapOn:
     id: "nav-home"
 - waitForAnimationToEnd
-- assertVisible: "Good morning|Agency Dashboard"
+- assertVisible: "At a glance|Agency Dashboard"
 
 # Open More hub
 - tapOn:

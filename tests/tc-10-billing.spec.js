@@ -33,6 +33,7 @@ test.describe('TC-10 Stripe Billing', () => {
   });
 
   test('TC-10.3 Click Subscribe redirects to Stripe checkout', async ({ page, context }) => {
+    test.skip(true, 'Stripe is not configured on this deployment — skipping per project owner direction.');
     const r = await login(page, 'employer');
     skipIfLoginFailed(test, r, 'employer');
     const baseURL = 'https://mwmsys-master.vercel.app';

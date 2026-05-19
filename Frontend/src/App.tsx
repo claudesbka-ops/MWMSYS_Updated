@@ -56,6 +56,7 @@ import VerifyEmailPage from "./pages/VerifyEmailPage.tsx";
 import AccountPage from "./pages/AccountPage.tsx";
 import DisputePage from "./pages/DisputePage.tsx";
 import CompleteProfilePage from "./pages/CompleteProfilePage.tsx";
+import ComplianceDashboardPage from "./pages/ComplianceDashboardPage.tsx";
 import RequireCompleteProfile from "@/components/RequireCompleteProfile";
 
 const queryClient = new QueryClient();
@@ -281,6 +282,14 @@ function AnimatedRoutes() {
           <Route path="/reports/visa" element={<ExpiryReportPage />} />
           <Route path="/reports/problem" element={<PlaceholderPage title="Problem Report" />} />
           <Route path="/reports/user-entry" element={<PlaceholderPage title="User Entry Report" />} />
+          <Route
+            path="/compliance"
+            element={
+              <ProtectedRoute allow={["admin", "agency"]}>
+                <ComplianceDashboardPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/users"
             element={
