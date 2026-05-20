@@ -6,6 +6,13 @@ import { encryptLegacyPassword } from "../cryptoLegacy";
 import { findWorkerIdByJwtUserId, findWorkerPassportByJwtUserId } from "../services/workerLookup";
 import { ensureOtpTableExists, ensureRelationshipTablesExist } from "../db/schemaMigrations";
 import { generate6DigitOtp, sendOtpEmail } from "../services/emailService";
+import {
+  checkAccountLocked,
+  recordFailedAttempt,
+  resetFailedAttempts,
+  getRemainingAttempts,
+} from "../services/accountLockService";
+import { logAudit } from "../services/auditService";
 
 const OTP_TTL_MINUTES = 15;
 const RESEND_WINDOW_HOURS = 1;
@@ -375,6 +382,29 @@ authRouter.post("/Api/token", async (req, res) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
+    // Check account lockout status
+    const lockStatus = await checkAccountLocked(user.User_Id);
+    const ipAddress = (req.ip || req.socket.remoteAddress || "").toString();
+    const userAgent = (req.headers["user-agent"] || "").toString();
+
+    if (lockStatus.locked) {
+      // Log blocked login
+      await logAudit({
+        userId: user.User_Id,
+        userRole: String(user.User_Role),
+        action: "login_blocked",
+        ipAddress,
+        userAgent,
+        status: "blocked",
+        details: { reason: "account_locked", minutesLeft: lockStatus.minutesLeft },
+      });
+      return res.status(403).json({
+        error: `Account locked for ${lockStatus.minutesLeft} more minutes due to too many failed attempts.`,
+        locked: true,
+        minutesLeft: lockStatus.minutesLeft,
+      });
+    }
+
     const userRoleId = user.User_Role != null ? Number(user.User_Role) : null;
 
     if (userRoleId === 2 && !passportNo) {
@@ -413,10 +443,37 @@ authRouter.post("/Api/token", async (req, res) => {
     const legacyOk = stored === encryptLegacyPassword(password, salt);
 
     if (!plainOk && !legacyOk) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      // Record failed attempt
+      await recordFailedAttempt(user.User_Id);
+      const attemptsRemaining = getRemainingAttempts((user.Failed_Login_Attempts ?? 0) + 1);
+      // Log failed login
+      await logAudit({
+        userId: user.User_Id,
+        userRole: String(user.User_Role),
+        action: "login_failed",
+        ipAddress,
+        userAgent,
+        status: "failed",
+        details: { attemptsRemaining },
+      });
+      return res.status(401).json({
+        error: "Invalid credentials",
+        attemptsRemaining,
+      });
     }
 
     const loginPayload = await issueLoginTokenForUser(user, userName);
+    // Reset failed attempts on successful login
+    await resetFailedAttempts(user.User_Id);
+    // Log successful login
+    await logAudit({
+      userId: user.User_Id,
+      userRole: String(user.User_Role),
+      action: "login_success",
+      ipAddress,
+      userAgent,
+      status: "success",
+    });
     return res.json(loginPayload);
   } catch (e) {
     console.error(e);

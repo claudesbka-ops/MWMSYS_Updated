@@ -31,6 +31,7 @@ const navItems: NavItem[] = [
   { label: "Labour Dashboard", icon: ShieldCheck, path: "/labour-dashboard", roles: ["labour"] },
   { label: "Notifications", icon: Bell, path: "/notification-settings", roles: ["admin", "agency", "employer", "worker"] },
   { label: "AI Copilot", icon: Sparkles, path: "/copilot", roles: ["admin", "agency"] },
+  { label: "Audit Log", icon: ShieldCheck, path: "/audit-log", roles: ["admin"] },
   {
     label: "HRMS",
     icon: FileText,

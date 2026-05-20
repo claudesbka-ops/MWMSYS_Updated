@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireAuth, checkRole } from "../middleware/auth";
+import { aiRateLimiter } from "../middleware/rateLimitMiddleware";
 import {
   scoreSingleDispute,
   scoreAllUnscoredDisputes,
@@ -43,11 +44,12 @@ router.post(
 
 /**
  * POST /Api/Disputes/Ai/ScoreAll
- * Score ALL unscored disputes in one batch (Admin only)
+ * Score ALL unscored disputes in one batch (Admin only) - AI rate limited
  */
 router.post(
   "/Api/Disputes/Ai/ScoreAll",
   requireAuth,
+  aiRateLimiter,
   checkRole([1]), // Admin only
   async (req, res, next) => {
     try {

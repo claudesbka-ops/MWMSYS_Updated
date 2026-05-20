@@ -50,13 +50,22 @@ import { bulkImportRouter } from "./routes/bulkImportRoutes";
 import { authorityRouter } from "./routes/authorityRoutes";
 import { notificationRouter } from "./routes/notificationRoutes";
 import { copilotRouter } from "./routes/copilotRoutes";
+import { auditRouter } from "./routes/auditRoutes";
 import { startAlertScheduler } from "./services/alertSchedulerService";
+import {
+  authRateLimiter,
+  aiRateLimiter,
+  generalRateLimiter,
+} from "./middleware/rateLimitMiddleware";
 
 const app = express();
 
 app.use(corsMiddleware);
 app.use(jsonParser);
 app.use(urlencodedParser);
+
+// Tier 3: Global rate limit (applies to all routes)
+app.use(generalRateLimiter);
 
 app.post("/Api/Worker/Location", requireAuth, async (req, res, next) => {
   try {
@@ -349,7 +358,10 @@ const io = initSocket(server);
 
 // ---- Domain routers (mounted after socket init so `getIO()` works at request time) ----
 app.use(accountRouter);
-app.use(authRouter);
+
+// Tier 1: Auth endpoints with strict rate limiting
+app.use(authRateLimiter, authRouter);
+
 app.use(broadcastRouter);
 app.use(chatRouter);
 app.use(disputeRouter);
@@ -364,6 +376,7 @@ app.use(bulkImportRouter);
 app.use(authorityRouter);
 app.use(notificationRouter);
 app.use(copilotRouter);
+app.use(auditRouter);
 
 // Start alert scheduler 5 minutes after server boot
 setTimeout(() => startAlertScheduler(), 5 * 60 * 1000);

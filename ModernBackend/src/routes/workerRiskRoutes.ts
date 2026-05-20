@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../db";
 import { requireAuth, checkRole } from "../middleware/auth";
+import { aiRateLimiter } from "../middleware/rateLimitMiddleware";
 import { buildWorkerScopeWhere } from "../services/queryGuard";
 import {
   calculateAndStoreWorkerRisk,
@@ -99,11 +100,12 @@ router.post(
 
 /**
  * POST /Api/Risk/CalculateAll
- * Calculate risk for all workers (Admin only)
+ * Calculate risk for all workers (Admin only) - AI rate limited
  */
 router.post(
   "/Api/Risk/CalculateAll",
   requireAuth,
+  aiRateLimiter,
   checkRole([1]), // Admin only
   async (req, res, next) => {
     try {

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../db";
 import { requireAuth, checkRole, requireAuthority } from "../middleware/auth";
+import { aiRateLimiter } from "../middleware/rateLimitMiddleware";
 import {
   runComplianceScan,
   getAlerts,
@@ -67,11 +68,12 @@ async function buildWorkerScopeWhere(user: any): Promise<any> {
 
 /**
  * POST /Api/Compliance/Scan
- * Trigger full compliance scan (Admin + Agency only)
+ * Trigger full compliance scan (Admin + Agency only) - AI rate limited
  */
 router.post(
   "/Api/Compliance/Scan",
   requireAuth,
+  aiRateLimiter,
   checkRole([1, 2]),
   async (req, res, next) => {
     try {

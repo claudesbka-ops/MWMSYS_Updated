@@ -285,9 +285,30 @@ model Tbl_User {
   Activated_On     DateTime?
   Password_Changed Int?
   Password_On      DateTime?
-  Is_Verified      Boolean?  @default(false)
+  Is_Verified            Boolean?  @default(false)
+  Failed_Login_Attempts  Int?      @default(0)
+  Locked_Until           DateTime?
+  Last_Failed_At         DateTime?
 
   @@id([User_Id, Email_Id], map: "PK_Tbl_User")
+}
+
+model Tbl_Audit_Log {
+  Id          Int       @id @default(autoincrement())
+  User_Id     String?   @db.VarChar(100)
+  User_Role   String?   @db.VarChar(20)
+  Action      String    @db.VarChar(100)
+  Entity      String?   @db.VarChar(50)
+  Entity_Id   String?   @db.VarChar(100)
+  Ip_Address  String?   @db.VarChar(50)
+  User_Agent  String?   @db.VarChar(255)
+  Status      String    @db.VarChar(20)
+  Details     String?   @db.Text
+  Created_At  DateTime  @default(now())
+
+  @@index([User_Id])
+  @@index([Action])
+  @@index([Created_At])
 }
 
 model Tbl_Worker_Attachments {

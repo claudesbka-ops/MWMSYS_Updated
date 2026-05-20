@@ -63,6 +63,7 @@ import EmbassyDashboardPage from "./pages/EmbassyDashboardPage.tsx";
 import LabourDashboardPage from "./pages/LabourDashboardPage.tsx";
 import NotificationSettingsPage from "./pages/NotificationSettingsPage.tsx";
 import CopilotPage from "./pages/CopilotPage.tsx";
+import AuditLogPage from "./pages/AuditLogPage.tsx";
 import RequireCompleteProfile from "@/components/RequireCompleteProfile";
 
 const queryClient = new QueryClient();
@@ -204,6 +205,14 @@ function AnimatedRoutes() {
             element={
               <ProtectedRoute allow={["admin", "agency"]}>
                 <CopilotPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/audit-log"
+            element={
+              <ProtectedRoute allow={["admin"]}>
+                <AuditLogPage />
               </ProtectedRoute>
             }
           />
