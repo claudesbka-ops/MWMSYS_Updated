@@ -7,6 +7,16 @@ import ReactMarkdown from "react-markdown";
 
 type SenderType = "AI" | "User" | "Agent";
 
+type SupportedLanguage = "en" | "bn" | "ta" | "ms" | "ar";
+
+const LANGUAGE_NAMES: Record<SupportedLanguage, string> = {
+  en: "English",
+  bn: "বাংলা (Bengali)",
+  ta: "தமிழ் (Tamil)",
+  ms: "Bahasa Malaysia",
+  ar: "العربية (Arabic)",
+};
+
 type ChatMessage = {
   id: string;
   senderType: SenderType;
@@ -42,6 +52,7 @@ export default function Chatbot() {
   const [workerId] = useState<number>(() => getJwtUserId() ?? 0);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
+  const [language, setLanguage] = useState<SupportedLanguage>("en");
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const sessionStorageKey = useMemo(() => `mwmsys_chat_session_${workerId || "anon"}`,
@@ -51,6 +62,12 @@ export default function Chatbot() {
   const canSend = useMemo(() => text.trim().length > 0 && sessionId != null && sessionId > 0 && isAuthed, [text, sessionId, isAuthed]);
 
   useEffect(() => {
+    // Load saved language preference
+    const savedLang = localStorage.getItem(`mwmsys_chat_lang_${workerId}`) as SupportedLanguage;
+    if (savedLang && LANGUAGE_NAMES[savedLang]) {
+      setLanguage(savedLang);
+    }
+
     if (!open) return;
 
     if (!getAccessToken()) {
@@ -92,7 +109,7 @@ export default function Chatbot() {
       }
 
       if (!id) {
-        const res = await apiClient.post("/Api/Chat/Sessions", {});
+        const res = await apiClient.post("/Api/Chat/Sessions", { preferredLanguage: language });
         id = Number(res.data?.ChatSessionId ?? 0);
         setSessionId(id);
         localStorage.setItem(sessionStorageKey, String(id));
@@ -277,6 +294,32 @@ export default function Chatbot() {
               </div>
             ))}
             <div ref={bottomRef} />
+          </div>
+
+          {/* Language Selector */}
+          <div className="px-3 py-2 border-t border-border bg-muted/30">
+            <select
+              value={language}
+              onChange={(e) => {
+                const newLang = e.target.value as SupportedLanguage;
+                setLanguage(newLang);
+                localStorage.setItem(`mwmsys_chat_lang_${workerId}`, newLang);
+                // Reset session to apply new language
+                localStorage.removeItem(sessionStorageKey);
+                setSessionId(null);
+                setMessages([]);
+              }}
+              className="text-xs bg-background border border-input rounded px-2 py-1 w-full"
+            >
+              {(Object.keys(LANGUAGE_NAMES) as SupportedLanguage[]).map((code) => (
+                <option key={code} value={code}>
+                  {LANGUAGE_NAMES[code]}
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-muted-foreground mt-1 text-center">
+              Choose your language / Pilih bahasa / ভাষা বেছে নিন / மொழி தேர்ந்தெடுக்கவும்
+            </p>
           </div>
 
           <div className="p-3 border-t border-border/40 space-y-2">

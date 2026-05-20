@@ -200,6 +200,15 @@ export async function ensureChatTablesExist(): Promise<void> {
     // ignore
   }
 
+  // Add PreferredLanguage column (idempotent)
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "ChatSessions" ADD COLUMN IF NOT EXISTS "PreferredLanguage" VARCHAR(20) NULL DEFAULT 'en'`
+    );
+  } catch {
+    // ignore
+  }
+
   try {
     await prisma.$executeRawUnsafe(
       `CREATE TABLE IF NOT EXISTS "ChatMessages" (

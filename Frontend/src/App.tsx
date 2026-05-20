@@ -61,6 +61,8 @@ import RiskDashboardPage from "./pages/RiskDashboardPage.tsx";
 import BulkImportPage from "./pages/BulkImportPage.tsx";
 import EmbassyDashboardPage from "./pages/EmbassyDashboardPage.tsx";
 import LabourDashboardPage from "./pages/LabourDashboardPage.tsx";
+import NotificationSettingsPage from "./pages/NotificationSettingsPage.tsx";
+import CopilotPage from "./pages/CopilotPage.tsx";
 import RequireCompleteProfile from "@/components/RequireCompleteProfile";
 
 const queryClient = new QueryClient();
@@ -186,6 +188,22 @@ function AnimatedRoutes() {
             element={
               <ProtectedRoute allow={["labour"]}>
                 <LabourDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notification-settings"
+            element={
+              <ProtectedRoute allow={["admin", "agency", "employer", "worker"]}>
+                <NotificationSettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/copilot"
+            element={
+              <ProtectedRoute allow={["admin", "agency"]}>
+                <CopilotPage />
               </ProtectedRoute>
             }
           />

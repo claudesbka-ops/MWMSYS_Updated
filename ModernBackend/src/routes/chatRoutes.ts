@@ -21,17 +21,19 @@ export const chatRouter = Router();
 chatRouter.post("/Api/Chat/Sessions", requireAuth, async (req, res, next) => {
   const workerId = Number((req as any).user?.userId ?? 0);
   if (!Number.isFinite(workerId) || workerId <= 0) return res.status(401).json({ error: "Unauthorized" });
+  const preferredLanguage = (req.body?.preferredLanguage ?? req.body?.language ?? "en").toString().toLowerCase();
 
   try {
     await ensureChatTablesExist();
     const rows = (await prisma.$queryRawUnsafe(
-      `INSERT INTO "ChatSessions"("WorkerId") VALUES($1) RETURNING "ChatSessionId"`,
-      workerId
+      `INSERT INTO "ChatSessions"("WorkerId","PreferredLanguage") VALUES($1,$2) RETURNING "ChatSessionId"`,
+      workerId,
+      preferredLanguage
     )) as any[];
 
     const id = Array.isArray(rows) ? rows[0]?.ChatSessionId : null;
     if (!id) return res.status(500).json({ error: "Unable to create chat session" });
-    return res.json({ ChatSessionId: Number(id) });
+    return res.json({ ChatSessionId: Number(id), PreferredLanguage: preferredLanguage });
   } catch (e: any) {
     const msg = (e?.message ?? "").toString();
     if (/invalid object name|chatsessions/i.test(msg)) {
@@ -182,6 +184,13 @@ chatRouter.post("/Api/Chat/AIReply", requireAuth, async (req, res, next) => {
     const ok = await assertChatSessionOwner(chatSessionId, workerId);
     if (!ok) return res.status(403).json({ error: "Forbidden" });
 
+    // Get session language preference
+    const sessionRows = (await prisma.$queryRawUnsafe(
+      `SELECT "PreferredLanguage" FROM "ChatSessions" WHERE "ChatSessionId"=$1 LIMIT 1`,
+      chatSessionId
+    )) as any[];
+    const preferredLanguage = (sessionRows?.[0]?.PreferredLanguage ?? "en").toString();
+
     await prisma.$queryRawUnsafe(
       `INSERT INTO "ChatMessages"("ChatSessionId","SenderType","Message") VALUES($1,$2,$3)`,
       chatSessionId,
@@ -198,6 +207,8 @@ chatRouter.post("/Api/Chat/AIReply", requireAuth, async (req, res, next) => {
 
     const systemPrompt = [
       "You are the MWMS Assistant, an expert on the MWMS (Migrant Worker Management System) platform.",
+      "",
+      `LANGUAGE INSTRUCTION: The user prefers to communicate in "${preferredLanguage}". Detect their language from their message and respond in the SAME language. Supported languages: English (en), Bengali/Bangla (bn), Tamil (ta), Bahasa Malaysia (ms), Arabic (ar). If the user's message is in Bengali, respond in Bengali. If Tamil, respond in Tamil. Always match the user's language exactly. Use natural, conversational tone appropriate for workers.`,
       "",
       "ROLES IN THE SYSTEM:",
       "- Worker (role 2): Files complaints, triggers SOS panic button with GPS, views own documents and payslips, submits salary disputes, uploads attestation documents",

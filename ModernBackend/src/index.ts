@@ -48,6 +48,9 @@ import { disputeAiRouter } from "./routes/disputeAiRoutes";
 import { workerRiskRouter } from "./routes/workerRiskRoutes";
 import { bulkImportRouter } from "./routes/bulkImportRoutes";
 import { authorityRouter } from "./routes/authorityRoutes";
+import { notificationRouter } from "./routes/notificationRoutes";
+import { copilotRouter } from "./routes/copilotRoutes";
+import { startAlertScheduler } from "./services/alertSchedulerService";
 
 const app = express();
 
@@ -359,7 +362,11 @@ app.use(disputeAiRouter);
 app.use(workerRiskRouter);
 app.use(bulkImportRouter);
 app.use(authorityRouter);
+app.use(notificationRouter);
+app.use(copilotRouter);
 
+// Start alert scheduler 5 minutes after server boot
+setTimeout(() => startAlertScheduler(), 5 * 60 * 1000);
 
 app.get("/Api/Workers/:workerId", requireAuth, async (req, res, next) => {
   try {

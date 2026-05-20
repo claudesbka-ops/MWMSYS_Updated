@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/services/apiClient";
 import { logout } from "@/services/authService";
 import type { AlertData } from "@/components/AlertCard";
+import { NotificationBell } from "./notifications/NotificationBell";
 import { useTheme } from "next-themes";
 import { useQuery } from "@tanstack/react-query";
 import { getSubscriptionMe } from "@/services/subscriptionService";
@@ -228,6 +229,8 @@ export default function TopHeader() {
             <Moon className="w-[18px] h-[18px] text-muted-foreground" />
           )}
         </button>
+
+        <NotificationBell />
 
         <DropdownMenu onOpenChange={(open) => open && handleOpenNotifications()}>
           <DropdownMenuTrigger asChild>
