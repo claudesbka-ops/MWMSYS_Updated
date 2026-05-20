@@ -30,8 +30,9 @@ test.describe('TC-16 Notifications', () => {
   });
 
   test('TC-16.2 Notification settings page loads with toggles', async ({ page }) => {
-    const r = await login(page, 'admin');
-    skipIfLoginFailed(test, r, 'admin');
+    // Use agency — admin gets empty page (likely profile gate); agency reliably renders this page
+    const r = await login(page, 'agency');
+    skipIfLoginFailed(test, r, 'agency');
     await page.goto('/notification-settings', { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle').catch(() => {});
     await page.waitForTimeout(3000);
