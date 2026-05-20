@@ -13,6 +13,7 @@ import {
   getRemainingAttempts,
 } from "../services/accountLockService";
 import { logAudit } from "../services/auditService";
+import { checkPlanLimit } from "../services/stripeService";
 
 const OTP_TTL_MINUTES = 15;
 const RESEND_WINDOW_HOURS = 1;
@@ -215,6 +216,20 @@ authRouter.post("/signup", async (req, res) => {
             select: { User_Id: true },
           });
           resolvedEmployerId = emp?.User_Id ?? null;
+        }
+
+        // Check plan limit for workers before creating
+        if (resolvedEmployerId) {
+          const limitCheck = await checkPlanLimit(resolvedEmployerId, "workers");
+          if (!limitCheck.allowed) {
+            return res.status(403).json({
+              error: "Plan limit reached",
+              limitType: "workers",
+              current: limitCheck.current,
+              limit: limitCheck.limit,
+              upgradeUrl: "/pricing",
+            });
+          }
         }
 
         await prisma.tbl_Worker_PersonalInfo.create({

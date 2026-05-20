@@ -286,9 +286,17 @@ model Tbl_User {
   Password_Changed Int?
   Password_On      DateTime?
   Is_Verified            Boolean?  @default(false)
-  Failed_Login_Attempts  Int?      @default(0)
-  Locked_Until           DateTime?
-  Last_Failed_At         DateTime?
+  Failed_Login_Attempts   Int?      @default(0)
+  Locked_Until            DateTime?
+  Last_Failed_At          DateTime?
+  Stripe_Customer_Id      String?   @db.VarChar(100)
+  Stripe_Subscription_Id  String?   @db.VarChar(100)
+  Plan_Name               String?   @db.VarChar(20) @default("free")
+  Plan_Status             String?   @db.VarChar(20) @default("active")
+  Plan_Workers_Limit      Int?      @default(5)
+  Plan_Employers_Limit    Int?      @default(1)
+  Plan_Current_Period_End DateTime?
+  Plan_Trial_End          DateTime?
 
   @@id([User_Id, Email_Id], map: "PK_Tbl_User")
 }

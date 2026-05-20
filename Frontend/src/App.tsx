@@ -64,6 +64,9 @@ import LabourDashboardPage from "./pages/LabourDashboardPage.tsx";
 import NotificationSettingsPage from "./pages/NotificationSettingsPage.tsx";
 import CopilotPage from "./pages/CopilotPage.tsx";
 import AuditLogPage from "./pages/AuditLogPage.tsx";
+import BillingSuccessPage from "./pages/BillingSuccessPage.tsx";
+import BillingCancelPage from "./pages/BillingCancelPage.tsx";
+import BillingDashboardPage from "./pages/BillingDashboardPage.tsx";
 import RequireCompleteProfile from "@/components/RequireCompleteProfile";
 
 const queryClient = new QueryClient();
@@ -213,6 +216,16 @@ function AnimatedRoutes() {
             element={
               <ProtectedRoute allow={["admin"]}>
                 <AuditLogPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/billing/success" element={<BillingSuccessPage />} />
+          <Route path="/billing/cancel" element={<BillingCancelPage />} />
+          <Route
+            path="/billing"
+            element={
+              <ProtectedRoute allow={["agency", "employer"]}>
+                <BillingDashboardPage />
               </ProtectedRoute>
             }
           />

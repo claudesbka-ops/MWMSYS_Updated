@@ -59,24 +59,27 @@ export default function PricingPage() {
         throw new Error("Free plan does not require checkout");
       }
 
-      const origin = window.location.origin;
-      // Spec: on success redirect to /account; on cancel stay on /pricing.
-      const successUrl = `${origin}/account?checkout=success`;
-      const cancelUrl = `${origin}/pricing?checkout=cancel`;
+      // Map PricingPage plan names to Stripe billing plan keys
+      const planMapping: Record<string, string> = {
+        "Pro": "starter",
+        "Growth": "growth",
+        "Enterprise": "enterprise",
+      };
 
-      const res = await apiClient.post("/Api/subscription/checkout", { planType, successUrl, cancelUrl });
-      return res.data as { url?: string };
+      const billingPlan = planMapping[planType] || planType.toLowerCase();
+      const res = await apiClient.post("/Api/Billing/CreateCheckout", { plan: billingPlan });
+      return res.data as { checkoutUrl?: string };
     },
     onSuccess: async (data) => {
-      const url = (data as any)?.url;
-      if (url && typeof url === "string") {
-        window.location.href = url;
+      const checkoutUrl = data?.checkoutUrl;
+      if (checkoutUrl && typeof checkoutUrl === "string") {
+        window.location.href = checkoutUrl;
         return;
       }
-      toast.error("No checkout URL returned");
+      toast.error("No checkout URL returned. Please try again.");
     },
     onError: (err: any) => {
-      const msg = err?.response?.data?.error ?? "Unable to update subscription";
+      const msg = err?.response?.data?.error ?? "Unable to start checkout";
       toast.error(msg);
     },
   });

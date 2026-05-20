@@ -51,6 +51,7 @@ import { authorityRouter } from "./routes/authorityRoutes";
 import { notificationRouter } from "./routes/notificationRoutes";
 import { copilotRouter } from "./routes/copilotRoutes";
 import { auditRouter } from "./routes/auditRoutes";
+import { billingRouter, stripeWebhookHandler } from "./routes/billingRoutes";
 import { startAlertScheduler } from "./services/alertSchedulerService";
 import {
   authRateLimiter,
@@ -59,6 +60,13 @@ import {
 } from "./middleware/rateLimitMiddleware";
 
 const app = express();
+
+// Stripe webhook endpoint — MUST use raw body, before jsonParser (Critical Fix)
+app.post(
+  "/Api/Billing/Webhook",
+  express.raw({ type: "application/json" }),
+  stripeWebhookHandler
+);
 
 app.use(corsMiddleware);
 app.use(jsonParser);
@@ -375,12 +383,14 @@ app.use(workerRiskRouter);
 app.use(bulkImportRouter);
 app.use(authorityRouter);
 app.use(notificationRouter);
-app.use(copilotRouter);
+app.use(aiRateLimiter, copilotRouter);
+app.use(billingRouter);
 app.use(auditRouter);
 
 // Start alert scheduler 5 minutes after server boot
 setTimeout(() => startAlertScheduler(), 5 * 60 * 1000);
 
+// ...
 app.get("/Api/Workers/:workerId", requireAuth, async (req, res, next) => {
   try {
     const user = (req as any).user as any;
