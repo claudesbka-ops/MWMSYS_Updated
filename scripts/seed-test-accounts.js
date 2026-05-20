@@ -43,6 +43,10 @@ const ACCOUNTS = [
   { role: 'embassy_source', userId: 'qaembassy', email: 'embassy@test.com', fullName: 'QA Embassy' },
   { role: 'worker',   userId: 'qaworker',   email: 'worker@test.com',   fullName: 'QA Worker',
     extra: { passportNo: PASSPORT, employerId: 'qaemployer' } },
+  // Dedicated account for lockout tests in tc-18-security.spec.js.
+  // NEVER use this account in any other test — it gets deliberately locked.
+  { role: 'employer', userId: 'qalocktest', email: 'locktest@test.com',  fullName: 'QA Lockout Test',
+    extra: { employerName: 'QA Lockout Co', address: '1 Lock Street', companyPhone: '+10000000002', ssmNumber: 'QA-LOCK-1' } },
 ];
 
 async function http(method, base, path, body) {

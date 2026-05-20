@@ -8,9 +8,10 @@ const BYPASS = { 'x-test-bypass': 'playwright-test-bypass' };
 test.describe('TC-18 Security', () => {
 
   test('TC-18.1 Failed login shows attemptsRemaining in response', async ({ request }) => {
+    // Use dedicated locktest account — never share with other tests
     const resp = await request.post(`${BASE}/Api/token`, {
       headers: { 'Content-Type': 'application/json', ...BYPASS },
-      data: { username: ACCOUNTS.admin.email, password: 'wrong-password-qa-test' },
+      data: { username: 'locktest@test.com', password: 'wrong-password-qa-test' },
     });
     const status = resp.status();
     console.log(`[TC-18.1] status=${status}`);
