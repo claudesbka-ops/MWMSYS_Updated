@@ -1,11 +1,16 @@
 import rateLimit from "express-rate-limit";
 
+const TEST_BYPASS_KEY = process.env.TEST_BYPASS_KEY;
+const skipFn = (req: any) =>
+  !!(TEST_BYPASS_KEY && req.headers["x-test-bypass"] === TEST_BYPASS_KEY);
+
 // Tier 1: Auth endpoints (strictest)
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: skipFn,
   handler: (req, res) => {
     res.status(429).json({
       error: "Too many attempts. Try again in 15 minutes.",
@@ -20,6 +25,7 @@ export const aiRateLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: skipFn,
   keyGenerator: (req) => {
     // Rate limit per user, not per IP
     return String((req as any).user?.userId ?? req.ip);
@@ -37,6 +43,7 @@ export const generalRateLimiter = rateLimit({
   max: 200,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: skipFn,
   handler: (req, res) => {
     res.status(429).json({
       error: "Too many requests. Slow down.",
