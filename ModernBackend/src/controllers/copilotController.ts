@@ -47,7 +47,7 @@ export async function queryCopilot(req: Request, res: Response): Promise<void> {
     }
 
     // Rate limiting
-    const rateCheck = checkRateLimit(userId);
+    const rateCheck = checkRateLimit(String(userId));
     if (!rateCheck.allowed) {
       res.status(429).json({
         success: false,

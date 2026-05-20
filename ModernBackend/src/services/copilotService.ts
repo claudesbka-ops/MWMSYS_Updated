@@ -233,8 +233,8 @@ async function executeGetComplianceOverview(params: any, user: JwtClaims): Promi
 
   // Get compliance scores
   const scores = await prisma.tbl_Compliance_Scores.findMany({
-    where: scopeWhere.Worker_Id ? { Worker_Id: { in: scopeWhere.Worker_Id.in } } : {},
-    orderBy: { Calculated_At: "desc" },
+    where: scopeWhere.Employer_Id ? { Employer_Id: { in: Array.isArray(scopeWhere.Employer_Id?.in) ? scopeWhere.Employer_Id.in : undefined } } : {},
+    orderBy: { Scanned_At: "desc" },
     take: params.limit || 10,
   });
 
@@ -246,7 +246,7 @@ async function executeGetComplianceOverview(params: any, user: JwtClaims): Promi
     avgScore: Math.round(avgScore),
     criticalCount,
     highCount,
-    worstEmployers: scores.slice(0, 5).map((s: { Worker_Id: string; Score: number | null; Expired_Docs: number }) => ({
+    worstEmployers: scores.slice(0, 5).map((s: any) => ({
       workerId: s.Worker_Id,
       score: s.Score,
       expiredDocs: s.Expired_Docs,
@@ -272,7 +272,7 @@ async function executeGetRiskScores(params: any, user: JwtClaims): Promise<any> 
         select: { Name: true, Nationality: true },
       },
     },
-  });
+  } as any);
 
   const criticalCount = riskScores.filter((r: { Risk_Level: string }) => r.Risk_Level === "Critical").length;
   const highCount = riskScores.filter((r: { Risk_Level: string }) => r.Risk_Level === "High").length;
@@ -283,10 +283,10 @@ async function executeGetRiskScores(params: any, user: JwtClaims): Promise<any> 
   return {
     workers: riskScores.map((r) => ({
       workerId: r.Worker_Id,
-      name: r.Worker?.Name,
+      name: (r as any).Worker?.Name,
       riskScore: r.Risk_Score,
       riskLevel: r.Risk_Level,
-      topFactor: r.Top_Risk_Factor,
+      topFactor: (r as any).Top_Risk_Factor,
     })),
     avgScore: Math.round(avgScore),
     criticalCount,
@@ -313,13 +313,13 @@ async function executeGetDisputeStats(params: any, user: JwtClaims): Promise<any
   const disputes = await prisma.tbl_SalaryDispute.findMany({ where });
 
   const pending = disputes.filter((d: { Status: string }) => d.Status === "Pending").length;
-  const critical = disputes.filter((d: { Expected_Amount: number | null; Received_Amount: number | null }) => (d.Expected_Amount || 0) - (d.Received_Amount || 0) > 5000).length;
-  const high = disputes.filter((d: { Expected_Amount: number | null; Received_Amount: number | null }) => {
-    const diff = (d.Expected_Amount || 0) - (d.Received_Amount || 0);
+  const critical = disputes.filter((d) => (Number(d.Expected_Amount) || 0) - (Number(d.Received_Amount) || 0) > 5000).length;
+  const high = disputes.filter((d) => {
+    const diff = (Number(d.Expected_Amount) || 0) - (Number(d.Received_Amount) || 0);
     return diff > 1000 && diff <= 5000;
   }).length;
 
-  const totalAmount = disputes.reduce((sum: number, d: { Expected_Amount: number | null; Received_Amount: number | null }) => sum + ((d.Expected_Amount || 0) - (d.Received_Amount || 0)), 0);
+  const totalAmount = disputes.reduce((sum: number, d) => sum + ((Number(d.Expected_Amount) || 0) - (Number(d.Received_Amount) || 0)), 0);
 
   return {
     total: disputes.length,
@@ -330,7 +330,7 @@ async function executeGetDisputeStats(params: any, user: JwtClaims): Promise<any
       id: d.Id,
       workerId: d.Worker_Id,
       employerId: d.Employer_Id,
-      amount: (d.Expected_Amount || 0) - (d.Received_Amount || 0),
+      amount: (Number(d.Expected_Amount) || 0) - (Number(d.Received_Amount) || 0),
       status: d.Status,
     })),
   };
@@ -409,7 +409,7 @@ async function executeGetEmployerSummary(params: any, user: JwtClaims): Promise<
       // Get compliance score
       const compliance = await prisma.tbl_Compliance_Scores.findFirst({
         where: { Employer_Id: e.User_Id },
-        orderBy: { Calculated_At: "desc" },
+        orderBy: { Scanned_At: "desc" },
       });
 
       if (params.maxComplianceScore && (compliance?.Score || 100) > params.maxComplianceScore) return null;
@@ -536,8 +536,9 @@ export async function runCopilotQuery(
     // Check if any tool calls were made
     if (response.message.tool_calls && response.message.tool_calls.length > 0) {
       for (const toolCall of response.message.tool_calls) {
-        const toolName = toolCall.function.name;
-        const toolParams = JSON.parse(toolCall.function.arguments);
+        const tc = toolCall as any;
+        const toolName = tc.function.name;
+        const toolParams = JSON.parse(tc.function.arguments);
 
         toolsUsed.push(toolName);
 

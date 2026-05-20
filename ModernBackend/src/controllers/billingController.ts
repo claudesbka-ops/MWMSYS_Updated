@@ -13,14 +13,16 @@ export async function createCheckoutSession(req: Request, res: Response): Promis
   const user = (req as any).user;
   const userId = user?.userKey || user?.userId;
   const email = user?.emailId;
-  const planKey = (req.body?.plan || "").toString().toLowerCase() as PlanType;
+  const planKey = (req.body?.plan || "").toString().toLowerCase();
+  type PaidPlanType = keyof typeof PLANS;
+  const validPlans = Object.keys(PLANS) as PaidPlanType[];
 
-  if (!planKey || !PLANS[planKey]) {
+  if (!planKey || !validPlans.includes(planKey as PaidPlanType)) {
     res.status(400).json({ error: "Invalid plan. Choose: starter, growth, enterprise" });
     return;
   }
 
-  const plan = PLANS[planKey];
+  const plan = PLANS[planKey as PaidPlanType];
   if (!plan.priceId) {
     res.status(503).json({ error: "Plan not configured" });
     return;

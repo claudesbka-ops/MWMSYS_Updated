@@ -2,7 +2,7 @@ import Stripe from "stripe";
 import { prisma } from "../db";
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-const stripe = stripeSecretKey ? new Stripe(stripeSecretKey, { apiVersion: "2024-12-18.acacia" }) : null;
+const stripe = stripeSecretKey ? new Stripe(stripeSecretKey, { apiVersion: "2023-10-16" }) : null;
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
 export const PLANS = {

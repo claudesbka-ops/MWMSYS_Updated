@@ -72,7 +72,7 @@ export async function markNotificationRead(req: Request, res: Response): Promise
       return;
     }
 
-    const notificationId = parseInt(req.params.id);
+    const notificationId = parseInt(String(req.params.id));
     if (isNaN(notificationId)) {
       res.status(400).json({ success: false, error: "Invalid notification ID" });
       return;
