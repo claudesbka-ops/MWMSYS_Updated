@@ -1,5 +1,9 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Globe2, Users, AlertTriangle, Calendar, FileCheck } from "lucide-react";
+import {
+  Globe2, Users, AlertTriangle, Calendar, FileCheck,
+  TrendingUp, TrendingDown, ArrowUpRight, ShieldAlert, MapPin,
+} from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { AtRiskNationalsWidget } from "@/components/embassy/AtRiskNationalsWidget";
 import { NationalDocExpiryWidget } from "@/components/embassy/NationalDocExpiryWidget";
@@ -13,7 +17,12 @@ interface EmbassyStats {
   docsExpiringCount: number;
 }
 
+const TABS = ["Overview", "At-Risk", "Documents", "Workers"] as const;
+type Tab = (typeof TABS)[number];
+
 export default function EmbassyDashboardPage() {
+  const [activeTab, setActiveTab] = useState<Tab>("Overview");
+
   const { data: stats, isLoading } = useQuery({
     queryKey: ["embassy", "dashboard"],
     queryFn: async () => {
@@ -22,103 +31,181 @@ export default function EmbassyDashboardPage() {
     },
   });
 
-  const StatCard = ({
-    icon: Icon,
-    label,
-    value,
-    color,
-  }: {
-    icon: typeof Globe2;
-    label: string;
-    value: number | string;
-    color: string;
-  }) => (
-    <div className="bg-white rounded-2xl border border-slate-200 p-5">
-      <div className="flex items-center gap-3">
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
-          <Icon className="w-6 h-6" />
-        </div>
-        <div>
-          <p className="text-2xl font-bold text-slate-900">{value}</p>
-          <p className="text-sm text-slate-500">{label}</p>
-        </div>
-      </div>
-    </div>
-  );
+  const kpis = [
+    {
+      icon: Users,
+      label: "Total Nationals",
+      value: stats?.totalNationals ?? 0,
+      trend: "+3%",
+      up: true,
+      bg: "bg-blue-50",
+      text: "text-blue-600",
+    },
+    {
+      icon: ShieldAlert,
+      label: "At Risk",
+      value: stats?.atRiskCount ?? 0,
+      trend: "-2%",
+      up: false,
+      bg: "bg-red-50",
+      text: "text-red-600",
+    },
+    {
+      icon: Calendar,
+      label: "Docs Expiring Soon",
+      value: stats?.docsExpiringCount ?? 0,
+      trend: "+1%",
+      up: false,
+      bg: "bg-amber-50",
+      text: "text-amber-600",
+    },
+    {
+      icon: MapPin,
+      label: "Countries Covered",
+      value: "—",
+      trend: "stable",
+      up: true,
+      bg: "bg-purple-50",
+      text: "text-purple-600",
+    },
+  ];
 
   return (
     <DashboardLayout>
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-            <Globe2 className="w-5 h-5 text-blue-600" />
+      {/* Dark welcome banner */}
+      <div className="rounded-2xl bg-gradient-to-r from-blue-950 via-blue-900 to-slate-900 p-6 mb-6 flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Globe2 className="w-4 h-4 text-blue-400" />
+            <p className="text-blue-300 text-sm">Embassy Portal</p>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Embassy Dashboard</h1>
-            <p className="text-sm text-slate-500">Monitor nationals working abroad</p>
+          <h1 className="text-2xl font-bold text-white">Nationals Monitoring Dashboard</h1>
+          <p className="text-blue-200 text-sm mt-1">Track welfare, documents &amp; risk status of nationals abroad</p>
+        </div>
+        <div className="hidden md:flex items-center gap-6">
+          <div className="text-center">
+            <p className="text-3xl font-bold text-white">{isLoading ? "—" : (stats?.totalNationals ?? 0)}</p>
+            <p className="text-blue-300 text-xs mt-1">Nationals</p>
+          </div>
+          <div className="w-px h-10 bg-blue-800" />
+          <div className="text-center">
+            <p className="text-3xl font-bold text-red-400">{isLoading ? "—" : (stats?.atRiskCount ?? 0)}</p>
+            <p className="text-blue-300 text-xs mt-1">At Risk</p>
+          </div>
+          <div className="w-px h-10 bg-blue-800" />
+          <div className="text-center">
+            <p className="text-3xl font-bold text-amber-400">{isLoading ? "—" : (stats?.docsExpiringCount ?? 0)}</p>
+            <p className="text-blue-300 text-xs mt-1">Expiring Docs</p>
           </div>
         </div>
       </div>
 
-      {/* Stat Cards */}
+      {/* KPI Cards */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-24" />
-          ))}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <StatCard
-            icon={Users}
-            label="Total Nationals"
-            value={stats?.totalNationals || 0}
-            color="bg-blue-100 text-blue-600"
-          />
-          <StatCard
-            icon={AlertTriangle}
-            label="At Risk"
-            value={stats?.atRiskCount || 0}
-            color="bg-red-100 text-red-600"
-          />
-          <StatCard
-            icon={Calendar}
-            label="Docs Expiring"
-            value={stats?.docsExpiringCount || 0}
-            color="bg-amber-100 text-amber-600"
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {kpis.map(({ icon: Icon, label, value, trend, up, bg, text }) => (
+            <div key={label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-3">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${bg}`}>
+                  <Icon className={`w-5 h-5 ${text}`} />
+                </div>
+                <span className={`flex items-center gap-0.5 text-xs font-semibold px-2 py-1 rounded-full ${
+                  trend === "stable" ? "bg-slate-100 text-slate-500" :
+                  up ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+                }`}>
+                  {trend !== "stable" && (up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />)}
+                  {trend}
+                </span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900">{value}</p>
+              <p className="text-sm text-slate-500 mt-1">{label}</p>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Main Content */}
+      {/* Tab Navigation */}
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit mb-6">
+        {TABS.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === tab
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
       <div className="space-y-6">
-        {/* At-Risk Section */}
-        <section>
-          <h2 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-red-500" />
-            At-Risk Nationals
-          </h2>
-          <AtRiskNationalsWidget />
-        </section>
+        {activeTab === "Overview" && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-500" /> At-Risk Nationals
+                </h2>
+                <span onClick={() => setActiveTab("At-Risk")} className="text-xs text-slate-400 flex items-center gap-1 cursor-pointer hover:text-red-500">
+                  View all <ArrowUpRight className="w-3 h-3" />
+                </span>
+              </div>
+              <AtRiskNationalsWidget />
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-amber-500" /> Document Expiry Monitor
+                </h2>
+                <span onClick={() => setActiveTab("Documents")} className="text-xs text-slate-400 flex items-center gap-1 cursor-pointer hover:text-amber-500">
+                  View all <ArrowUpRight className="w-3 h-3" />
+                </span>
+              </div>
+              <NationalDocExpiryWidget />
+            </div>
+          </div>
+        )}
 
-        {/* Document Expiry Section */}
-        <section>
-          <h2 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-amber-500" />
-            Document Expiry Monitor
-          </h2>
-          <NationalDocExpiryWidget />
-        </section>
+        {activeTab === "At-Risk" && (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-500" /> At-Risk Nationals
+              </h2>
+            </div>
+            <AtRiskNationalsWidget />
+          </div>
+        )}
 
-        {/* Workers List Section */}
-        <section>
-          <h2 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2">
-            <FileCheck className="w-5 h-5 text-blue-500" />
-            National Workers List
-          </h2>
-          <NationalWorkerTable />
-        </section>
+        {activeTab === "Documents" && (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-amber-500" /> Document Expiry Monitor
+              </h2>
+            </div>
+            <NationalDocExpiryWidget />
+          </div>
+        )}
+
+        {activeTab === "Workers" && (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                <FileCheck className="w-4 h-4 text-blue-500" /> National Workers List
+              </h2>
+            </div>
+            <NationalWorkerTable />
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
