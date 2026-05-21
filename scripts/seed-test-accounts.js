@@ -30,6 +30,7 @@ const DEFAULT_API_BASE = process.env.API_BASE_URL
   || 'https://mwmsysmaster-production.up.railway.app';
 
 const PASSWORD = 'Test@1234';
+const BYPASS_KEY = process.env.TEST_BYPASS_KEY || 'playwright-test-bypass';
 const PASSPORT = 'TEST123456';
 
 // Order matters: employer must exist before worker so we can link them.
@@ -53,7 +54,7 @@ async function http(method, base, path, body) {
   const url = base.replace(/\/+$/, '') + path;
   const opts = {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-test-bypass': BYPASS_KEY },
     body: body ? JSON.stringify(body) : undefined,
   };
   const resp = await fetch(url, opts);
