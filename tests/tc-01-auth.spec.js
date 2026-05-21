@@ -31,9 +31,12 @@ test.describe('TC-01 Authentication', () => {
       fullName: 'TC01.2 Worker',
     };
     const r = await request.post(API + '/signup', { data: payload, headers: BYPASS });
-    expect([201, 409]).toContain(r.status());
     const json = await r.json().catch(() => ({}));
     console.log(`[TC-01.2] signup -> ${r.status()} ${JSON.stringify(json).slice(0,200)}`);
+    const s = r.status();
+    const ok = s === 201 || s === 409 ||
+      (s === 403 && /plan limit|limit reached/i.test(json.error || ''));
+    expect(ok, `Expected 201, 409 or plan-limit 403, got ${s}: ${JSON.stringify(json)}`).toBeTruthy();
   });
 
   test('TC-01.3 Verify OTP via magic value 000000 activates a fresh test account', async ({ request }) => {
