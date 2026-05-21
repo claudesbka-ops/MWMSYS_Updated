@@ -12,6 +12,9 @@ module.exports = defineConfig({
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: 'https://mwmsys-master.vercel.app',
+    extraHTTPHeaders: {
+      'x-test-bypass': 'playwright-test-bypass',
+    },
     headless: false,
     viewport: { width: 1366, height: 800 },
     actionTimeout: 15_000,

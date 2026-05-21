@@ -7,7 +7,7 @@ const skipFn = (req: any) =>
 // Tier 1: Auth endpoints (strictest)
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   skip: skipFn,
