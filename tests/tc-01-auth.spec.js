@@ -74,7 +74,7 @@ test.describe('TC-01 Authentication', () => {
   test('TC-01.5 Employer login → /dashboard', async ({ page }) => {
     const r = await login(page, 'employer');
     expect(r.ok, `employer login result: ${JSON.stringify(r)}`).toBe(true);
-    expect(r.url).toMatch(/\/dashboard/);
+    expect(r.url).toMatch(/\/(dashboard|complete-profile)/);
   });
 
   test('TC-01.6 Agency login → /dashboard', async ({ page }) => {

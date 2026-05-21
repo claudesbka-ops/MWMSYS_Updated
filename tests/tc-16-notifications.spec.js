@@ -63,7 +63,7 @@ test.describe('TC-16 Notifications', () => {
     const r = await login(page, 'admin');
     skipIfLoginFailed(test, r, 'admin');
     const token = await page.evaluate(() => {
-      return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+      return localStorage.getItem('access_token') || localStorage.getItem('token') || sessionStorage.getItem('token') || '';
     });
     const resp = await request.get(`${BASE}/Api/Notifications/UnreadCount`, {
       headers: { Authorization: `Bearer ${token}`, ...BYPASS },
@@ -83,7 +83,7 @@ test.describe('TC-16 Notifications', () => {
     const r = await login(page, 'admin');
     skipIfLoginFailed(test, r, 'admin');
     const token = await page.evaluate(() => {
-      return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+      return localStorage.getItem('access_token') || localStorage.getItem('token') || sessionStorage.getItem('token') || '';
     });
     const resp = await request.fetch(`${BASE}/Api/Notifications/ReadAll`, {
       method: 'PATCH',

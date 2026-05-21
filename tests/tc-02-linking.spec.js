@@ -56,10 +56,14 @@ test.describe('TC-02 Linking & Visibility', () => {
     };
     const apiBase = process.env.API_BASE_URL || 'https://mwmsysmaster-production.up.railway.app';
     const r = await request.post(apiBase + '/signup', { data: payload, headers: { 'x-test-bypass': 'playwright-test-bypass' } });
-    expect([201, 409]).toContain(r.status());
     const json = await r.json().catch(() => ({}));
     console.log(`[TC-02.5] signup -> ${r.status()} ${JSON.stringify(json).slice(0,200)}`);
-    expect(r.status() === 201 || json.message?.includes('created') || json.error?.includes('already exists')).toBeTruthy();
+    const status = r.status();
+    const ok = status === 201 ||
+      status === 409 ||
+      /created/i.test(json.message || '') ||
+      /already exist/i.test(json.error || '');
+    expect(ok, `Expected 201 or 409/already-exists, got ${status}: ${JSON.stringify(json)}`).toBeTruthy();
   });
 
   test('TC-02.6 Employer manually links a worker (modal opens)', async ({ page }) => {

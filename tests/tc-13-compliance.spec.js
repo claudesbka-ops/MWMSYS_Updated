@@ -36,11 +36,12 @@ test.describe('TC-13 Compliance Dashboard', () => {
     await page.waitForTimeout(1500);
     const loading = await page.getByText(/scanning|loading|running/i).first().isVisible().catch(() => false);
     console.log(`[TC-13.2] loading state=${loading}`);
-    // Wait for completion
-    await page.waitForTimeout(5000);
+    // Wait up to 30s for scan to complete (API can be slow on cold Railway start)
+    await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+    await page.waitForTimeout(3000);
     const done = await page.getByText(/scan complete|workers checked|alerts|compliance/i).first().isVisible().catch(() => false);
     const toast = await page.locator('[data-sonner-toast]').first().isVisible().catch(() => false);
-    console.log(`[TC-13.2] done=${done} toast=${toast}`);
+    console.log(`[TC-13.2] loading=${loading} done=${done} toast=${toast}`);
     expect(loading || done || toast, 'Scan should show feedback').toBeTruthy();
   });
 
