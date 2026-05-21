@@ -26,7 +26,7 @@ test.describe('TC-03 Documents', () => {
       passportNo: 'PHOTO' + Date.now().toString().slice(-6),
       fullName: 'TC03.2 Worker',
     };
-    const r = await request.post(apiBase + '/signup', { data: payload });
+    const r = await request.post(apiBase + '/signup', { data: payload, headers: { 'x-test-bypass': 'playwright-test-bypass' } });
     const status = r.status();
     const json = await r.json().catch(() => ({}));
     console.log(`[TC-03.2] signup without photo -> ${status} ${JSON.stringify(json).slice(0, 200)}`);

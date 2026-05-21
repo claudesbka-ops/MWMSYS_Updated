@@ -4,6 +4,8 @@
 // 6 roles are exercised against the live app.
 const { test, expect } = require('@playwright/test');
 const { ACCOUNTS, openRoleForm, fillCreds, submitLogin, login } = require('./_helpers');
+const BYPASS = { 'x-test-bypass': 'playwright-test-bypass' };
+const API = 'https://mwmsysmaster-production.up.railway.app';
 
 test.describe('TC-01 Authentication', () => {
 
@@ -28,7 +30,7 @@ test.describe('TC-01 Authentication', () => {
       employerId: 'qaemployer',
       fullName: 'TC01.2 Worker',
     };
-    const r = await request.post('https://mwmsysmaster-production.up.railway.app/signup', { data: payload });
+    const r = await request.post(API + '/signup', { data: payload, headers: BYPASS });
     expect([201, 409]).toContain(r.status());
     const json = await r.json().catch(() => ({}));
     console.log(`[TC-01.2] signup -> ${r.status()} ${JSON.stringify(json).slice(0,200)}`);
@@ -38,13 +40,15 @@ test.describe('TC-01 Authentication', () => {
     const userId = 'qaverify_' + Date.now();
     const email = userId + '@test.com';
     // Sign up
-    const su = await request.post('https://mwmsysmaster-production.up.railway.app/signup', {
+    const su = await request.post(API + '/signup', {
       data: { userId, email, password: 'Test@1234', role: 'employer', employerName: 'V Co' },
+      headers: BYPASS,
     });
     expect([201, 409]).toContain(su.status());
     // Verify with magic OTP
-    const v = await request.post('https://mwmsysmaster-production.up.railway.app/Api/Auth/VerifyEmail', {
+    const v = await request.post(API + '/Api/Auth/VerifyEmail', {
       data: { userId, otp: '000000' },
+      headers: BYPASS,
     });
     const vJson = await v.json().catch(() => ({}));
     console.log(`[TC-01.3] verify-email -> ${v.status()} ${JSON.stringify(vJson).slice(0,200)}`);

@@ -54,7 +54,8 @@ test.describe('TC-02 Linking & Visibility', () => {
       employerId: 'qaemployer',
       fullName: 'TC02.5 Worker',
     };
-    const r = await request.post(process.env.API_BASE_URL || 'https://mwmsysmaster-production.up.railway.app' + '/signup', { data: payload });
+    const apiBase = process.env.API_BASE_URL || 'https://mwmsysmaster-production.up.railway.app';
+    const r = await request.post(apiBase + '/signup', { data: payload, headers: { 'x-test-bypass': 'playwright-test-bypass' } });
     expect([201, 409]).toContain(r.status());
     const json = await r.json().catch(() => ({}));
     console.log(`[TC-02.5] signup -> ${r.status()} ${JSON.stringify(json).slice(0,200)}`);
