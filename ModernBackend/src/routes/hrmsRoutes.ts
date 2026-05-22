@@ -184,8 +184,8 @@ hrmsRouter.post("/Api/HRMS/Attendance/ClockIn", requireAuth, checkRole([2]), asy
       try {
         await ensureGeofenceAttendanceColumn();
 
-        // Find the worker's current employer
-        const empRow = await prisma.tbl_Worker_EmployerInfo.findFirst({
+        // Find the worker's current employer via PersonalInfo
+        const empRow = await prisma.tbl_Worker_PersonalInfo.findFirst({
           where: { Worker_Id: userKey },
           select: { Employer_Id: true },
         });
