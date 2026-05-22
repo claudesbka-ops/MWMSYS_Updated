@@ -42,7 +42,7 @@ export default function AdminLogin() {
       localStorage.removeItem(WORKER_PASSPORT_KEY);
       localStorage.removeItem(EMPLOYER_NAME_KEY);
       await refreshAuth();
-      navigate("/");
+      navigate("/dashboard");
     } catch (err: any) {
       if (err instanceof TwoFARequiredError) {
         navigate("/login/verify-2fa");

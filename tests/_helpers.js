@@ -128,7 +128,7 @@ async function login(page, role, overrides = {}) {
     return { ok: true, url, note: 'complete-profile-gate-bypassed' };
   }
 
-  if (/\/dashboard/i.test(url)) return { ok: true, url };
+  if (/\/(dashboard|labour-dashboard|embassy-dashboard)/i.test(url)) return { ok: true, url };
   if (/\/verify-email/i.test(url)) return { ok: false, reason: 'verify-email', url };
   if (/invalid/i.test(toast))    return { ok: false, reason: 'invalid', toast };
   return { ok: false, reason: 'unknown', url, toast };

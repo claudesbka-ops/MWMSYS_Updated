@@ -35,7 +35,7 @@ export default function LabourLogin() {
       setCurrentRole("labour");
       localStorage.setItem("mwmsys_logged_in", "true");
       await refreshAuth();
-      navigate("/");
+      navigate("/labour-dashboard");
     } catch (err: any) {
       if (err instanceof TwoFARequiredError) {
         navigate("/login/verify-2fa");

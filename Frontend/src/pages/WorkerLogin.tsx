@@ -44,7 +44,7 @@ export default function WorkerLogin() {
       localStorage.setItem(WORKER_PASSPORT_KEY, form.passportNo.trim());
       localStorage.removeItem(EMPLOYER_NAME_KEY);
       await refreshAuth();
-      navigate("/");
+      navigate("/dashboard");
     } catch (err: any) {
       if (err instanceof TwoFARequiredError) {
         navigate("/login/verify-2fa");

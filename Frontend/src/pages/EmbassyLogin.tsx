@@ -35,7 +35,7 @@ export default function EmbassyLogin({ variant }: { variant: "source" | "destina
       setCurrentRole(variant === "source" ? "embassy_source" : "embassy_destination");
       localStorage.setItem("mwmsys_logged_in", "true");
       await refreshAuth();
-      navigate("/");
+      navigate("/embassy-dashboard");
     } catch (err: any) {
       if (err instanceof TwoFARequiredError) {
         navigate("/login/verify-2fa");

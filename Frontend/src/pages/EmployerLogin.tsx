@@ -42,7 +42,7 @@ export default function EmployerLogin() {
       localStorage.removeItem(EMPLOYER_NAME_KEY);
       localStorage.removeItem(WORKER_PASSPORT_KEY);
       await refreshAuth();
-      navigate("/");
+      navigate("/dashboard");
     } catch (err: any) {
       if (err instanceof TwoFARequiredError) {
         navigate("/login/verify-2fa");

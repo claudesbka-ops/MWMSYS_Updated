@@ -93,16 +93,16 @@ test.describe('TC-01 Authentication', () => {
     await expect(page.getByRole('heading', { name: /dashboard/i }).first()).toBeVisible();
   });
 
-  test('TC-01.8 Labour Dept login → /dashboard', async ({ page }) => {
+  test('TC-01.8 Labour Dept login → /labour-dashboard', async ({ page }) => {
     const r = await login(page, 'labour');
     expect(r.ok, `labour login result: ${JSON.stringify(r)}`).toBe(true);
-    expect(r.url).toMatch(/\/dashboard/);
+    expect(r.url).toMatch(/\/(labour-dashboard|dashboard)/);
   });
 
-  test('TC-01.9 Embassy (Source) login → /dashboard', async ({ page }) => {
+  test('TC-01.9 Embassy (Source) login → /embassy-dashboard', async ({ page }) => {
     const r = await login(page, 'embassy');
     expect(r.ok, `embassy login result: ${JSON.stringify(r)}`).toBe(true);
-    expect(r.url).toMatch(/\/dashboard/);
+    expect(r.url).toMatch(/\/(embassy-dashboard|dashboard)/);
   });
 
   test('TC-01.10 Wrong password → "Invalid credentials" toast', async ({ page }) => {
