@@ -39,8 +39,8 @@ export default function AgencyLogin() {
       localStorage.setItem("mwmsys_logged_in", "true");
       localStorage.removeItem(WORKER_PASSPORT_KEY);
       localStorage.removeItem(EMPLOYER_NAME_KEY);
-      await refreshAuth();
       navigate("/dashboard");
+      void refreshAuth();
     } catch (err: any) {
       if (err instanceof TwoFARequiredError) {
         navigate("/login/verify-2fa");
