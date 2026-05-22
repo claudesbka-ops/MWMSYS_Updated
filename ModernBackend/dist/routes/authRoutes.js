@@ -8,9 +8,28 @@ const cryptoLegacy_1 = require("../cryptoLegacy");
 const workerLookup_1 = require("../services/workerLookup");
 const schemaMigrations_1 = require("../db/schemaMigrations");
 const emailService_1 = require("../services/emailService");
+const accountLockService_1 = require("../services/accountLockService");
+const auditService_1 = require("../services/auditService");
+const stripeService_1 = require("../services/stripeService");
 const OTP_TTL_MINUTES = 15;
 const RESEND_WINDOW_HOURS = 1;
 const RESEND_MAX_PER_WINDOW = 3;
+// ---------- QA test-account bypass ----------
+// Tightly scoped: only emails ending in @test.com AND only the magic OTP
+// '000000'. Allows the Playwright QA suite (and any seed script) to create &
+// verify deterministic accounts without a real email round-trip. Production
+// users on real domains are not affected because both gates must match.
+// Disable entirely by setting ALLOW_TEST_ACCOUNTS=false in the environment.
+const TEST_EMAIL_SUFFIX = "@test.com";
+const TEST_MAGIC_OTP = "000000";
+function isTestBypassEnabled() {
+    return (process.env.ALLOW_TEST_ACCOUNTS ?? "true").toLowerCase() !== "false";
+}
+function isTestEmail(email) {
+    return (isTestBypassEnabled() &&
+        typeof email === "string" &&
+        email.toLowerCase().endsWith(TEST_EMAIL_SUFFIX));
+}
 async function createAndSendOtp(params) {
     await (0, schemaMigrations_1.ensureOtpTableExists)();
     // Invalidate any outstanding OTPs of the same type for this user.
@@ -150,7 +169,9 @@ exports.authRouter.post("/signup", async (req, res) => {
                 User_Status: 1,
                 User_Role: userRole,
                 Created_On: new Date(),
-                Is_Verified: false,
+                // QA bypass: test-suffix emails are auto-verified so the QA suite can
+                // log in without an email round-trip.
+                Is_Verified: isTestEmail(emailId),
             },
         });
     }
@@ -173,6 +194,19 @@ exports.authRouter.post("/signup", async (req, res) => {
                         select: { User_Id: true },
                     });
                     resolvedEmployerId = emp?.User_Id ?? null;
+                }
+                // Check plan limit for workers before creating
+                if (resolvedEmployerId) {
+                    const limitCheck = await (0, stripeService_1.checkPlanLimit)(resolvedEmployerId, "workers");
+                    if (!limitCheck.allowed) {
+                        return res.status(403).json({
+                            error: "Plan limit reached",
+                            limitType: "workers",
+                            current: limitCheck.current,
+                            limit: limitCheck.limit,
+                            upgradeUrl: "/pricing",
+                        });
+                    }
                 }
                 await db_1.prisma.tbl_Worker_PersonalInfo.create({
                     data: {
@@ -256,19 +290,22 @@ exports.authRouter.post("/signup", async (req, res) => {
             }
         }
         // Kick off email OTP verification — user cannot log in until they verify.
+        // Skip entirely for test-suffix emails (already auto-verified above).
         let otpInfo = null;
-        try {
-            const result = await createAndSendOtp({
-                userId: created.User_Id,
-                emailId: created.Email_Id,
-                otpType: "email_verification",
-            });
-            otpInfo = { expiresAt: result.expiresAt, fallback: result.fallback };
-        }
-        catch (otpErr) {
-            console.error("[signup] failed to send OTP", otpErr);
-            // Do not fail signup just because email could not be sent — the user can
-            // still request a resend from the verify page.
+        if (!isTestEmail(created.Email_Id)) {
+            try {
+                const result = await createAndSendOtp({
+                    userId: created.User_Id,
+                    emailId: created.Email_Id,
+                    otpType: "email_verification",
+                });
+                otpInfo = { expiresAt: result.expiresAt, fallback: result.fallback };
+            }
+            catch (otpErr) {
+                console.error("[signup] failed to send OTP", otpErr);
+                // Do not fail signup just because email could not be sent — the user can
+                // still request a resend from the verify page.
+            }
         }
         return res.status(201).json({
             message: "Account created",
@@ -328,6 +365,27 @@ exports.authRouter.post("/Api/token", async (req, res) => {
         if (!user) {
             return res.status(401).json({ error: "Invalid credentials" });
         }
+        // Check account lockout status
+        const lockStatus = await (0, accountLockService_1.checkAccountLocked)(user.User_Id);
+        const ipAddress = (req.ip || req.socket.remoteAddress || "").toString();
+        const userAgent = (req.headers["user-agent"] || "").toString();
+        if (lockStatus.locked) {
+            // Log blocked login
+            await (0, auditService_1.logAudit)({
+                userId: user.User_Id,
+                userRole: String(user.User_Role),
+                action: "login_blocked",
+                ipAddress,
+                userAgent,
+                status: "blocked",
+                details: { reason: "account_locked", minutesLeft: lockStatus.minutesLeft },
+            });
+            return res.status(403).json({
+                error: `Account locked for ${lockStatus.minutesLeft} more minutes due to too many failed attempts.`,
+                locked: true,
+                minutesLeft: lockStatus.minutesLeft,
+            });
+        }
         const userRoleId = user.User_Role != null ? Number(user.User_Role) : null;
         if (userRoleId === 2 && !passportNo) {
             return res.status(401).json({ error: "Invalid credentials" });
@@ -359,9 +417,36 @@ exports.authRouter.post("/Api/token", async (req, res) => {
         const salt = (user.User_Id ?? "").toString();
         const legacyOk = stored === (0, cryptoLegacy_1.encryptLegacyPassword)(password, salt);
         if (!plainOk && !legacyOk) {
-            return res.status(401).json({ error: "Invalid credentials" });
+            // Record failed attempt
+            await (0, accountLockService_1.recordFailedAttempt)(user.User_Id);
+            const attemptsRemaining = (0, accountLockService_1.getRemainingAttempts)((user.Failed_Login_Attempts ?? 0) + 1);
+            // Log failed login
+            await (0, auditService_1.logAudit)({
+                userId: user.User_Id,
+                userRole: String(user.User_Role),
+                action: "login_failed",
+                ipAddress,
+                userAgent,
+                status: "failed",
+                details: { attemptsRemaining },
+            });
+            return res.status(401).json({
+                error: "Invalid credentials",
+                attemptsRemaining,
+            });
         }
         const loginPayload = await issueLoginTokenForUser(user, userName);
+        // Reset failed attempts on successful login
+        await (0, accountLockService_1.resetFailedAttempts)(user.User_Id);
+        // Log successful login
+        await (0, auditService_1.logAudit)({
+            userId: user.User_Id,
+            userRole: String(user.User_Role),
+            action: "login_success",
+            ipAddress,
+            userAgent,
+            status: "success",
+        });
         return res.json(loginPayload);
     }
     catch (e) {
@@ -426,6 +511,19 @@ exports.authRouter.post("/Api/Auth/VerifyEmail", async (req, res) => {
     }
     try {
         await (0, schemaMigrations_1.ensureOtpTableExists)();
+        // QA bypass: for test-suffix emails accept the magic OTP without a DB
+        // record. Skips OTP storage/expiry checks entirely for these accounts.
+        {
+            const candidate = await db_1.prisma.tbl_User.findFirst({ where: { User_Id: userId } });
+            if (candidate && isTestEmail(candidate.Email_Id) && otp === TEST_MAGIC_OTP) {
+                await db_1.prisma.tbl_User.updateMany({
+                    where: { User_Id: userId },
+                    data: { Is_Verified: true },
+                });
+                const loginPayload = await issueLoginTokenForUser(candidate, userId);
+                return res.json(loginPayload);
+            }
+        }
         const now = new Date();
         const record = await db_1.prisma.tbl_UserOtp.findFirst({
             where: {

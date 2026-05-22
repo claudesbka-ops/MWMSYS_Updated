@@ -53,6 +53,13 @@ async function ensureRosterTablesExist() {
     catch {
         // ignore
     }
+    // Add shiftType column to existing Tbl_Shift_Template
+    try {
+        await db_1.prisma.$executeRawUnsafe(`ALTER TABLE "Tbl_Shift_Template" ADD COLUMN IF NOT EXISTS "shiftType" VARCHAR(50) DEFAULT 'Morning'`);
+    }
+    catch {
+        // ignore - column may already exist
+    }
 }
 async function ensureHrmsRequestTablesExist() {
     try {
@@ -168,6 +175,13 @@ async function ensureChatTablesExist() {
         "CreatedOn" TIMESTAMP NOT NULL DEFAULT NOW()
       )`);
         await db_1.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "IX_ChatSessions_WorkerId" ON "ChatSessions"("WorkerId")`);
+    }
+    catch {
+        // ignore
+    }
+    // Add PreferredLanguage column (idempotent)
+    try {
+        await db_1.prisma.$executeRawUnsafe(`ALTER TABLE "ChatSessions" ADD COLUMN IF NOT EXISTS "PreferredLanguage" VARCHAR(20) NULL DEFAULT 'en'`);
     }
     catch {
         // ignore

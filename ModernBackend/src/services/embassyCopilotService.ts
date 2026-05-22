@@ -236,7 +236,6 @@ async function getNationalsOverview(whereClause: any): Promise<any> {
     totalNationals,
     atRiskCount,
     activeDisputes,
-    expiringDocuments,
   ] = await Promise.all([
     prisma.tbl_Worker_PersonalInfo.count({ where: whereClause }),
     prisma.tbl_Worker_PersonalInfo.count({

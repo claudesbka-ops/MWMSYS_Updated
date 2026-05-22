@@ -30,10 +30,25 @@ const hrmsRoutes_1 = require("./routes/hrmsRoutes");
 const panicRoutes_1 = require("./routes/panicRoutes");
 const relationshipRoutes_1 = require("./routes/relationshipRoutes");
 const subscriptionRoutes_1 = require("./routes/subscriptionRoutes");
+const complianceRoutes_1 = require("./routes/complianceRoutes");
+const disputeAiRoutes_1 = require("./routes/disputeAiRoutes");
+const workerRiskRoutes_1 = require("./routes/workerRiskRoutes");
+const bulkImportRoutes_1 = require("./routes/bulkImportRoutes");
+const authorityRoutes_1 = require("./routes/authorityRoutes");
+const notificationRoutes_1 = require("./routes/notificationRoutes");
+const copilotRoutes_1 = require("./routes/copilotRoutes");
+const auditRoutes_1 = require("./routes/auditRoutes");
+const billingRoutes_1 = require("./routes/billingRoutes");
+const alertSchedulerService_1 = require("./services/alertSchedulerService");
+const rateLimitMiddleware_1 = require("./middleware/rateLimitMiddleware");
 const app = (0, express_1.default)();
+// Stripe webhook endpoint — MUST use raw body, before jsonParser (Critical Fix)
+app.post("/Api/Billing/Webhook", express_1.default.raw({ type: "application/json" }), billingRoutes_1.stripeWebhookHandler);
 app.use(cors_1.corsMiddleware);
 app.use(bodyParsers_1.jsonParser);
 app.use(bodyParsers_1.urlencodedParser);
+// Tier 3: Global rate limit (applies to all routes)
+app.use(rateLimitMiddleware_1.generalRateLimiter);
 app.post("/Api/Worker/Location", auth_1.requireAuth, async (req, res, next) => {
     try {
         const roleId = Number(req.user?.roleId ?? 0);
@@ -280,7 +295,8 @@ const server = http_1.default.createServer(app);
 const io = (0, socketService_1.initSocket)(server);
 // ---- Domain routers (mounted after socket init so `getIO()` works at request time) ----
 app.use(accountRoutes_1.accountRouter);
-app.use(authRoutes_1.authRouter);
+// Tier 1: Auth endpoints with strict rate limiting
+app.use(rateLimitMiddleware_1.authRateLimiter, authRoutes_1.authRouter);
 app.use(broadcastRoutes_1.broadcastRouter);
 app.use(chatRoutes_1.chatRouter);
 app.use(disputeRoutes_1.disputeRouter);
@@ -288,6 +304,18 @@ app.use(hrmsRoutes_1.hrmsRouter);
 app.use(panicRoutes_1.panicRouter);
 app.use(relationshipRoutes_1.relationshipRouter);
 app.use(subscriptionRoutes_1.subscriptionRouter);
+app.use(complianceRoutes_1.complianceRouter);
+app.use(disputeAiRoutes_1.disputeAiRouter);
+app.use(workerRiskRoutes_1.workerRiskRouter);
+app.use(bulkImportRoutes_1.bulkImportRouter);
+app.use(authorityRoutes_1.authorityRouter);
+app.use(notificationRoutes_1.notificationRouter);
+app.use(rateLimitMiddleware_1.aiRateLimiter, copilotRoutes_1.copilotRouter);
+app.use(billingRoutes_1.billingRouter);
+app.use(auditRoutes_1.auditRouter);
+// Start alert scheduler 5 minutes after server boot
+setTimeout(() => (0, alertSchedulerService_1.startAlertScheduler)(), 5 * 60 * 1000);
+// ...
 app.get("/Api/Workers/:workerId", auth_1.requireAuth, async (req, res, next) => {
     try {
         const user = req.user;
@@ -991,6 +1019,10 @@ app.get("/Api/Worker/Documents", auth_1.requireAuth, async (req, res, next) => {
             const isUrl = p.startsWith("http://") || p.startsWith("https://") || p.startsWith("/uploads/");
             const url = p ? (isUrl ? (p.startsWith("/uploads/") ? `${req.protocol}://${req.get("host")}${p}` : p) : "") : "";
             const attestation = latestAttestationByType.get(d.type);
+            // AI extraction data
+            const aiData = row?.Ai_Extracted_Data;
+            const aiScores = row?.Ai_Confidence_Scores;
+            const aiNeedsReview = aiScores ? Object.values(aiScores).some((s) => s < 60) : false;
             return {
                 ...d,
                 url,
@@ -1001,6 +1033,15 @@ app.get("/Api/Worker/Documents", auth_1.requireAuth, async (req, res, next) => {
                 adminRemarks: attestation?.AdminRemarks ?? null,
                 submittedOn: attestation?.Created_On ?? null,
                 verifiedOn: attestation?.Updated_On ?? null,
+                // NEW: AI extraction fields
+                aiExtractionStatus: row?.Ai_Extraction_Status ?? null,
+                aiExtractedData: aiData,
+                aiConfidenceScores: aiScores,
+                aiOverallConfidence: row?.Ai_Confidence_Overall ?? null,
+                aiExtractedAt: row?.Ai_Extracted_At ?? null,
+                aiNeedsReview,
+                workerConfirmedAt: row?.Worker_Confirmed_At ?? null,
+                workerCorrectedData: row?.Worker_Corrected_Data ?? null,
             };
         });
         return res.json({ workerId, documents: docs });
@@ -1056,7 +1097,69 @@ app.post("/Api/Worker/Documents", auth_1.requireAuth, upload_1.upload.single("fi
             create: data,
             update: data,
         });
-        return res.json({ ok: true, docType: t, url: `${req.protocol}://${req.get("host")}${uploadPath}` });
+        // Trigger non-blocking AI extraction
+        // Fire-and-forget: upload succeeds even if AI fails
+        (async () => {
+            try {
+                const { extractWorkerDocumentData } = await import("./services/workerDocumentAiService.js");
+                const { convertFileToBase64 } = await import("./utils/pdfToImage.js");
+                const path = await import("path");
+                if (!uploaded?.filename)
+                    return;
+                const filePath = path.join(upload_1.uploadsDir, uploaded.filename);
+                const base64Image = await convertFileToBase64(filePath, req.file?.mimetype || "image/jpeg");
+                // Handle unsupported file types
+                if (base64Image === "__UNSUPPORTED_WORD_DOC__") {
+                    await db_1.prisma.tbl_Worker_Attachments.update({
+                        where: { Worker_Id: workerId },
+                        data: {
+                            Ai_Extraction_Status: "unsupported",
+                            Ai_Extraction_Error: "Word documents not supported for AI extraction. Please fill in details manually.",
+                            Ai_Extracted_At: new Date(),
+                        },
+                    });
+                    return;
+                }
+                if (base64Image === "__UNSUPPORTED_TYPE__") {
+                    await db_1.prisma.tbl_Worker_Attachments.update({
+                        where: { Worker_Id: workerId },
+                        data: {
+                            Ai_Extraction_Status: "unsupported",
+                            Ai_Extraction_Error: "File type not supported for AI extraction. Please fill in details manually.",
+                            Ai_Extracted_At: new Date(),
+                        },
+                    });
+                    return;
+                }
+                if (base64Image) {
+                    const extraction = await extractWorkerDocumentData(base64Image, t);
+                    // Update record with extraction results
+                    // Use conditional spread to avoid Prisma JSON null type issues
+                    const updateData = {
+                        Ai_Extraction_Status: extraction.success ? "completed" : "failed",
+                        Ai_Confidence_Overall: extraction.success ? extraction.overallConfidence : null,
+                        Ai_Raw_Response: extraction.rawResponse || null,
+                        Ai_Extraction_Error: extraction.error || null,
+                        Ai_Extracted_At: new Date(),
+                    };
+                    if (extraction.success && extraction.data) {
+                        updateData.Ai_Extracted_Data = extraction.data;
+                    }
+                    if (extraction.success && extraction.confidenceScores) {
+                        updateData.Ai_Confidence_Scores = extraction.confidenceScores;
+                    }
+                    await db_1.prisma.tbl_Worker_Attachments.update({
+                        where: { Worker_Id: workerId },
+                        data: updateData,
+                    });
+                }
+            }
+            catch (aiErr) {
+                console.error("[Worker/Documents] AI extraction failed:", aiErr);
+                // Silently fail - document already saved
+            }
+        })();
+        return res.json({ ok: true, docType: t, url: `${req.protocol}://${req.get("host")}${uploadPath}`, extractionPending: true });
     }
     catch (e) {
         return next(e);
@@ -1106,6 +1209,26 @@ app.delete("/Api/Worker/Documents", auth_1.requireAuth, async (req, res, next) =
         await db_1.prisma.tbl_Worker_Attachments.update({
             where: { Worker_Id: workerId },
             data,
+        });
+        return res.json({ ok: true });
+    }
+    catch (e) {
+        return next(e);
+    }
+});
+app.post("/Api/Worker/Documents/Confirm", auth_1.requireAuth, async (req, res, next) => {
+    try {
+        const jwtUserId = Number(req.user?.userId ?? 0);
+        const workerId = await (0, workerLookup_1.findWorkerIdByJwtUserId)(jwtUserId);
+        if (!workerId)
+            return res.status(400).json({ error: "Worker not found" });
+        const corrections = req.body?.corrections || null;
+        await db_1.prisma.tbl_Worker_Attachments.update({
+            where: { Worker_Id: workerId },
+            data: {
+                Worker_Confirmed_At: new Date(),
+                Worker_Corrected_Data: corrections,
+            },
         });
         return res.json({ ok: true });
     }
@@ -1204,6 +1327,10 @@ app.get("/Api/HRMS/Workers/:workerId/Documents", auth_1.requireAuth, (0, auth_1.
             const isUrl = p.startsWith("http://") || p.startsWith("https://") || p.startsWith("/uploads/");
             const url = p ? (isUrl ? (p.startsWith("/uploads/") ? `${req.protocol}://${req.get("host")}${p}` : p) : "") : "";
             const attestation = latestAttestationByType.get(d.type);
+            // AI extraction data
+            const aiData = row?.Ai_Extracted_Data;
+            const aiScores = row?.Ai_Confidence_Scores;
+            const aiNeedsReview = aiScores ? Object.values(aiScores).some((s) => s < 60) : false;
             return {
                 ...d,
                 url,
@@ -1214,6 +1341,15 @@ app.get("/Api/HRMS/Workers/:workerId/Documents", auth_1.requireAuth, (0, auth_1.
                 adminRemarks: attestation?.AdminRemarks ?? null,
                 submittedOn: attestation?.Created_On ?? null,
                 verifiedOn: attestation?.Updated_On ?? null,
+                // NEW: AI extraction fields
+                aiExtractionStatus: row?.Ai_Extraction_Status ?? null,
+                aiExtractedData: aiData,
+                aiConfidenceScores: aiScores,
+                aiOverallConfidence: row?.Ai_Confidence_Overall ?? null,
+                aiExtractedAt: row?.Ai_Extracted_At ?? null,
+                aiNeedsReview,
+                workerConfirmedAt: row?.Worker_Confirmed_At ?? null,
+                workerCorrectedData: row?.Worker_Corrected_Data ?? null,
             };
         });
         return res.json({ workerId, documents: docs });

@@ -4,7 +4,7 @@ import type { JwtClaims } from "../middleware/auth";
 
 export async function queryEmbassyCopilot(req: Request, res: Response) {
   try {
-    const user = req.user as JwtClaims;
+    const user = (req as any).user as JwtClaims;
     if (!user) {
       return res.status(401).json({
         success: false,

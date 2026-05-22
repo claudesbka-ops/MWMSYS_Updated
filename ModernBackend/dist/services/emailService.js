@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendOtpEmail = sendOtpEmail;
 exports.generate6DigitOtp = generate6DigitOtp;
+exports.sendNotificationEmail = sendNotificationEmail;
 const nodemailer_1 = __importDefault(require("nodemailer"));
 const resend_1 = require("resend");
 /**
@@ -151,4 +152,96 @@ async function sendOtpEmail(to, otp, type) {
 function generate6DigitOtp() {
     const n = Math.floor(Math.random() * 1000000);
     return n.toString().padStart(6, "0");
+}
+function buildEmailTemplate(type, data) {
+    switch (type) {
+        case "doc_expiry": {
+            const isExpired = data.daysRemaining === 0;
+            return {
+                subject: `${isExpired ? "⚠️" : "⏰"} Document ${isExpired ? "Expired" : "Expiring"}: ${data.docType}`,
+                textBody: `${data.workerName}'s ${data.docType} ${isExpired ? "expired on" : "expires on"} ${data.expiryDate}. Please take action immediately.`,
+                htmlBody: `<p><strong>${data.workerName}</strong>'s <strong>${data.docType}</strong> ${isExpired ? "expired on" : "expires on"} <strong>${data.expiryDate}</strong>.</p><p>Please take action immediately.</p>`,
+            };
+        }
+        case "risk_critical":
+            return {
+                subject: `🚨 Critical Risk Alert: ${data.workerId}`,
+                textBody: `Worker ${data.workerId} has a critical risk score of ${data.riskScore}/100. Top factor: ${data.topFactor}. Please review immediately.`,
+                htmlBody: `<p>Worker <strong>${data.workerId}</strong> has a critical risk score of <strong>${data.riskScore}/100</strong>.</p><p>Top factor: ${data.topFactor}</p><p>Please review immediately.</p>`,
+            };
+        case "dispute_reminder":
+            return {
+                subject: `📋 Pending Dispute Requires Review (#${data.disputeId})`,
+                textBody: `Dispute #${data.disputeId} for worker ${data.workerId} (Amount: $${data.amount}) has been pending for ${data.daysPending} days. Please review.`,
+                htmlBody: `<p>Dispute <strong>#${data.disputeId}</strong> for worker <strong>${data.workerId}</strong></p><p>Amount: <strong>$${data.amount}</strong></p><p>Pending for <strong>${data.daysPending} days</strong>. Please review.</p>`,
+            };
+        case "compliance_low":
+            return {
+                subject: `⚠️ Low Compliance Score: ${data.employerId}`,
+                textBody: `Employer ${data.employerId} has a compliance score of ${data.score}/100. Expired documents: ${data.expiredDocs}. Please review.`,
+                htmlBody: `<p>Employer <strong>${data.employerId}</strong> has a compliance score of <strong>${data.score}/100</strong>.</p><p>Expired documents: ${data.expiredDocs}</p><p>Please review.</p>`,
+            };
+        default:
+            return {
+                subject: "MWMS Notification",
+                textBody: "You have a new notification in MWMS.",
+                htmlBody: "<p>You have a new notification in MWMS.</p>",
+            };
+    }
+}
+/**
+ * Send notification email using Resend API (preferred) or SMTP fallback.
+ * If RESEND_API_KEY missing: logs warning but returns success (in-app notif still created).
+ */
+async function sendNotificationEmail(to, type, data) {
+    const target = (to ?? "").toString().trim();
+    if (!target) {
+        console.warn("[emailService] sendNotificationEmail called with empty recipient — skipping.");
+        return { sent: false, fallback: true };
+    }
+    const { subject, textBody, htmlBody } = buildEmailTemplate(type, data);
+    // Preferred path: Resend HTTP API
+    const resend = getResendClient();
+    if (resend) {
+        try {
+            const { error } = await resend.emails.send({
+                from: resolveFromAddress(),
+                to: target,
+                subject,
+                text: textBody,
+                html: htmlBody,
+            });
+            if (error) {
+                console.error(`[emailService] Resend notification failed: ${error.message}`);
+                return { sent: false, fallback: true };
+            }
+            return { sent: true, fallback: false };
+        }
+        catch (err) {
+            console.error("[emailService] Resend notification threw:", err);
+        }
+    }
+    // Secondary path: SMTP
+    if (isSmtpConfigured()) {
+        const transporter = getTransporter();
+        if (transporter) {
+            const { from } = readSmtpConfig();
+            try {
+                await transporter.sendMail({
+                    from,
+                    to: target,
+                    subject,
+                    text: textBody,
+                    html: htmlBody,
+                });
+                return { sent: true, fallback: false };
+            }
+            catch (err) {
+                console.error("[emailService] SMTP notification failed:", err);
+            }
+        }
+    }
+    // Tertiary path: log fallback
+    console.warn(`[emailService] No email provider — notification logged only. to=${target} type=${type}`);
+    return { sent: false, fallback: true };
 }
