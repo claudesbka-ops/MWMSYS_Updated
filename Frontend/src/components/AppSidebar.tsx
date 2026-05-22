@@ -27,8 +27,6 @@ const navItems: NavItem[] = [
   { label: "Salary Disputes", icon: Scale, path: "/dispute", roles: ["admin", "agency", "employer", "worker", "labour"] },
   { label: "Risk Dashboard", icon: AlertTriangle, path: "/risk-dashboard", roles: ["admin", "agency"] },
   { label: "Search", icon: Search, path: "/search", roles: ["admin", "agency", "embassy_source", "embassy_destination", "labour"] },
-  { label: "Embassy Dashboard", icon: Globe2, path: "/embassy-dashboard", roles: ["embassy_source", "embassy_destination"] },
-  { label: "Labour Dashboard", icon: ShieldCheck, path: "/labour-dashboard", roles: ["labour"] },
   { label: "Notifications", icon: Bell, path: "/notification-settings", roles: ["admin", "agency", "employer", "worker"] },
   { label: "AI Copilot", icon: Sparkles, path: "/copilot", roles: ["admin", "agency"] },
   { label: "Audit Log", icon: ShieldCheck, path: "/audit-log", roles: ["admin"] },
