@@ -169,76 +169,172 @@ export default function TopHeader() {
   const resolvedTheme = (theme === "system" ? systemTheme : theme) ?? "light";
   const isDark = resolvedTheme === "dark";
 
+  const divider = (
+    <div
+      className="w-px h-6 mx-1 flex-shrink-0"
+      style={{ background: "var(--border-default)" }}
+    />
+  );
+
   return (
-    <header className="h-16 bg-card/70 backdrop-blur-xl supports-[backdrop-filter]:bg-card/55 border-b border-border/60 flex items-center justify-between px-6 sticky top-0 z-20">
-      <div className="flex items-center gap-3">
-        <h2 className="text-sm font-medium text-muted-foreground">Dashboard</h2>
-        <span className="text-muted-foreground/30">/</span>
-        <span className="text-sm font-semibold text-foreground">{breadcrumbMap[currentRole]}</span>
+    <header
+      className="h-16 flex items-center justify-between px-5 sticky top-0 z-20"
+      style={{
+        background: "var(--bg-surface)",
+        borderBottom: "1px solid var(--border-subtle)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        boxShadow: "var(--shadow-sm)",
+      }}
+    >
+      {/* Left: Breadcrumb */}
+      <div className="flex items-center gap-2 min-w-0">
+        <span
+          className="text-xs font-medium"
+          style={{ color: "var(--text-muted)" }}
+        >
+          Dashboard
+        </span>
+        <span style={{ color: "var(--border-default)" }}>/</span>
+        <span
+          className="text-xs font-semibold truncate"
+          style={{ color: "var(--text-primary)" }}
+        >
+          {breadcrumbMap[currentRole]}
+        </span>
         {(currentRole === "agency" || currentRole === "employer") && planLabel ? (
-          <span className="ml-2 inline-flex items-center gap-2 text-[11px] font-semibold px-2.5 py-1 rounded-xl border border-border/60 bg-gradient-to-r from-primary/15 via-muted/40 to-accent/10 text-foreground">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-            Plan: {planLabel}
+          <span
+            className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-lg"
+            style={{
+              background: "var(--accent-glow)",
+              color: "var(--text-accent)",
+              border: "1px solid var(--border-accent)",
+            }}
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ background: "var(--accent-color)" }}
+            />
+            {planLabel}
           </span>
         ) : null}
       </div>
-      <div className="flex items-center gap-2">
+
+      {/* Right: Actions */}
+      <div className="flex items-center gap-1.5">
         {/* Quick Actions */}
         {(currentRole === "admin" || currentRole === "agency") && (
           <>
-            <div className="hidden md:flex items-center gap-1.5 mr-1">
-              <button onClick={() => handleQuickAction("worker")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-success/10 text-success text-xs font-semibold hover:bg-success/15 transition-colors">
+            <div className="hidden md:flex items-center gap-1">
+              <button
+                onClick={() => handleQuickAction("worker")}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150"
+                style={{ color: "var(--status-success)", background: "var(--status-success-bg)" }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.filter = "brightness(1.1)")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.filter = "none")}
+              >
                 <Plus className="w-3 h-3" />
                 New Worker
               </button>
-              <button onClick={() => handleQuickAction("dispute")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-warning/10 text-warning text-xs font-semibold hover:bg-warning/15 transition-colors">
+              <button
+                onClick={() => handleQuickAction("dispute")}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150"
+                style={{ color: "var(--status-warning)", background: "var(--status-warning-bg)" }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.filter = "brightness(1.1)")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.filter = "none")}
+              >
                 <Banknote className="w-3 h-3" />
-                Salary Dispute
+                Dispute
               </button>
-              <button onClick={() => handleQuickAction("attestation")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/15 transition-colors">
+              <button
+                onClick={() => handleQuickAction("attestation")}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150"
+                style={{ color: "var(--text-accent)", background: "var(--accent-glow)" }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.filter = "brightness(1.1)")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.filter = "none")}
+              >
                 <FileCheck className="w-3 h-3" />
                 Attestation
               </button>
             </div>
-            <div className="w-px h-8 bg-border/60 mx-1 hidden md:block" />
+            {divider}
           </>
         )}
-
-        <div className="w-px h-8 bg-border/60 mx-1" />
 
         {/* CMD+K Search */}
         <button
           onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
-          className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border/60 hover:bg-muted/40 transition-colors premium-ring"
+          className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all duration-150"
+          style={{
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border-default)",
+            color: "var(--text-muted)",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border-accent)";
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 0 3px var(--accent-glow)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border-default)";
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
+          }}
         >
-          <Search className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">Search...</span>
-          <kbd className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-muted/60 text-[10px] font-semibold text-muted-foreground">
+          <Search className="w-3.5 h-3.5" />
+          <span>Search...</span>
+          <kbd
+            className="flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold"
+            style={{ background: "var(--border-subtle)", color: "var(--text-muted)" }}
+          >
             ⌘K
           </kbd>
         </button>
 
+        {/* Theme toggle */}
         <button
           onClick={() => setTheme(isDark ? "light" : "dark")}
-          className="p-2.5 rounded-2xl border border-border/60 hover:bg-muted/40 transition-colors premium-ring premium-hover"
+          className="p-2 rounded-lg transition-all duration-150"
+          style={{ color: "var(--text-secondary)" }}
           title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-hover)";
+            (e.currentTarget as HTMLButtonElement).style.color = "var(--text-primary)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+            (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)";
+          }}
         >
-          {isDark ? (
-            <Sun className="w-[18px] h-[18px] text-muted-foreground" />
-          ) : (
-            <Moon className="w-[18px] h-[18px] text-muted-foreground" />
-          )}
+          {isDark ? <Sun className="w-[17px] h-[17px]" /> : <Moon className="w-[17px] h-[17px]" />}
         </button>
 
         <NotificationBell />
 
+        {/* Notification bell with unread dot */}
         <DropdownMenu onOpenChange={(open) => open && handleOpenNotifications()}>
           <DropdownMenuTrigger asChild>
-            <button className="relative p-2.5 rounded-2xl hover:bg-muted/60 transition-colors premium-ring premium-hover">
-              <Bell className="w-[18px] h-[18px] text-muted-foreground" />
+            <button
+              className="relative p-2 rounded-lg transition-all duration-150"
+              style={{ color: "var(--text-secondary)" }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-hover)";
+                (e.currentTarget as HTMLButtonElement).style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)";
+              }}
+            >
+              <Bell className="w-[17px] h-[17px]" />
               {unreadCount > 0 ? (
-                <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center ring-2 ring-card">
-                  {unreadCount > 9 ? "9+" : unreadCount}
+                <span className="absolute top-1 right-1 flex h-2 w-2">
+                  <span
+                    className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                    style={{ background: "var(--status-danger)" }}
+                  />
+                  <span
+                    className="relative inline-flex rounded-full h-2 w-2"
+                    style={{ background: "var(--status-danger)" }}
+                  />
                 </span>
               ) : null}
             </button>
@@ -247,18 +343,28 @@ export default function TopHeader() {
             <DropdownMenuLabel>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-foreground">Notifications</span>
-                  <span className="text-xs text-muted-foreground">Latest incidents & updates</span>
+                  <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                    Notifications
+                  </span>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    Latest incidents &amp; updates
+                  </span>
                 </div>
                 <button
                   onClick={() => {
                     const newestId = allIncidents[0]?.id;
                     if (typeof newestId === "number") writeLastSeenId(newestId);
-
-                    const newestBroadcastId = Math.max(...(broadcastRows ?? []).map((b) => Number(b.id ?? 0)).filter((x) => Number.isFinite(x)), 0);
+                    const newestBroadcastId = Math.max(
+                      ...(broadcastRows ?? []).map((b) => Number(b.id ?? 0)).filter((x) => Number.isFinite(x)),
+                      0
+                    );
                     if (newestBroadcastId > 0) writeLastBroadcastSeenId(newestBroadcastId);
                   }}
-                  className="px-2.5 py-1 rounded-md border border-border/60 text-[11px] font-semibold text-muted-foreground hover:bg-muted/40 transition-colors"
+                  className="px-2 py-1 rounded-md text-[11px] font-semibold transition-colors"
+                  style={{
+                    border: "1px solid var(--border-default)",
+                    color: "var(--text-muted)",
+                  }}
                 >
                   Mark all read
                 </button>
@@ -267,7 +373,7 @@ export default function TopHeader() {
             <DropdownMenuSeparator />
             {allIncidents.length === 0 && (broadcastRows ?? []).length === 0 ? (
               <div className="px-3 py-8 text-center">
-                <p className="text-sm text-muted-foreground">No notifications</p>
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>No notifications</p>
               </div>
             ) : (
               <div className="max-h-[420px] overflow-auto p-1">
@@ -278,16 +384,25 @@ export default function TopHeader() {
                     className="items-start gap-3 py-2.5"
                   >
                     <div
-                      className={`mt-0.5 w-2.5 h-2.5 rounded-full ${(Number(b.id ?? 0) || 0) > lastBroadcastSeenId ? "bg-destructive" : "bg-muted"}`}
+                      className="mt-0.5 w-2 h-2 rounded-full flex-shrink-0"
+                      style={{
+                        background: (Number(b.id ?? 0) || 0) > lastBroadcastSeenId
+                          ? "var(--status-danger)"
+                          : "var(--border-default)",
+                      }}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium text-foreground truncate">Broadcast: {b.senderName ?? "System"}</p>
-                        <span className="text-[11px] text-muted-foreground flex-shrink-0">
+                        <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
+                          Broadcast: {b.senderName ?? "System"}
+                        </p>
+                        <span className="text-[11px] flex-shrink-0" style={{ color: "var(--text-muted)" }}>
                           {b.createdOn ? new Date(b.createdOn).toLocaleDateString() : ""}
                         </span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground truncate">{b.message || (b.attachments?.length ? "Attachment" : "")}</p>
+                      <p className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>
+                        {b.message || (b.attachments?.length ? "Attachment" : "")}
+                      </p>
                     </div>
                   </DropdownMenuItem>
                 ))}
@@ -298,45 +413,94 @@ export default function TopHeader() {
                     className="items-start gap-3 py-2.5"
                   >
                     <div
-                      className={`mt-0.5 w-2.5 h-2.5 rounded-full ${n.id > lastSeenId ? "bg-destructive" : "bg-muted"}`}
+                      className="mt-0.5 w-2 h-2 rounded-full flex-shrink-0"
+                      style={{
+                        background: n.id > lastSeenId ? "var(--status-danger)" : "var(--border-default)",
+                      }}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium text-foreground truncate">{n.description || n.type}</p>
-                        <span className="text-[11px] text-muted-foreground flex-shrink-0">{n.date}</span>
+                        <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
+                          {n.description || n.type}
+                        </p>
+                        <span className="text-[11px] flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+                          {n.date}
+                        </span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground truncate">{n.name}{n.idNumber ? ` · ${n.idNumber}` : ""}</p>
+                      <p className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>
+                        {n.name}{n.idNumber ? ` · ${n.idNumber}` : ""}
+                      </p>
                     </div>
                   </DropdownMenuItem>
                 ))}
               </div>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/reports/problem")}>Open Problem Report</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/reports/problem")}>
+              Open Problem Report
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <div className="w-px h-8 bg-border/60 mx-1" />
 
+        {divider}
+
+        {/* User avatar dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-muted/60 transition-colors">
-              <div className="w-8 h-8 rounded-2xl bg-gradient-to-br from-primary via-primary/80 to-accent flex items-center justify-center shadow-sm ring-1 ring-border/50">
-                <User className="w-4 h-4 text-primary-foreground" />
+            <button
+              className="flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-150"
+              onMouseEnter={(e) =>
+                ((e.currentTarget as HTMLButtonElement).style.background = "var(--bg-hover)")
+              }
+              onMouseLeave={(e) =>
+                ((e.currentTarget as HTMLButtonElement).style.background = "transparent")
+              }
+            >
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center"
+                style={{
+                  background: "linear-gradient(135deg, var(--accent-color), var(--accent-bright))",
+                  boxShadow: "0 0 0 2px var(--accent-glow)",
+                }}
+              >
+                <User className="w-3.5 h-3.5 text-white" />
               </div>
-              <span className="text-sm font-medium text-foreground hidden sm:inline">{userName}</span>
+              <span
+                className="text-sm font-medium hidden sm:inline"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {userName}
+              </span>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
             <DropdownMenuLabel>
-              <div className="flex flex-col">
-                <span className="text-sm font-semibold text-foreground truncate">{userName}</span>
-                <span className="text-xs text-muted-foreground truncate">{breadcrumbMap[currentRole]}</span>
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{
+                    background: "linear-gradient(135deg, var(--accent-color), var(--accent-bright))",
+                  }}
+                >
+                  <User className="w-4 h-4 text-white" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>
+                    {userName}
+                  </span>
+                  <span className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
+                    {breadcrumbMap[currentRole]}
+                  </span>
+                </div>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => navigate("/account")}>Manage Account</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleLogout}>
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={handleLogout}
+            >
               Logout
             </DropdownMenuItem>
           </DropdownMenuContent>

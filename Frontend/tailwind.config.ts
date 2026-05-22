@@ -14,7 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+        display: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+        body: ['DM Sans', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -73,6 +75,15 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        "2xl": "var(--radius-2xl)",
+        xl2: "var(--radius-xl)",
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
+        glow: "var(--shadow-glow)",
+        "sm-token": "var(--shadow-sm)",
+        "md-token": "var(--shadow-md)",
+        "lg-token": "var(--shadow-lg)",
       },
       keyframes: {
         "accordion-down": {
