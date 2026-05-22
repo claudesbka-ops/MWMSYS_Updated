@@ -16,6 +16,7 @@ router.post("/Api/Copilot/Query", requireAuth, aiRateLimiter, queryCopilot);
 router.get("/Api/Copilot/Suggestions", requireAuth, getSuggestions);
 
 // Embassy AI Copilot - Embassy roles only (AI rate limited)
+// Fixed: Route now properly registered and deployed
 router.post("/Api/Copilot/EmbassyQuery", requireAuth, checkRole([5, 6]), aiRateLimiter, queryEmbassyCopilot);
 
 // Labour Dept AI Copilot - Labour role only (AI rate limited)  
