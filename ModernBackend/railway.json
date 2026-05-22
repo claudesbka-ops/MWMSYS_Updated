@@ -5,7 +5,7 @@
     "buildCommand": "npm run build"
   },
   "deploy": {
-    "startCommand": "npx prisma migrate deploy && node dist/index.js",
+    "startCommand": "npx prisma migrate resolve --applied 20260518020356_add_worker_doc_ai_extraction || true && npx prisma migrate deploy && node dist/index.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
   }

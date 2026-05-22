@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "npx prisma generate && tsc",
-    "start": "npx prisma migrate deploy && node dist/index.js",
+    "start": "npx prisma migrate resolve --applied 20260518020356_add_worker_doc_ai_extraction || true && npx prisma migrate deploy && node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:pull": "prisma db pull",
     "test": "echo \"Error: no test specified\" && exit 1"
