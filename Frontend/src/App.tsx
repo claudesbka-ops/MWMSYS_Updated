@@ -74,7 +74,20 @@ const queryClient = new QueryClient();
 function RootRedirect() {
   const { user, loading } = useAuth();
   if (loading) return null;
-  return <Navigate to={user ? "/dashboard" : "/login"} replace />;
+  
+  if (!user) return <Navigate to="/login" replace />;
+  
+  // Route specific roles to their dedicated dashboards
+  if (user.role === "embassy_source" || user.role === "embassy_destination") {
+    return <Navigate to="/embassy-dashboard" replace />;
+  }
+  
+  if (user.role === "labour") {
+    return <Navigate to="/labour-dashboard" replace />;
+  }
+  
+  // Default dashboard for all other roles
+  return <Navigate to="/dashboard" replace />;
 }
 
 function AnimatedRoutes() {
