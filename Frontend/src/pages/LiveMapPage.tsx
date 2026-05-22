@@ -3,9 +3,10 @@ import { useSearchParams } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { apiClient, getAccessToken } from "@/services/apiClient";
 import { io, type Socket } from "socket.io-client";
-import { GoogleMap, InfoWindowF, MarkerF, useJsApiLoader } from "@react-google-maps/api";
+import { GoogleMap, HeatmapLayerF, InfoWindowF, MarkerF, useJsApiLoader } from "@react-google-maps/api";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useRole } from "@/contexts/RoleContext";
 
 type WorkerLocationRow = {
   workerId: string;
@@ -30,10 +31,18 @@ export default function LiveMapPage() {
     if (focusWorkerId) setSelectedId(focusWorkerId);
   }, [focusWorkerId]);
 
+  const { currentRole } = useRole();
+  const canHeatmap = currentRole === "admin" || currentRole === "agency";
+
+  const [mapMode, setMapMode] = useState<"pins" | "heatmap">("pins");
+  const [heatmapPoints, setHeatmapPoints] = useState<Array<{ lat: number; lng: number; weight: number }>>([]);
+  const [heatmapLoaded, setHeatmapLoaded] = useState(false);
+
   const googleMapsApiKey = (import.meta as any)?.env?.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
   const { isLoaded } = useJsApiLoader({
     id: "mwmsys-google-maps",
     googleMapsApiKey: googleMapsApiKey || "",
+    libraries: ["visualization"],
   });
 
   const socketUrl = useMemo(() => {
@@ -57,6 +66,16 @@ export default function LiveMapPage() {
     });
 
     socketRef.current = s;
+
+    if (canHeatmap) {
+      apiClient
+        .get<{ points: Array<{ lat: number; lng: number; weight: number }> }>("/Api/Map/HeatmapData")
+        .then((res) => {
+          setHeatmapPoints(Array.isArray(res.data?.points) ? res.data.points : []);
+          setHeatmapLoaded(true);
+        })
+        .catch(() => undefined);
+    }
 
     const onUpdate = (payload: any) => {
       const workerId = (payload?.workerId ?? "").toString();
@@ -164,7 +183,40 @@ export default function LiveMapPage() {
                     <div className="text-sm font-semibold">Workers</div>
                     <div className="text-xs text-muted-foreground">{filteredRows.length} active locations</div>
                   </div>
-                  <Badge variant="secondary" className="trend-badge-shimmer">Live</Badge>
+                  <div className="flex items-center gap-2">
+                    {canHeatmap && (
+                      <div className="flex rounded-xl border border-border/60 overflow-hidden text-xs font-semibold">
+                        <button
+                          onClick={() => setMapMode("pins")}
+                          className={`px-3 py-1.5 transition-colors ${
+                            mapMode === "pins" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40 text-muted-foreground"
+                          }`}
+                        >
+                          Pins
+                        </button>
+                        <button
+                          onClick={() => {
+                            setMapMode("heatmap");
+                            if (!heatmapLoaded) {
+                              apiClient
+                                .get<{ points: Array<{ lat: number; lng: number; weight: number }> }>("/Api/Map/HeatmapData")
+                                .then((r) => {
+                                  setHeatmapPoints(Array.isArray(r.data?.points) ? r.data.points : []);
+                                  setHeatmapLoaded(true);
+                                })
+                                .catch(() => undefined);
+                            }
+                          }}
+                          className={`px-3 py-1.5 transition-colors ${
+                            mapMode === "heatmap" ? "bg-primary text-primary-foreground" : "hover:bg-muted/40 text-muted-foreground"
+                          }`}
+                        >
+                          Heatmap
+                        </button>
+                      </div>
+                    )}
+                    <Badge variant="secondary" className="trend-badge-shimmer">Live</Badge>
+                  </div>
                 </div>
                 <div className="mt-3">
                   <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name / worker id" />
@@ -237,7 +289,16 @@ export default function LiveMapPage() {
                 }}
                 onClick={() => setSelectedId(null)}
               >
-                {filteredRows.map((r) => {
+                {mapMode === "heatmap" && heatmapPoints.length > 0 && (
+                  <HeatmapLayerF
+                    data={heatmapPoints.map((p) => ({
+                      location: new (window as any).google.maps.LatLng(p.lat, p.lng),
+                      weight: p.weight,
+                    }))}
+                    options={{ radius: 30, opacity: 0.7 }}
+                  />
+                )}
+                {mapMode === "pins" && filteredRows.map((r) => {
                   if (r.lat == null || r.lng == null) return null;
                   const stale = isStale(r.updatedAt);
                   const isSelected = r.workerId === selectedId;

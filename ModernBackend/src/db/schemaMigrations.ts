@@ -314,6 +314,38 @@ export async function ensureDisputeTableExists(): Promise<void> {
   }
 }
 
+export async function ensureDisputeTimelineTable(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(
+      `CREATE TABLE IF NOT EXISTS "Tbl_Dispute_Timeline" (
+        "Id" SERIAL PRIMARY KEY,
+        "Dispute_Id" INT NOT NULL,
+        "Action" VARCHAR(100) NOT NULL,
+        "Actor_Id" VARCHAR(100) NULL,
+        "Actor_Role" VARCHAR(20) NULL,
+        "Note" VARCHAR(500) NULL,
+        "Created_At" TIMESTAMP NOT NULL DEFAULT NOW()
+      )`
+    );
+    await prisma.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "IX_Tbl_Dispute_Timeline_Dispute_Id" ON "Tbl_Dispute_Timeline"("Dispute_Id")`
+    );
+    await prisma.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "IX_Tbl_Dispute_Timeline_Created_At" ON "Tbl_Dispute_Timeline"("Created_At")`
+    );
+  } catch {
+    // ignore
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "Tbl_SalaryDispute" ADD COLUMN IF NOT EXISTS "Ai_Case_Summary" TEXT NULL`
+    );
+  } catch {
+    // ignore — column may already exist
+  }
+}
+
 export async function ensureOtpTableExists(): Promise<void> {
   try {
     await prisma.$executeRawUnsafe(
@@ -418,6 +450,87 @@ export async function broadcastTableExists(): Promise<boolean> {
  * bootstrappers are idempotent and swallow their own errors, so this call
  * itself never rejects.
  */
+export async function ensureOvertimeColumns(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Tbl_Attendance" ADD COLUMN IF NOT EXISTS "Is_Overtime" BOOLEAN DEFAULT FALSE`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Tbl_Attendance" ADD COLUMN IF NOT EXISTS "Overtime_Hours" DECIMAL(5,2) DEFAULT 0`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Tbl_Attendance" ADD COLUMN IF NOT EXISTS "Is_Weekend" BOOLEAN DEFAULT FALSE`);
+  } catch {
+    // ignore — columns may already exist
+  }
+}
+
+export async function ensure2FAColumn(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "Tbl_User" ADD COLUMN IF NOT EXISTS "Two_FA_Enabled" BOOLEAN DEFAULT FALSE`
+    );
+  } catch {
+    // ignore
+  }
+}
+
+export async function ensureBlogTable(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "Tbl_Blog_Post" (
+        "Id"           SERIAL PRIMARY KEY,
+        "Slug"         VARCHAR(200) NOT NULL UNIQUE,
+        "Title"        VARCHAR(300) NOT NULL,
+        "Excerpt"      VARCHAR(500),
+        "Content"      TEXT,
+        "Category"     VARCHAR(100),
+        "Hero_Image"   VARCHAR(500),
+        "Author"       VARCHAR(100),
+        "Published"    BOOLEAN NOT NULL DEFAULT TRUE,
+        "Published_At" TIMESTAMPTZ DEFAULT NOW(),
+        "Created_At"   TIMESTAMPTZ DEFAULT NOW(),
+        "Updated_At"   TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await prisma.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "IX_Tbl_Blog_Post_Slug" ON "Tbl_Blog_Post" ("Slug")`
+    );
+    await prisma.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "IX_Tbl_Blog_Post_Published" ON "Tbl_Blog_Post" ("Published")`
+    );
+  } catch {
+    // ignore
+  }
+}
+
+export async function ensureGeofenceTable(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "Tbl_Geofences" (
+        "Id"             SERIAL PRIMARY KEY,
+        "Employer_Id"    VARCHAR(100) NOT NULL,
+        "Name"           VARCHAR(100) NOT NULL,
+        "Center_Lat"     DOUBLE PRECISION NOT NULL,
+        "Center_Lng"     DOUBLE PRECISION NOT NULL,
+        "Radius_Meters"  INTEGER NOT NULL DEFAULT 500,
+        "Is_Active"      BOOLEAN NOT NULL DEFAULT TRUE,
+        "Created_At"     TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await prisma.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "IX_Tbl_Geofences_Employer" ON "Tbl_Geofences" ("Employer_Id")`
+    );
+  } catch {
+    // ignore
+  }
+}
+
+export async function ensureGeofenceAttendanceColumn(): Promise<void> {
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "Tbl_Attendance" ADD COLUMN IF NOT EXISTS "Is_Within_Geofence" BOOLEAN`
+    );
+  } catch {
+    // ignore
+  }
+}
+
 export async function runSchemaMigrations(): Promise<void> {
   // Note: ensureSubscriptionTableExists lives in middleware/subscription.ts
   // because it is also invoked by the subscription middleware at request time.
@@ -432,5 +545,11 @@ export async function runSchemaMigrations(): Promise<void> {
     ensureOtpTableExists(),
     ensureDisputeTableExists(),
     ensureUserProfilePhotoColumn(),
+    ensureDisputeTimelineTable(),
+    ensureOvertimeColumns(),
+    ensure2FAColumn(),
+    ensureBlogTable(),
+    ensureGeofenceTable(),
+    ensureGeofenceAttendanceColumn(),
   ]);
 }

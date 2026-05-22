@@ -193,6 +193,86 @@ function validateEscalationRisk(s: string): EscalationRisk {
   return valid.includes(s as EscalationRisk) ? (s as EscalationRisk) : "possible";
 }
 
+export interface DisputeForSummary {
+  id: number;
+  workerId: string;
+  workerName: string | null;
+  employerId: string;
+  employerName: string | null;
+  disputeMonth: string;
+  expectedAmount: number;
+  receivedAmount: number;
+  description: string;
+  hasProof: boolean;
+  status: string;
+  employerComment: string | null;
+  aiSeverity: string | null;
+  aiSeverityScore: number | null;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+}
+
+/**
+ * Generate a formal AI case summary for HR/legal records.
+ */
+export async function generateCaseSummary(dispute: DisputeForSummary): Promise<string> {
+  if (client) {
+    const amountDiff = dispute.expectedAmount - dispute.receivedAmount;
+    const prompt = `You are an HR/legal case analyst. Write a formal case summary for the following salary dispute, suitable for records and legal review. Use professional language, 3-5 paragraphs.
+
+CASE DETAILS:
+- Case ID: ${dispute.id}
+- Worker: ${dispute.workerName ?? dispute.workerId}
+- Employer: ${dispute.employerName ?? dispute.employerId}
+- Dispute Period: ${dispute.disputeMonth}
+- Expected Amount: RM ${dispute.expectedAmount.toFixed(2)}
+- Received Amount: RM ${dispute.receivedAmount.toFixed(2)}
+- Shortfall: RM ${amountDiff.toFixed(2)}
+- Evidence Submitted: ${dispute.hasProof ? "Yes" : "No"}
+- Worker's Description: ${dispute.description}
+- Resolution Status: ${dispute.status}
+- Employer Response: ${dispute.employerComment ?? "No comment provided"}
+- AI Severity Assessment: ${dispute.aiSeverity ?? "Not assessed"}${dispute.aiSeverityScore != null ? ` (score: ${dispute.aiSeverityScore}/100)` : ""}
+- Submitted: ${dispute.submittedAt ?? "Unknown"}
+- Reviewed: ${dispute.reviewedAt ?? "Pending"}
+
+Write a formal case summary including: case overview, description of the dispute, evidence assessment, resolution outcome, and recommended next action if any.`;
+
+    try {
+      const response = await client.chat.completions.create({
+        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.4,
+        max_tokens: 800,
+      });
+      const content = response.choices[0]?.message?.content?.trim() || "";
+      if (content) return content;
+    } catch (err) {
+      console.error("[disputeAi] Case summary OpenAI error:", err);
+    }
+  }
+
+  return fallbackCaseSummary(dispute);
+}
+
+function fallbackCaseSummary(dispute: DisputeForSummary): string {
+  const amountDiff = (dispute.expectedAmount - dispute.receivedAmount).toFixed(2);
+  const lines = [
+    `CASE SUMMARY — Dispute #${dispute.id}`,
+    ``,
+    `Worker ${dispute.workerName ?? dispute.workerId} filed a salary dispute against employer ${dispute.employerName ?? dispute.employerId} covering the period ${dispute.disputeMonth}. The worker reported receiving RM ${dispute.receivedAmount.toFixed(2)} against an expected amount of RM ${dispute.expectedAmount.toFixed(2)}, resulting in a shortfall of RM ${amountDiff}.`,
+    ``,
+    `Dispute Description: ${dispute.description}`,
+    ``,
+    `Evidence submitted: ${dispute.hasProof ? "Yes" : "No"}. AI severity assessment: ${dispute.aiSeverity ?? "Not scored"}${dispute.aiSeverityScore != null ? ` (${dispute.aiSeverityScore}/100)` : ""}.`,
+    ``,
+    `Resolution: The dispute was ${dispute.status}. Employer comment: ${dispute.employerComment ?? "None provided"}.`,
+    ``,
+    `Recommended action: ${dispute.status === "Rejected" ? "Worker may escalate to the Labour Department if unresolved." : dispute.status === "Accepted" ? "Monitor payroll to confirm settlement." : "Awaiting employer review — escalate if not resolved within 7 days."}`,
+  ];
+  return lines.join("\n");
+}
+
 function fallbackScore(dispute: DisputeForScoring): DisputeAiScore {
   const amount = dispute.expectedAmount - dispute.receivedAmount;
   const days = dispute.daysUnresolved;

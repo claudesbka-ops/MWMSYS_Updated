@@ -286,28 +286,62 @@ panicRouter.get("/Api/Panic/Active", requireAuth, requireAlertViewer, async (_re
       new Set((rows ?? []).map((r) => (r.worker_ID ?? "").toString()).filter(Boolean))
     );
 
-    const workerPhotos = workerIds.length
+    const workerInfoRows = workerIds.length
       ? await prisma.tbl_Worker_PersonalInfo.findMany({
-          where: {
-            Worker_Id: { in: workerIds },
-          },
+          where: { Worker_Id: { in: workerIds } },
           select: {
             Worker_Id: true,
             Photo: true,
+            Name: true,
+            Passport_Number: true,
+            Contact_Number: true,
+            Nationality: true,
+            Employer_Id: true,
           },
         })
       : [];
 
-    const photoByWorkerId = new Map<string, string | null>();
-    for (const w of workerPhotos ?? []) {
-      photoByWorkerId.set(w.Worker_Id, w.Photo ?? null);
+    const employerIds = Array.from(
+      new Set((workerInfoRows ?? []).map((w) => (w.Employer_Id ?? "").toString()).filter(Boolean))
+    );
+    const employerRows = employerIds.length
+      ? await prisma.tbl_Employer.findMany({
+          where: { User_Id: { in: employerIds } },
+          select: { User_Id: true, Employer_Name: true },
+        })
+      : [];
+    const employerNameById = new Map<string, string>();
+    for (const e of employerRows ?? []) employerNameById.set(e.User_Id, e.Employer_Name ?? "");
+
+    const workerInfoById = new Map<string, {
+      photo: string | null; name: string | null; passport: string | null;
+      phone: string | null; nationality: string | null; employerName: string | null;
+    }>();
+    for (const w of workerInfoRows ?? []) {
+      const empId = (w.Employer_Id ?? "").toString();
+      workerInfoById.set(w.Worker_Id, {
+        photo: w.Photo ?? null,
+        name: w.Name ?? null,
+        passport: w.Passport_Number ?? null,
+        phone: w.Contact_Number ?? null,
+        nationality: w.Nationality != null ? String(w.Nationality) : null,
+        employerName: empId ? (employerNameById.get(empId) ?? null) : null,
+      });
     }
 
     return res.json(
-      (rows ?? []).map((r) => ({
-        ...r,
-        passportPhoto: r.worker_ID ? photoByWorkerId.get(r.worker_ID) ?? null : null,
-      }))
+      (rows ?? []).map((r) => {
+        const wi = r.worker_ID ? workerInfoById.get(r.worker_ID) ?? null : null;
+        return {
+          ...r,
+          passportPhoto: wi?.photo ?? null,
+          workerName: wi?.name ?? null,
+          passportNumber: wi?.passport ?? null,
+          phoneNumber: wi?.phone ?? null,
+          nationality: wi?.nationality ?? null,
+          employerName: wi?.employerName ?? r.Company_Name ?? null,
+        };
+      })
     );
   } catch (e) {
     return next(e);
@@ -353,28 +387,62 @@ panicRouter.get("/Api/Panic/History", requireAuth, requireAuthority, async (_req
       new Set((rows ?? []).map((r) => (r.worker_ID ?? "").toString()).filter(Boolean))
     );
 
-    const workerPhotos = workerIds.length
+    const workerInfoRows = workerIds.length
       ? await prisma.tbl_Worker_PersonalInfo.findMany({
-          where: {
-            Worker_Id: { in: workerIds },
-          },
+          where: { Worker_Id: { in: workerIds } },
           select: {
             Worker_Id: true,
             Photo: true,
+            Name: true,
+            Passport_Number: true,
+            Contact_Number: true,
+            Nationality: true,
+            Employer_Id: true,
           },
         })
       : [];
 
-    const photoByWorkerId = new Map<string, string | null>();
-    for (const w of workerPhotos ?? []) {
-      photoByWorkerId.set(w.Worker_Id, w.Photo ?? null);
+    const employerIds = Array.from(
+      new Set((workerInfoRows ?? []).map((w) => (w.Employer_Id ?? "").toString()).filter(Boolean))
+    );
+    const employerRows = employerIds.length
+      ? await prisma.tbl_Employer.findMany({
+          where: { User_Id: { in: employerIds } },
+          select: { User_Id: true, Employer_Name: true },
+        })
+      : [];
+    const employerNameById = new Map<string, string>();
+    for (const e of employerRows ?? []) employerNameById.set(e.User_Id, e.Employer_Name ?? "");
+
+    const workerInfoById = new Map<string, {
+      photo: string | null; name: string | null; passport: string | null;
+      phone: string | null; nationality: string | null; employerName: string | null;
+    }>();
+    for (const w of workerInfoRows ?? []) {
+      const empId = (w.Employer_Id ?? "").toString();
+      workerInfoById.set(w.Worker_Id, {
+        photo: w.Photo ?? null,
+        name: w.Name ?? null,
+        passport: w.Passport_Number ?? null,
+        phone: w.Contact_Number ?? null,
+        nationality: w.Nationality != null ? String(w.Nationality) : null,
+        employerName: empId ? (employerNameById.get(empId) ?? null) : null,
+      });
     }
 
     return res.json(
-      (rows ?? []).map((r) => ({
-        ...r,
-        passportPhoto: r.worker_ID ? photoByWorkerId.get(r.worker_ID) ?? null : null,
-      }))
+      (rows ?? []).map((r) => {
+        const wi = r.worker_ID ? workerInfoById.get(r.worker_ID) ?? null : null;
+        return {
+          ...r,
+          passportPhoto: wi?.photo ?? null,
+          workerName: wi?.name ?? null,
+          passportNumber: wi?.passport ?? null,
+          phoneNumber: wi?.phone ?? null,
+          nationality: wi?.nationality ?? null,
+          employerName: wi?.employerName ?? r.Company_Name ?? null,
+        };
+      })
     );
   } catch (e) {
     return next(e);

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiClient, getAccessToken } from "@/services/apiClient";
-import { Bot } from "lucide-react";
+import { Bot, Mic, MicOff } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 type SenderType = "AI" | "User" | "Agent";
@@ -54,6 +54,48 @@ export default function Chatbot() {
   const [sending, setSending] = useState(false);
   const [language, setLanguage] = useState<SupportedLanguage>("en");
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  const [micState, setMicState] = useState<"idle" | "recording" | "processing">("idle");
+  const recognitionRef = useRef<any>(null);
+
+  const LANG_TO_BCP47: Record<SupportedLanguage, string> = {
+    en: "en-US", bn: "bn-BD", ta: "ta-IN", ms: "ms-MY", ar: "ar-SA",
+  };
+
+  const speechSupported = typeof window !== "undefined" &&
+    ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
+
+  const toggleMic = () => {
+    if (!speechSupported) return;
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (micState === "recording") {
+      recognitionRef.current?.stop();
+      setMicState("idle");
+      return;
+    }
+
+    const rec = new SR();
+    rec.lang = LANG_TO_BCP47[language];
+    rec.continuous = false;
+    rec.interimResults = true;
+
+    rec.onstart = () => setMicState("recording");
+    rec.onresult = (e: any) => {
+      const transcript = Array.from(e.results as any[])
+        .map((r: any) => r[0].transcript)
+        .join("");
+      setText(transcript);
+      if (e.results[e.results.length - 1].isFinal) {
+        setMicState("processing");
+      }
+    };
+    rec.onend = () => setMicState("idle");
+    rec.onerror = () => setMicState("idle");
+
+    recognitionRef.current = rec;
+    rec.start();
+  };
 
   const sessionStorageKey = useMemo(() => `mwmsys_chat_session_${workerId || "anon"}`,
   [workerId]);
@@ -340,6 +382,27 @@ export default function Chatbot() {
                   }
                 }}
               />
+              {speechSupported && (
+                <button
+                  type="button"
+                  title="Tap to speak"
+                  onClick={toggleMic}
+                  disabled={sending}
+                  className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+                    micState === "recording"
+                      ? "bg-red-500 text-white animate-pulse"
+                      : micState === "processing"
+                        ? "bg-amber-400 text-white"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  {micState === "recording" ? (
+                    <MicOff className="w-4 h-4" />
+                  ) : (
+                    <Mic className="w-4 h-4" />
+                  )}
+                </button>
+              )}
               <Button onClick={send} disabled={!canSend || sending}>
                 {sending ? "Sending..." : "Send"}
               </Button>

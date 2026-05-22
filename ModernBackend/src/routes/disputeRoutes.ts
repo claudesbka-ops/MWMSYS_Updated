@@ -6,7 +6,7 @@ import multer from "multer";
 import { prisma } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { uploadsDir, safeUnlinkUpload } from "../middleware/upload";
-import { ensureDisputeTableExists } from "../db/schemaMigrations";
+import { ensureDisputeTableExists, ensureDisputeTimelineTable } from "../db/schemaMigrations";
 import { buildWorkerScopeWhere } from "../services/queryGuard";
 
 const disputesDir = path.join(uploadsDir, "disputes");
@@ -40,6 +40,28 @@ const disputeUpload = multer({
 });
 
 export const disputeRouter = Router();
+
+async function insertTimelineEntry(params: {
+  disputeId: number;
+  action: string;
+  actorId?: string | null;
+  actorRole?: string | null;
+  note?: string | null;
+}): Promise<void> {
+  try {
+    await ensureDisputeTimelineTable();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "Tbl_Dispute_Timeline"("Dispute_Id","Action","Actor_Id","Actor_Role","Note") VALUES ($1,$2,$3,$4,$5)`,
+      params.disputeId,
+      params.action.slice(0, 100),
+      params.actorId ?? null,
+      params.actorRole ?? null,
+      params.note ? params.note.slice(0, 500) : null,
+    );
+  } catch {
+    // non-blocking — don't fail the main operation if timeline write fails
+  }
+}
 
 type DisputeRow = {
   Id: number;
@@ -184,6 +206,15 @@ disputeRouter.post(
       });
 
       const hydrated = await hydrateDisputes([created as unknown as DisputeRow]);
+
+      await insertTimelineEntry({
+        disputeId: created.Id,
+        action: "submitted",
+        actorId: workerId,
+        actorRole: "worker",
+        note: `Dispute submitted for ${disputeMonth}`,
+      });
+
       return res.status(201).json(hydrated[0] ?? { id: created.Id });
     } catch (e: any) {
       if ((e?.message ?? "").toLowerCase().includes("proof must be")) {
@@ -341,7 +372,61 @@ disputeRouter.put("/Api/Dispute/Review", requireAuth, async (req, res, next) => 
     });
 
     const hydrated = await hydrateDisputes([updated as unknown as DisputeRow]);
+
+    const reviewerRole = roleId === 1 ? "admin" : "employer";
+    await insertTimelineEntry({
+      disputeId: id,
+      action: status === "Accepted" ? "accepted" : "rejected",
+      actorId: reviewer,
+      actorRole: reviewerRole,
+      note: comment || null,
+    });
+
     return res.json(hydrated[0] ?? { id: updated.Id });
+  } catch (e) {
+    return next(e);
+  }
+});
+
+// ---------- GET /Api/Disputes/:id/Timeline ----------
+
+disputeRouter.get("/Api/Disputes/:id/Timeline", requireAuth, async (req, res, next) => {
+  try {
+    const id = Number(req.params?.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ error: "Invalid dispute id" });
+    }
+
+    await ensureDisputeTableExists();
+    await ensureDisputeTimelineTable();
+
+    const user = (req as any).user as any;
+    const roleId = Number(user?.roleId ?? 0);
+    const userKey = (user?.userKey ?? "").toString().trim();
+
+    const dispute = await prisma.tbl_SalaryDispute.findFirst({ where: { Id: id } });
+    if (!dispute) return res.status(404).json({ error: "Dispute not found" });
+
+    // Access check: worker sees own, employer sees own, admin/agency/labour see all
+    let allowed = false;
+    if (roleId === 1 || roleId === 4 || roleId === 7) {
+      allowed = true;
+    } else if (roleId === 2) {
+      allowed = userKey === dispute.Worker_Id;
+    } else if (roleId === 3) {
+      allowed = userKey === dispute.Employer_Id;
+    }
+    if (!allowed) return res.status(403).json({ error: "Forbidden" });
+
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT "Id","Dispute_Id","Action","Actor_Id","Actor_Role","Note","Created_At"
+       FROM "Tbl_Dispute_Timeline"
+       WHERE "Dispute_Id" = $1
+       ORDER BY "Created_At" ASC`,
+      id,
+    )) as any[];
+
+    return res.json(rows ?? []);
   } catch (e) {
     return next(e);
   }

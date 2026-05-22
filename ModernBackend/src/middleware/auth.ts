@@ -20,6 +20,18 @@ export function signToken(claims: JwtClaims): string {
   return jwt.sign(claims, secret, { expiresIn: "7d" });
 }
 
+export function signTokenWithExpiry(claims: Record<string, unknown>, expiresInSeconds: number): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET is not set");
+  return jwt.sign(claims, secret, { expiresIn: expiresInSeconds });
+}
+
+export function verifyToken(token: string): any {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET is not set");
+  return jwt.verify(token, secret);
+}
+
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const header = req.header("authorization") || req.header("Authorization");
   if (!header || !header.toLowerCase().startsWith("bearer ")) {

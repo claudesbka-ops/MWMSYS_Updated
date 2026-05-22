@@ -52,6 +52,8 @@ import { notificationRouter } from "./routes/notificationRoutes";
 import { copilotRouter } from "./routes/copilotRoutes";
 import { auditRouter } from "./routes/auditRoutes";
 import { billingRouter, stripeWebhookHandler } from "./routes/billingRoutes";
+import { blogRouter } from "./routes/blogRoutes";
+import { geofenceRouter } from "./routes/geofenceRoutes";
 import { startAlertScheduler } from "./services/alertSchedulerService";
 import {
   authRateLimiter,
@@ -359,6 +361,51 @@ app.get("/Api/Workers/Locations", requireAuth, checkRole([1, 3, 4, 5, 6, 7]), as
   }
 });
 
+app.get("/Api/Map/HeatmapData", requireAuth, checkRole([1, 4]), async (req, res, next) => {
+  try {
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+
+    const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
+      where: roleId === 1 ? {} : scopeWhere,
+      select: { Worker_Id: true },
+      take: 10000,
+    });
+    const workerIds = (scopedWorkers ?? []).map((w) => (w.Worker_Id ?? "").toString()).filter(Boolean);
+
+    if (roleId !== 1 && !workerIds.length) return res.json({ points: [] });
+
+    await prisma.$executeRawUnsafe(
+      `CREATE TABLE IF NOT EXISTS "Tbl_Worker_Location" (
+        "workerId" VARCHAR(100) NOT NULL PRIMARY KEY,
+        lat DECIMAL(10,7) NULL,
+        lng DECIMAL(10,7) NULL,
+        accuracy DECIMAL(10,2) NULL,
+        "updatedOn" TIMESTAMP NULL
+      )`
+    );
+
+    const locations = (await prisma.$queryRawUnsafe(
+      roleId === 1
+        ? `SELECT lat, lng FROM "Tbl_Worker_Location" WHERE lat IS NOT NULL AND lng IS NOT NULL LIMIT 10000`
+        : `SELECT lat, lng FROM "Tbl_Worker_Location" WHERE "workerId" IN (${workerIds
+            .map((_, i) => `$${i + 1}`)
+            .join(",")}) AND lat IS NOT NULL AND lng IS NOT NULL LIMIT 10000`,
+      ...(roleId === 1 ? [] : workerIds)
+    )) as Array<{ lat: any; lng: any }>;
+
+    return res.json({
+      points: (locations ?? []).map((l) => ({
+        lat: Number(l.lat),
+        lng: Number(l.lng),
+        weight: 1,
+      })),
+    });
+  } catch (e) {
+    return next(e);
+  }
+});
+
 app.use("/uploads", express.static(uploadsDir));
 
 const server = http.createServer(app);
@@ -386,6 +433,8 @@ app.use(notificationRouter);
 app.use(aiRateLimiter, copilotRouter);
 app.use(billingRouter);
 app.use(auditRouter);
+app.use(blogRouter);
+app.use(geofenceRouter);
 
 // Start alert scheduler 5 minutes after server boot
 setTimeout(() => startAlertScheduler(), 5 * 60 * 1000);

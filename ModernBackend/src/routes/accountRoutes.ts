@@ -333,3 +333,72 @@ accountRouter.post("/Api/Account/Photo", requireAuth, upload.single("photo"), ha
 // Alias used by the worker signup wizard and any new client code that
 // expects the more specific name. Both endpoints share the same handler.
 accountRouter.post("/Api/Account/UploadPhoto", requireAuth, upload.single("photo"), handleAccountPhotoUpload);
+
+/**
+ * DELETE /Api/Account/Delete
+ *
+ * GDPR-compliant soft-delete. Worker can delete own account; Admin can
+ * delete any account via ?userId=<userKey> query param.
+ *
+ * What deletion does:
+ *   1. Sets User_Status = 0 (soft delete)
+ *   2. Anonymises Email_Id → deleted_<userId>@deleted.com
+ *   3. Clears Login_Pwd and User_Name
+ *   4. Keeps all records for audit trail (no hard deletes)
+ */
+accountRouter.delete("/Api/Account/Delete", requireAuth, async (req, res, next) => {
+  try {
+    const caller = (req as any).user as {
+      userId?: number;
+      userKey?: string;
+      roleId?: number;
+    };
+    const callerRoleId = Number(caller?.roleId ?? 0);
+    const callerUserKey = (caller?.userKey ?? "").toString().trim();
+
+    const rawTargetKey = Array.isArray(req.query.userId) ? req.query.userId[0] : req.query.userId;
+    const targetUserKey = rawTargetKey
+      ? rawTargetKey.toString().trim()
+      : callerUserKey;
+
+    if (!targetUserKey) {
+      return res.status(400).json({ error: "Cannot determine account to delete" });
+    }
+
+    const isSelf = targetUserKey === callerUserKey;
+    const isAdmin = callerRoleId === 1;
+
+    if (!isSelf && !isAdmin) {
+      return res.status(403).json({ error: "Only admins can delete other accounts" });
+    }
+
+    const existing = await prisma.tbl_User.findFirst({
+      where: { User_Id: targetUserKey },
+      select: { ID: true, User_Id: true, User_Status: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Account not found" });
+    }
+
+    if (existing.User_Status === 0) {
+      return res.status(409).json({ error: "Account is already deleted" });
+    }
+
+    const anonymisedEmail = `deleted_${targetUserKey}@deleted.com`;
+
+    await prisma.tbl_User.updateMany({
+      where: { User_Id: targetUserKey },
+      data: {
+        User_Status: 0,
+        Email_Id: anonymisedEmail,
+        Login_Pwd: null,
+        User_Name: null,
+      },
+    });
+
+    return res.json({ ok: true, deleted: targetUserKey });
+  } catch (e) {
+    return next(e);
+  }
+});

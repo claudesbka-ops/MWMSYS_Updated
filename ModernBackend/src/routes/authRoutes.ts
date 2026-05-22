@@ -1,10 +1,10 @@
 import { Router } from "express";
 
 import { prisma } from "../db";
-import { requireAuth, signToken } from "../middleware/auth";
+import { requireAuth, signToken, signTokenWithExpiry, verifyToken } from "../middleware/auth";
 import { encryptLegacyPassword } from "../cryptoLegacy";
 import { findWorkerIdByJwtUserId, findWorkerPassportByJwtUserId } from "../services/workerLookup";
-import { ensureOtpTableExists, ensureRelationshipTablesExist } from "../db/schemaMigrations";
+import { ensure2FAColumn, ensureOtpTableExists, ensureRelationshipTablesExist } from "../db/schemaMigrations";
 import { generate6DigitOtp, sendOtpEmail } from "../services/emailService";
 import {
   checkAccountLocked,
@@ -477,10 +477,8 @@ authRouter.post("/Api/token", async (req, res) => {
       });
     }
 
-    const loginPayload = await issueLoginTokenForUser(user, userName);
-    // Reset failed attempts on successful login
+    // Reset failed attempts on successful password check
     await resetFailedAttempts(user.User_Id);
-    // Log successful login
     await logAudit({
       userId: user.User_Id,
       userRole: String(user.User_Role),
@@ -489,6 +487,29 @@ authRouter.post("/Api/token", async (req, res) => {
       userAgent,
       status: "success",
     });
+
+    // 2FA gate — skip entirely for @test.com accounts (QA bypass)
+    await ensure2FAColumn().catch(() => {});
+    const twoFAEnabled = !isTestEmail(user.Email_Id) && (user as any).Two_FA_Enabled === true;
+    if (twoFAEnabled) {
+      const otpResult = await createAndSendOtp({
+        userId: user.User_Id,
+        emailId: user.Email_Id,
+        otpType: "2fa_login",
+      });
+      const tempToken = signTokenWithExpiry(
+        { userId: Number(user.ID), userKey: user.User_Id, twoFAPending: true },
+        300 // 5 minutes
+      );
+      return res.json({
+        requires2FA: true,
+        tempToken,
+        otpExpiresAt: otpResult.expiresAt,
+        smtpFallback: otpResult.fallback,
+      });
+    }
+
+    const loginPayload = await issueLoginTokenForUser(user, userName);
     return res.json(loginPayload);
   } catch (e) {
     console.error(e);
@@ -620,6 +641,113 @@ authRouter.post("/Api/Auth/VerifyEmail", async (req, res) => {
 authRouter.post("/Api/Auth/Login", async (req, res, next) => {
   req.url = "/Api/token";
   return (req.app as any)._router.handle(req, res, next);
+});
+
+// ---------- 2FA verify ----------
+
+authRouter.post("/Api/Auth/Verify2FA", async (req, res) => {
+  const tempToken = (req.body?.tempToken ?? "").toString().trim();
+  const otp = (req.body?.otp ?? "").toString().trim();
+
+  if (!tempToken || !otp) {
+    return res.status(400).json({ error: "tempToken and otp are required" });
+  }
+
+  try {
+    let claims: any;
+    try {
+      claims = verifyToken(tempToken);
+    } catch {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    if (!claims?.twoFAPending || !claims?.userKey) {
+      return res.status(401).json({ error: "Invalid token type" });
+    }
+
+    const userId = claims.userKey.toString().trim();
+    await ensureOtpTableExists();
+
+    const now = new Date();
+    const record = await prisma.tbl_UserOtp.findFirst({
+      where: {
+        User_Id: userId,
+        Otp_Type: "2fa_login",
+        Otp_Code: otp,
+        Is_Used: false,
+        Expires_At: { gte: now },
+      },
+      orderBy: [{ Id: "desc" }],
+    });
+
+    if (!record) {
+      return res.status(400).json({ error: "Invalid or expired code" });
+    }
+
+    await prisma.tbl_UserOtp.update({ where: { Id: record.Id }, data: { Is_Used: true } });
+
+    const user = await prisma.tbl_User.findFirst({ where: { User_Id: userId } });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const loginPayload = await issueLoginTokenForUser(user, userId);
+    return res.json(loginPayload);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Verification failed" });
+  }
+});
+
+// ---------- Enable / Disable 2FA ----------
+
+authRouter.post("/Api/Auth/Enable2FA", requireAuth, async (req, res) => {
+  try {
+    await ensure2FAColumn();
+    const user = (req as any).user as any;
+    const userId = (user?.userKey ?? "").toString().trim();
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    await prisma.tbl_User.updateMany({ where: { User_Id: userId }, data: { Two_FA_Enabled: true } as any });
+
+    const fullUser = await prisma.tbl_User.findFirst({ where: { User_Id: userId }, select: { Email_Id: true } });
+    if (fullUser?.Email_Id) {
+      await sendOtpEmail(fullUser.Email_Id, "", "2fa_enabled" as any).catch(() => {});
+    }
+    return res.json({ ok: true, twoFAEnabled: true });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Failed to enable 2FA" });
+  }
+});
+
+authRouter.post("/Api/Auth/Disable2FA", requireAuth, async (req, res) => {
+  try {
+    await ensure2FAColumn();
+    const user = (req as any).user as any;
+    const userId = (user?.userKey ?? "").toString().trim();
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    await prisma.tbl_User.updateMany({ where: { User_Id: userId }, data: { Two_FA_Enabled: false } as any });
+    return res.json({ ok: true, twoFAEnabled: false });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Failed to disable 2FA" });
+  }
+});
+
+authRouter.get("/Api/Auth/2FAStatus", requireAuth, async (req, res) => {
+  try {
+    await ensure2FAColumn();
+    const user = (req as any).user as any;
+    const userId = (user?.userKey ?? "").toString().trim();
+    const row = await prisma.$queryRawUnsafe(
+      `SELECT "Two_FA_Enabled" FROM "Tbl_User" WHERE "User_Id"=$1 LIMIT 1`,
+      userId
+    ) as any[];
+    const enabled = row?.[0]?.Two_FA_Enabled === true;
+    return res.json({ twoFAEnabled: enabled });
+  } catch {
+    return res.json({ twoFAEnabled: false });
+  }
 });
 
 // ---------- Resend OTP ----------

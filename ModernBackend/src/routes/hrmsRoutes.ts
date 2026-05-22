@@ -4,7 +4,8 @@ import { prisma } from "../db";
 import { checkRole, requireAuth } from "../middleware/auth";
 import { upload } from "../middleware/upload";
 import { requireActivePlanForWrite } from "../middleware/subscription";
-import { ensureHrmsRequestTablesExist, ensureRosterTablesExist } from "../db/schemaMigrations";
+import { ensureGeofenceAttendanceColumn, ensureHrmsRequestTablesExist, ensureOvertimeColumns, ensureRosterTablesExist } from "../db/schemaMigrations";
+import { checkGeofences } from "./geofenceRoutes";
 import { buildWorkerScopeWhere } from "../services/queryGuard";
 import { getIO } from "../services/socketService";
 
@@ -164,17 +165,60 @@ hrmsRouter.post("/Api/HRMS/Attendance/ClockIn", requireAuth, checkRole([2]), asy
     const lat = req.body?.lat != null ? Number(req.body.lat) : null;
     const lng = req.body?.lng != null ? Number(req.body.lng) : null;
     const photoUrl = (req.body?.photoUrl ?? null) != null ? String(req.body.photoUrl) : null;
+    const gpsAvailable = lat != null && Number.isFinite(lat) && lng != null && Number.isFinite(lng);
 
+    // Create attendance record first — clock-in is NEVER blocked
     const created = await prisma.tbl_Attendance.create({
       data: {
         workerId: userKey,
         checkIn: new Date(),
         checkOut: null,
-        lat: lat != null && Number.isFinite(lat) ? lat : null,
-        lng: lng != null && Number.isFinite(lng) ? lng : null,
+        lat: gpsAvailable ? lat : null,
+        lng: gpsAvailable ? lng : null,
         photoUrl,
       } as any,
     });
+
+    // Geofence check — only when GPS coordinates are present
+    if (gpsAvailable) {
+      try {
+        await ensureGeofenceAttendanceColumn();
+
+        // Find the worker's current employer
+        const empRow = await prisma.tbl_Worker_EmployerInfo.findFirst({
+          where: { Worker_Id: userKey },
+          select: { Employer_Id: true },
+        });
+        const employerId = (empRow?.Employer_Id ?? "").toString().trim();
+
+        if (employerId) {
+          const { withinAny } = await checkGeofences(employerId, lat!, lng!);
+
+          // Stamp Is_Within_Geofence on the attendance row (informational only)
+          await prisma.$executeRawUnsafe(
+            `UPDATE "Tbl_Attendance" SET "Is_Within_Geofence"=$1 WHERE id=$2`,
+            withinAny, Number(created.id)
+          );
+
+          if (!withinAny) {
+            // Notify employer + admin — clock-in still succeeded above
+            const io = getIO();
+            const payload = {
+              type: "geofence_violation",
+              workerId: userKey,
+              employerId,
+              lat,
+              lng,
+              timestamp: new Date().toISOString(),
+            };
+            io.to(`employer_${employerId}`).emit("geofence_violation", payload);
+            io.to("admin").emit("geofence_violation", payload);
+          }
+        }
+      } catch {
+        // Geofence check failure must never prevent a successful clock-in response
+      }
+    }
 
     return res.status(201).json(created);
   } catch (e) {
@@ -197,28 +241,104 @@ hrmsRouter.post("/Api/HRMS/Attendance/ClockOut", requireAuth, checkRole([2]), as
 
     if (!open) return res.status(409).json({ error: "No open attendance record" });
 
-    // Calculate hours worked
+    await ensureOvertimeColumns();
+
     const checkIn = open.checkIn ? new Date(open.checkIn) : null;
     const checkOut = new Date();
     let hoursWorked: number | null = null;
-    let status = 'present';
+    const status = "present";
 
     if (checkIn) {
       const diffMs = checkOut.getTime() - checkIn.getTime();
       hoursWorked = Number((diffMs / (1000 * 60 * 60)).toFixed(2));
     }
 
-    const updated = await prisma.tbl_Attendance.update({
-      where: { id: open.id },
-      data: {
-        checkOut: checkOut,
-        clockOutLat: lat,
-        clockOutLng: lng,
-        hoursWorked: hoursWorked,
-        status: status,
-      },
-    });
+    const STANDARD_HOURS = 8;
+    const dayOfWeek = checkOut.getDay(); // 0=Sun, 6=Sat
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const hw = hoursWorked ?? 0;
+    const overtimeHours = isWeekend
+      ? Number(hw.toFixed(2))
+      : Number(Math.max(0, hw - STANDARD_HOURS).toFixed(2));
+    const isOvertime = isWeekend || hw > STANDARD_HOURS;
+
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Tbl_Attendance" SET "checkOut"=$1, "clockOutLat"=$2, "clockOutLng"=$3, "hoursWorked"=$4, status=$5, "Is_Overtime"=$6, "Overtime_Hours"=$7, "Is_Weekend"=$8 WHERE id=$9`,
+      checkOut,
+      lat,
+      lng,
+      hoursWorked,
+      status,
+      isOvertime,
+      overtimeHours,
+      isWeekend,
+      open.id
+    );
+
+    const updated = await prisma.tbl_Attendance.findFirst({ where: { id: open.id } });
     return res.json(updated);
+  } catch (e) {
+    return next(e);
+  }
+});
+
+hrmsRouter.get("/Api/HRMS/Shifts/OvertimeSummary", requireAuth, checkRole([1, 3, 4]), async (req, res, next) => {
+  try {
+    await ensureOvertimeColumns();
+
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    const monthParam = ((Array.isArray(req.query.month) ? req.query.month[0] : req.query.month) ?? "").toString().trim();
+
+    const scopeWhere = await buildWorkerScopeWhere((req as any).user);
+    const scopedWorkers = await prisma.tbl_Worker_PersonalInfo.findMany({
+      where: roleId === 1 ? {} : scopeWhere,
+      select: { Worker_Id: true, Name: true },
+      take: 5000,
+    });
+    const nameById = new Map<string, string | null>();
+    for (const w of scopedWorkers ?? []) nameById.set((w.Worker_Id ?? "").toString(), w.Name ?? null);
+    const workerIds = Array.from(nameById.keys());
+    if (roleId !== 1 && !workerIds.length) return res.json([]);
+
+    let dateFilter = "";
+    const params: any[] = roleId === 1 ? [] : workerIds;
+    if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+      const paramIdx = params.length + 1;
+      dateFilter = ` AND TO_CHAR("checkIn", 'YYYY-MM') = $${paramIdx}`;
+      params.push(monthParam);
+    }
+
+    const rows = (await prisma.$queryRawUnsafe(
+      roleId === 1
+        ? `SELECT "workerId",
+             COALESCE(SUM(CASE WHEN "Is_Overtime" = FALSE AND "Is_Weekend" = FALSE THEN LEAST("hoursWorked", 8) ELSE 0 END), 0) AS "regularHours",
+             COALESCE(SUM(CASE WHEN "Is_Overtime" = TRUE AND "Is_Weekend" = FALSE THEN "Overtime_Hours" ELSE 0 END), 0) AS "overtimeHours",
+             COALESCE(SUM(CASE WHEN "Is_Weekend" = TRUE THEN "Overtime_Hours" ELSE 0 END), 0) AS "weekendHours",
+             COALESCE(SUM("hoursWorked"), 0) AS "totalHours"
+           FROM "Tbl_Attendance"
+           WHERE "checkOut" IS NOT NULL${dateFilter}
+           GROUP BY "workerId" ORDER BY "totalHours" DESC LIMIT 500`
+        : `SELECT "workerId",
+             COALESCE(SUM(CASE WHEN "Is_Overtime" = FALSE AND "Is_Weekend" = FALSE THEN LEAST("hoursWorked", 8) ELSE 0 END), 0) AS "regularHours",
+             COALESCE(SUM(CASE WHEN "Is_Overtime" = TRUE AND "Is_Weekend" = FALSE THEN "Overtime_Hours" ELSE 0 END), 0) AS "overtimeHours",
+             COALESCE(SUM(CASE WHEN "Is_Weekend" = TRUE THEN "Overtime_Hours" ELSE 0 END), 0) AS "weekendHours",
+             COALESCE(SUM("hoursWorked"), 0) AS "totalHours"
+           FROM "Tbl_Attendance"
+           WHERE "checkOut" IS NOT NULL AND "workerId" IN (${workerIds.map((_, i) => `$${i + 1}`).join(",")})${dateFilter}
+           GROUP BY "workerId" ORDER BY "totalHours" DESC LIMIT 500`,
+      ...params
+    )) as any[];
+
+    return res.json(
+      (rows ?? []).map((r) => ({
+        workerId: r.workerId,
+        name: nameById.get((r.workerId ?? "").toString()) ?? null,
+        regularHours: Number(r.regularHours ?? 0),
+        overtimeHours: Number(r.overtimeHours ?? 0),
+        weekendHours: Number(r.weekendHours ?? 0),
+        totalHours: Number(r.totalHours ?? 0),
+      }))
+    );
   } catch (e) {
     return next(e);
   }

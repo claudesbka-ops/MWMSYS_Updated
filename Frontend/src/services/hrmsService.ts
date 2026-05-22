@@ -208,3 +208,19 @@ export async function getContractsExpiring(days?: number): Promise<ContractsExpi
   });
   return res.data as ContractsExpiringResponse;
 }
+
+export type OvertimeSummaryRow = {
+  workerId: string;
+  name: string | null;
+  regularHours: number;
+  overtimeHours: number;
+  weekendHours: number;
+  totalHours: number;
+};
+
+export async function getOvertimeSummary(params?: { month?: string }): Promise<OvertimeSummaryRow[]> {
+  const res = await apiClient.get<OvertimeSummaryRow[]>("/Api/HRMS/Shifts/OvertimeSummary", {
+    params: params?.month ? { month: params.month } : undefined,
+  });
+  return (res.data ?? []) as OvertimeSummaryRow[];
+}

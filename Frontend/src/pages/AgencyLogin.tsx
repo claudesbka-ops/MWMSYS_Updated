@@ -7,7 +7,7 @@ import AuthLayout from "@/components/AuthLayout";
 import { toast } from "sonner";
 import { useRole } from "@/contexts/RoleContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { login, EmailNotVerifiedError } from "@/services/authService";
+import { login, EmailNotVerifiedError, TwoFARequiredError } from "@/services/authService";
 
 const WORKER_PASSPORT_KEY = "mwmsys_worker_passport";
 const EMPLOYER_NAME_KEY = "mwmsys_employer_name";
@@ -42,6 +42,10 @@ export default function AgencyLogin() {
       await refreshAuth();
       navigate("/");
     } catch (err: any) {
+      if (err instanceof TwoFARequiredError) {
+        navigate("/login/verify-2fa");
+        return;
+      }
       if (err instanceof EmailNotVerifiedError) {
         toast.message("Please verify your email to continue");
         const qs = new URLSearchParams();

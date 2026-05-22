@@ -9,13 +9,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CreditCard, Mail, UserCircle, ShieldCheck, Crown, Sparkles, ArrowUpRight, Camera, Save } from "lucide-react";
+import { AlertTriangle, CreditCard, Mail, UserCircle, ShieldCheck, Crown, Sparkles, ArrowUpRight, Camera, Save, Trash2, X, Lock } from "lucide-react";
+import { apiClient } from "@/services/apiClient";
 import {
   getAccountProfile,
   updateAccountProfile,
   uploadAccountPhoto,
   type RoleProfile,
 } from "@/services/accountService";
+import { get2FAStatus, enable2FA, disable2FA } from "@/services/authService";
 
 function planBadgeProps(planType: string) {
   const key = (planType ?? "").toLowerCase();
@@ -154,8 +156,175 @@ export default function AccountPage() {
           isLoading={profileQuery.isLoading}
           onSaved={() => profileQuery.refetch()}
         />
+
+        <SecurityCard />
+
+        <DangerZone userKey={profileQuery.data?.userId ?? null} />
       </div>
     </DashboardLayout>
+  );
+}
+
+function SecurityCard() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [toggling, setToggling] = useState(false);
+
+  useEffect(() => {
+    get2FAStatus().then(setEnabled);
+  }, []);
+
+  const handleToggle = async () => {
+    if (toggling || enabled === null) return;
+    setToggling(true);
+    try {
+      if (enabled) {
+        await disable2FA();
+        setEnabled(false);
+        toast.success("Two-factor authentication disabled");
+      } else {
+        await enable2FA();
+        setEnabled(true);
+        toast.success("Two-factor authentication enabled. You will need a code on next login.");
+      }
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error ?? "Failed to update 2FA setting");
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 bg-card rounded-2xl border border-border/60 p-6">
+      <div className="flex items-center gap-2 mb-1">
+        <Lock className="w-4 h-4 text-primary" />
+        <span className="text-sm font-bold text-foreground">Two-Factor Authentication</span>
+      </div>
+      <p className="text-xs text-muted-foreground mb-4">
+        When enabled, a one-time code is sent to your email at each login.
+      </p>
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-foreground">
+          Status:{" "}
+          {enabled === null ? (
+            <span className="text-muted-foreground">Loading…</span>
+          ) : enabled ? (
+            <span className="text-emerald-500 font-semibold">Enabled</span>
+          ) : (
+            <span className="text-muted-foreground">Disabled</span>
+          )}
+        </span>
+        <Button
+          size="sm"
+          variant={enabled ? "destructive" : "default"}
+          disabled={toggling || enabled === null}
+          onClick={handleToggle}
+        >
+          {toggling ? "Saving…" : enabled ? "Disable 2FA" : "Enable 2FA"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function DangerZone({ userKey }: { userKey: string | null }) {
+  const navigate = useNavigate();
+  const [showModal, setShowModal] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (confirmText !== "DELETE") return;
+    setDeleting(true);
+    try {
+      await apiClient.delete("/Api/Account/Delete");
+      toast.success("Account deleted");
+      localStorage.removeItem("mwmsys_logged_in");
+      localStorage.removeItem("mwmsys_token");
+      navigate("/", { replace: true });
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error ?? "Failed to delete account");
+      setDeleting(false);
+    }
+  };
+
+  if (!userKey) return null;
+
+  return (
+    <>
+      <div className="mt-6 bg-card rounded-2xl border border-destructive/30 p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <AlertTriangle className="w-4 h-4 text-destructive" />
+          <span className="text-sm font-bold text-destructive">Danger Zone</span>
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          Permanently delete your account. This action anonymises your data and cannot be undone.
+        </p>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => { setShowModal(true); setConfirmText(""); }}
+        >
+          <Trash2 className="w-4 h-4 mr-2" />
+          Delete Account
+        </Button>
+      </div>
+
+      {showModal && (
+        <div
+          className="fixed inset-0 bg-foreground/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => !deleting && setShowModal(false)}
+        >
+          <div
+            className="bg-card rounded-2xl border border-destructive/40 shadow-2xl w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between p-5 border-b border-border/40">
+              <div>
+                <h3 className="text-base font-bold text-foreground">Delete account</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  This will anonymise your account and cannot be undone.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowModal(false)}
+                className="p-1.5 rounded-xl hover:bg-muted/60"
+                disabled={deleting}
+              >
+                <X className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <Label htmlFor="deleteConfirm" className="text-sm">
+                Type <span className="font-bold font-mono text-destructive">DELETE</span> to confirm
+              </Label>
+              <Input
+                id="deleteConfirm"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="DELETE"
+                disabled={deleting}
+                className="font-mono"
+              />
+            </div>
+
+            <div className="flex gap-2 p-5 pt-0 justify-end">
+              <Button variant="outline" onClick={() => setShowModal(false)} disabled={deleting}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={confirmText !== "DELETE" || deleting}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {deleting ? "Deleting…" : "Delete my account"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

@@ -7,7 +7,9 @@ import {
   CheckCircle2,
   ChevronLeft,
   Clock,
+  ExternalLink,
   MapPin,
+  Phone,
   ShieldAlert,
   User,
 } from "lucide-react";
@@ -31,6 +33,9 @@ type ResolvedRecord = {
   workerId: string | null;
   workerName: string;
   passportNumber: string;
+  phoneNumber: string | null;
+  nationality: string | null;
+  photo: string | null;
   employer: string | null;
   status: string;
   resolved: boolean;
@@ -60,9 +65,12 @@ function fromPanic(p: PanicAlert): ResolvedRecord {
     title: (p.Title ?? "Panic Alert").toString(),
     description: (p.Description ?? "Panic alert triggered").toString(),
     workerId: p.worker_ID ?? null,
-    workerName: (p.worker_ID ?? "Worker").toString(),
-    passportNumber: (p.Prob_ID ?? "").toString(),
-    employer: p.Company_Name ?? null,
+    workerName: ((p as any).workerName ?? p.worker_ID ?? "Worker").toString(),
+    passportNumber: ((p as any).passportNumber ?? p.Prob_ID ?? "").toString(),
+    phoneNumber: (p as any).phoneNumber ?? null,
+    nationality: (p as any).nationality ?? null,
+    photo: (p as any).passportPhoto ?? null,
+    employer: (p as any).employerName ?? p.Company_Name ?? null,
     status: (p.ProbStatus ?? "Active").toString(),
     resolved: false,
     timestamp: p.Updated_On ? new Date(p.Updated_On as any).toISOString() : null,
@@ -88,6 +96,9 @@ function fromProblem(p: ProblemAndActionDto): ResolvedRecord {
     workerId: ((p as any).worker_ID ?? null) as string | null,
     workerName: (p.MemberName ?? p.FullName ?? p.PassportNumber ?? "Unknown").toString(),
     passportNumber: (p.PassportNumber ?? "").toString(),
+    phoneNumber: null,
+    nationality: null,
+    photo: null,
     employer: (p.EmployerName as string | undefined) ?? null,
     status: resolved ? "Resolved" : ((p as any).Status ?? "Active").toString(),
     resolved,
@@ -282,6 +293,15 @@ export default function AlertDetailPage() {
                 Worker
               </h3>
               <div className="space-y-3">
+                {record.photo && (
+                  <div className="flex justify-center mb-2">
+                    <img
+                      src={record.photo}
+                      alt="Worker photo"
+                      className="w-20 h-20 rounded-2xl object-cover border border-border/60"
+                    />
+                  </div>
+                )}
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
                     Name
@@ -296,6 +316,25 @@ export default function AlertDetailPage() {
                     {record.passportNumber || "—"}
                   </p>
                 </div>
+                {record.phoneNumber && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                      Phone
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-muted-foreground" />
+                      <p className="text-sm font-medium text-foreground">{record.phoneNumber}</p>
+                    </div>
+                  </div>
+                )}
+                {record.nationality && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                      Nationality
+                    </p>
+                    <p className="text-sm font-medium text-foreground">{record.nationality}</p>
+                  </div>
+                )}
                 {record.workerId && (
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
@@ -310,6 +349,22 @@ export default function AlertDetailPage() {
                       Employer
                     </p>
                     <p className="text-sm font-medium text-foreground">{record.employer}</p>
+                  </div>
+                )}
+                {hasGps && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                      GPS
+                    </p>
+                    <a
+                      href={`https://maps.google.com/?q=${record.lat},${record.lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-mono"
+                    >
+                      {record.lat?.toFixed(5)}, {record.lng?.toFixed(5)}
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
                   </div>
                 )}
               </div>

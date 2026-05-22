@@ -9,14 +9,17 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, CheckCircle2, Clock, Paperclip, Send, X, XCircle } from "lucide-react";
+import { AlertTriangle, Bot, CheckCircle2, ChevronDown, ChevronRight, Clock, Copy, Paperclip, Send, X, XCircle } from "lucide-react";
 import {
   type Dispute,
   type DisputeStatus,
+  type TimelineEntry,
   disputeFileUrl,
   getAllDisputes,
+  getDisputeTimeline,
   getIncomingDisputes,
   getMyDisputes,
+  generateDisputeSummary,
   reviewDispute,
   submitDispute,
 } from "@/services/disputeService";
@@ -284,6 +287,7 @@ function WorkerDisputeView() {
           loading={myDisputes.isLoading}
           showEmployer
           showActions={false}
+          showDetail
         />
       </div>
     </div>
@@ -493,7 +497,120 @@ function ReadOnlyDisputeView() {
         loading={allQuery.isLoading}
         showEmployer
         showActions={false}
+        showDetail
       />
+    </div>
+  );
+}
+
+// ---------- Shared table ----------
+
+// ---------- Detail panel (timeline + AI summary) ----------
+
+function timelineActionLabel(action: string): { label: string; cls: string } {
+  switch (action) {
+    case "submitted": return { label: "Submitted", cls: "bg-blue-500" };
+    case "accepted":  return { label: "Accepted",  cls: "bg-emerald-500" };
+    case "rejected":  return { label: "Rejected",  cls: "bg-red-500" };
+    default:          return { label: action,       cls: "bg-muted-foreground" };
+  }
+}
+
+function DisputeDetailPanel({ dispute, canGenerateSummary }: { dispute: Dispute; canGenerateSummary: boolean }) {
+  const timelineQuery = useQuery({
+    queryKey: ["dispute_timeline", dispute.id],
+    queryFn: () => getDisputeTimeline(dispute.id),
+  });
+
+  const [summary, setSummary] = useState<string | null>((dispute as any).aiCaseSummary ?? null);
+  const [generating, setGenerating] = useState(false);
+
+  const handleGenerateSummary = async () => {
+    setGenerating(true);
+    try {
+      const result = await generateDisputeSummary(dispute.id);
+      setSummary(result.summary);
+      toast.success("Summary generated");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error ?? "Failed to generate summary");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleCopy = () => {
+    if (!summary) return;
+    navigator.clipboard.writeText(summary);
+    toast.success("Copied to clipboard");
+  };
+
+  return (
+    <div className="px-4 pb-4 pt-2 bg-muted/20 border-t border-border/40 space-y-4">
+      <div>
+        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Case Timeline</h4>
+        {timelineQuery.isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-5 w-64" />
+          </div>
+        ) : !timelineQuery.data || timelineQuery.data.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No timeline entries yet.</p>
+        ) : (
+          <ol className="relative border-l border-border/50 ml-2 space-y-3">
+            {(timelineQuery.data as TimelineEntry[]).map((entry) => {
+              const { label, cls } = timelineActionLabel(entry.Action);
+              return (
+                <li key={entry.Id} className="ml-4">
+                  <span className={`absolute -left-[5px] mt-1 w-2.5 h-2.5 rounded-full ${cls}`} />
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <span className="text-xs font-semibold text-foreground">{label}</span>
+                    {entry.Actor_Role && (
+                      <span className="text-[10px] text-muted-foreground capitalize">by {entry.Actor_Role}</span>
+                    )}
+                    <span className="text-[10px] text-muted-foreground">
+                      {new Date(entry.Created_At).toLocaleString()}
+                    </span>
+                  </div>
+                  {entry.Note && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{entry.Note}</p>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </div>
+
+      {canGenerateSummary && (
+        <div className="border border-border/40 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bot className="w-4 h-4 text-primary" />
+              <span className="text-xs font-bold text-foreground">AI Case Summary</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {summary && (
+                <button
+                  onClick={handleCopy}
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy
+                </button>
+              )}
+              <Button size="sm" variant="outline" onClick={handleGenerateSummary} disabled={generating}>
+                <Bot className="w-3.5 h-3.5 mr-1.5" />
+                {generating ? "Generating…" : summary ? "Regenerate" : "Generate Summary"}
+              </Button>
+            </div>
+          </div>
+          {summary ? (
+            <pre className="text-xs text-foreground whitespace-pre-wrap font-sans leading-relaxed max-h-64 overflow-y-auto">{summary}</pre>
+          ) : (
+            <p className="text-xs text-muted-foreground">Click Generate Summary to produce a formal AI case summary for HR/legal records.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -505,6 +622,7 @@ function DisputeTable({
   loading,
   showEmployer,
   showActions,
+  showDetail,
   onAccept,
   onReject,
 }: {
@@ -512,9 +630,12 @@ function DisputeTable({
   loading: boolean;
   showEmployer: boolean;
   showActions: boolean;
+  showDetail?: boolean;
   onAccept?: (d: Dispute) => void;
   onReject?: (d: Dispute) => void;
 }) {
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const { currentRole } = useRole();
   if (loading) {
     return (
       <div className="p-4 space-y-3">
@@ -533,11 +654,14 @@ function DisputeTable({
     );
   }
 
+  const canGenerateSummary = currentRole === "admin" || currentRole === "agency";
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-muted/30 border-b border-border/40">
+            {showDetail ? <th className="w-8" /> : null}
             <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Worker</th>
             {showEmployer ? (
               <th className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">Employer</th>
@@ -559,14 +683,22 @@ function DisputeTable({
         <tbody className="divide-y divide-border/40">
           {rows.map((d) => {
             const diff = Number(d.expectedAmount ?? 0) - Number(d.receivedAmount ?? 0);
+            const isExpanded = expandedId === d.id;
             const rowTint =
               d.status === "Accepted"
                 ? "hover:bg-emerald-500/5"
                 : d.status === "Rejected"
                   ? "hover:bg-red-500/5"
                   : "hover:bg-amber-500/5";
+            const colSpan = [true, showEmployer, true, true, true, true, true, true, true, true, showActions].filter(Boolean).length + (showDetail ? 1 : 0);
             return (
-              <tr key={d.id} className={`transition-colors ${rowTint}`}>
+              <>
+              <tr key={d.id} className={`transition-colors ${rowTint} ${showDetail ? "cursor-pointer" : ""}`} onClick={() => showDetail && setExpandedId(isExpanded ? null : d.id)}>
+                {showDetail ? (
+                  <td className="w-8 px-2 py-3 text-muted-foreground">
+                    {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </td>
+                ) : null}
                 <td className="px-4 py-3">
                   <div className="font-medium text-foreground">{d.workerName || d.workerId}</div>
                   {d.workerPassport ? (
@@ -641,6 +773,14 @@ function DisputeTable({
                   </td>
                 ) : null}
               </tr>
+              {showDetail && isExpanded && (
+                <tr key={`detail-${d.id}`}>
+                  <td colSpan={colSpan} className="p-0">
+                    <DisputeDetailPanel dispute={d} canGenerateSummary={canGenerateSummary} />
+                  </td>
+                </tr>
+              )}
+              </>
             );
           })}
         </tbody>

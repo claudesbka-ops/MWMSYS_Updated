@@ -191,6 +191,75 @@ chatRouter.post("/Api/Chat/AIReply", requireAuth, async (req, res, next) => {
     )) as any[];
     const preferredLanguage = (sessionRows?.[0]?.PreferredLanguage ?? "en").toString();
 
+    // Build worker context block (roleId === 2 only)
+    const roleId = Number((req as any).user?.roleId ?? 0);
+    const userKey = ((req as any).user?.userKey ?? "").toString().trim();
+    let workerContextBlock = "";
+
+    if (roleId === 2 && userKey) {
+      try {
+        const [workerInfo, permitInfo, riskRow, pendingDisputes, pendingLeave] = await Promise.all([
+          prisma.tbl_Worker_PersonalInfo.findFirst({
+            where: { Worker_Id: userKey },
+            select: {
+              Name: true,
+              Employer_Id: true,
+              Passport_Expire_Date: true,
+            },
+          }),
+          prisma.tbl_Worker_PermitInsurance.findFirst({
+            where: { Worker_Id: userKey },
+            select: { Permit_Expire_Date: true },
+          }).catch(() => null),
+          prisma.$queryRawUnsafe(
+            `SELECT "Risk_Score", "Risk_Level" FROM "Tbl_Worker_Risk_Scores" WHERE "Worker_Id"=$1 LIMIT 1`,
+            userKey
+          ).catch(() => []),
+          prisma.$queryRawUnsafe(
+            `SELECT COUNT(*) AS cnt FROM "Tbl_SalaryDispute" WHERE "Worker_Id"=$1 AND "Status"='Pending'`,
+            userKey
+          ).catch(() => [{ cnt: 0 }]),
+          prisma.tbl_Leave.count({ where: { workerId: userKey, status: "Pending" } }).catch(() => 0),
+        ]);
+
+        const now = new Date();
+        const daysUntil = (d: Date | null | undefined) =>
+          d ? Math.round((d.getTime() - now.getTime()) / 86400000) : null;
+
+        let employerName: string | null = null;
+        if (workerInfo?.Employer_Id) {
+          const emp = await prisma.tbl_Employer.findFirst({
+            where: { User_Id: workerInfo.Employer_Id },
+            select: { Employer_Name: true },
+          }).catch(() => null);
+          employerName = emp?.Employer_Name ?? null;
+        }
+
+        const passportDays = daysUntil(workerInfo?.Passport_Expire_Date ? new Date(workerInfo.Passport_Expire_Date as any) : null);
+        const permitDays = daysUntil(permitInfo?.Permit_Expire_Date ? new Date(permitInfo.Permit_Expire_Date as any) : null);
+        const risk = Array.isArray(riskRow) ? (riskRow as any[])[0] : null;
+        const disputes = Number((Array.isArray(pendingDisputes) ? (pendingDisputes as any[])[0]?.cnt : 0) ?? 0);
+
+        const lines: string[] = [
+          "CURRENT USER CONTEXT (use this to give personalised answers):",
+          `Worker: ${workerInfo?.Name ?? userKey}`,
+        ];
+        if (employerName) lines.push(`Employer: ${employerName}`);
+        if (passportDays !== null)
+          lines.push(`Passport expires: ${workerInfo?.Passport_Expire_Date ? new Date(workerInfo.Passport_Expire_Date as any).toDateString() : ""} (${passportDays > 0 ? `in ${passportDays} days` : passportDays === 0 ? "TODAY" : `${Math.abs(passportDays)} days ago`})`);
+        if (permitDays !== null)
+          lines.push(`Work permit expires: ${permitInfo?.Permit_Expire_Date ? new Date(permitInfo.Permit_Expire_Date as any).toDateString() : ""} (${permitDays > 0 ? `in ${permitDays} days` : permitDays === 0 ? "TODAY" : `${Math.abs(permitDays)} days ago`})`);
+        if (disputes > 0) lines.push(`Pending salary disputes: ${disputes}`);
+        if (pendingLeave > 0) lines.push(`Pending leave requests: ${pendingLeave}`);
+        if (risk?.Risk_Level) lines.push(`Risk level: ${risk.Risk_Level} (score: ${risk.Risk_Score ?? "n/a"})`);
+        lines.push("Use this context to give specific, helpful answers relevant to this worker's actual situation.");
+
+        workerContextBlock = "\n\n" + lines.join("\n");
+      } catch {
+        // context fetch failed — proceed without it
+      }
+    }
+
     await prisma.$queryRawUnsafe(
       `INSERT INTO "ChatMessages"("ChatSessionId","SenderType","Message") VALUES($1,$2,$3)`,
       chatSessionId,
@@ -206,7 +275,7 @@ chatRouter.post("/Api/Chat/AIReply", requireAuth, async (req, res, next) => {
     const ordered = (history ?? []).slice().reverse();
 
     const systemPrompt = [
-      "You are the MWMS Assistant, an expert on the MWMS (Migrant Worker Management System) platform.",
+      "You are the MWMS Assistant, an expert on the MWMS (Migrant Worker Management System) platform." + workerContextBlock,
       "",
       `LANGUAGE INSTRUCTION: The user prefers to communicate in "${preferredLanguage}". Detect their language from their message and respond in the SAME language. Supported languages: English (en), Bengali/Bangla (bn), Tamil (ta), Bahasa Malaysia (ms), Arabic (ar). If the user's message is in Bengali, respond in Bengali. If Tamil, respond in Tamil. Always match the user's language exactly. Use natural, conversational tone appropriate for workers.`,
       "",

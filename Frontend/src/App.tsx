@@ -52,6 +52,9 @@ import LiveMapPage from "./pages/LiveMapPage.tsx";
 import AlertDetailPage from "./pages/AlertDetailPage.tsx";
 import WorkerAttestationSubmitPage from "./pages/WorkerAttestationSubmitPage.tsx";
 import BlogPage from "./pages/BlogPage.tsx";
+import BlogEditorPage from "./pages/BlogEditorPage.tsx";
+import TwoFAVerifyPage from "./pages/TwoFAVerifyPage.tsx";
+import GeofencePage from "./pages/GeofencePage.tsx";
 import VerifyEmailPage from "./pages/VerifyEmailPage.tsx";
 import AccountPage from "./pages/AccountPage.tsx";
 import DisputePage from "./pages/DisputePage.tsx";
@@ -114,6 +117,31 @@ function AnimatedRoutes() {
           } />
           <Route path="/blog" element={<BlogPage />} />
           <Route path="/blog/:slug" element={<BlogPage />} />
+          <Route
+            path="/blog/editor"
+            element={
+              <ProtectedRoute allow={["admin"]}>
+                <BlogEditorPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/blog/editor/:id"
+            element={
+              <ProtectedRoute allow={["admin"]}>
+                <BlogEditorPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/login/verify-2fa" element={<TwoFAVerifyPage />} />
+          <Route
+            path="/geofences"
+            element={
+              <ProtectedRoute allow={["admin", "employer"]}>
+                <GeofencePage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/login/admin" element={<AdminLogin />} />

@@ -170,7 +170,8 @@ export type NotificationType =
   | "doc_expiry"
   | "risk_critical"
   | "dispute_reminder"
-  | "compliance_low";
+  | "compliance_low"
+  | "weekly_report";
 
 interface EmailTemplate {
   subject: string;
@@ -206,6 +207,35 @@ function buildEmailTemplate(type: NotificationType, data: Record<string, any>): 
         textBody: `Employer ${data.employerId} has a compliance score of ${data.score}/100. Expired documents: ${data.expiredDocs}. Please review.`,
         htmlBody: `<p>Employer <strong>${data.employerId}</strong> has a compliance score of <strong>${data.score}/100</strong>.</p><p>Expired documents: ${data.expiredDocs}</p><p>Please review.</p>`,
       };
+    case "weekly_report": {
+      const week = data.weekStart ?? new Date().toDateString();
+      return {
+        subject: `📊 MWMS Weekly Compliance Report — w/c ${week}`,
+        textBody: [
+          `Weekly Compliance Report — ${week}`,
+          ``,
+          `Total Workers:        ${data.totalWorkers ?? 0}`,
+          `Active Workers:       ${data.activeWorkers ?? 0}`,
+          `Pending Disputes:     ${data.pendingDisputes ?? 0}`,
+          `Expiring Documents:   ${data.expiringDocs ?? 0} (next 30 days)`,
+          `Critical Risk Workers: ${data.criticalRiskWorkers ?? 0}`,
+          ``,
+          `Log in to the MWMS dashboard for full details.`,
+        ].join("\n"),
+        htmlBody: [
+          `<h2 style="margin:0 0 12px">Weekly Compliance Report</h2>`,
+          `<p style="color:#666;margin:0 0 16px">Week commencing ${week}</p>`,
+          `<table style="border-collapse:collapse;width:100%;max-width:480px">`,
+          `<tr><td style="padding:8px 12px;border:1px solid #e5e7eb">Total Workers</td><td style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:700">${data.totalWorkers ?? 0}</td></tr>`,
+          `<tr><td style="padding:8px 12px;border:1px solid #e5e7eb">Active Workers</td><td style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:700">${data.activeWorkers ?? 0}</td></tr>`,
+          `<tr><td style="padding:8px 12px;border:1px solid #e5e7eb">Pending Disputes</td><td style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:700;color:${(data.pendingDisputes ?? 0) > 0 ? "#f59e0b" : "inherit"}">${data.pendingDisputes ?? 0}</td></tr>`,
+          `<tr><td style="padding:8px 12px;border:1px solid #e5e7eb">Expiring Documents (30 days)</td><td style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:700;color:${(data.expiringDocs ?? 0) > 0 ? "#f59e0b" : "inherit"}">${data.expiringDocs ?? 0}</td></tr>`,
+          `<tr><td style="padding:8px 12px;border:1px solid #e5e7eb">Critical Risk Workers</td><td style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:700;color:${(data.criticalRiskWorkers ?? 0) > 0 ? "#ef4444" : "inherit"}">${data.criticalRiskWorkers ?? 0}</td></tr>`,
+          `</table>`,
+          `<p style="margin:16px 0 0;color:#555;font-size:13px">Log in to the MWMS dashboard for full details.</p>`,
+        ].join(""),
+      };
+    }
     default:
       return {
         subject: "MWMS Notification",

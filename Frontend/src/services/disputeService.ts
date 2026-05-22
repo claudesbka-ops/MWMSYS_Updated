@@ -78,3 +78,29 @@ export function disputeFileUrl(id: number): string {
   const base = apiClient.defaults.baseURL ?? "";
   return `${base}/Api/Dispute/File/${id}`;
 }
+
+export type TimelineEntry = {
+  Id: number;
+  Dispute_Id: number;
+  Action: string;
+  Actor_Id: string | null;
+  Actor_Role: string | null;
+  Note: string | null;
+  Created_At: string;
+};
+
+export async function getDisputeTimeline(id: number): Promise<TimelineEntry[]> {
+  const res = await apiClient.get<TimelineEntry[]>(`/Api/Disputes/${id}/Timeline`);
+  return Array.isArray(res.data) ? res.data : [];
+}
+
+export type AiSummaryResult = {
+  summary: string;
+  disputeId: number;
+  generatedAt: string;
+};
+
+export async function generateDisputeSummary(id: number): Promise<AiSummaryResult> {
+  const res = await apiClient.post<AiSummaryResult>(`/Api/Disputes/Ai/Summary/${id}`);
+  return res.data;
+}

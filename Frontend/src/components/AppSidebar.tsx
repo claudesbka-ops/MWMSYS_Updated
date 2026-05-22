@@ -6,7 +6,7 @@ import {
   Wallet, BarChart3, Shield, ChevronRight,
   FileText, HeartPulse, Eye, AlertTriangle, UserCheck, Menu, X, Clock,
   User, MessageSquare, Megaphone, BookOpen, Scale, Upload, Calendar, Globe2, ShieldCheck,
-  Bell, Sparkles
+  Bell, Sparkles, MapPin, PenLine
 } from "lucide-react";
 
 interface NavItem {
@@ -70,6 +70,8 @@ const navItems: NavItem[] = [
   // Worker-only items
   { label: "My Documents", icon: FileText, path: "/my-documents", roles: ["worker"] },
   { label: "Panic Status", icon: AlertTriangle, path: "/panic-status", roles: ["worker"] },
+  { label: "Work Zones", icon: MapPin, path: "/geofences", roles: ["admin", "employer"] },
+  { label: "Blog Editor", icon: PenLine, path: "/blog/editor", roles: ["admin"] },
   // Available to every role
   { label: "Blog", icon: BookOpen, path: "/blog", roles: ["admin", "agency", "employer", "worker", "embassy_source", "embassy_destination", "labour"] },
 ];

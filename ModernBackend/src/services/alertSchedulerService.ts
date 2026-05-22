@@ -7,6 +7,7 @@ import {
 import { sendNotificationEmail } from "./emailService";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const ONE_HOUR_MS = 60 * 60 * 1000;
 let schedulerStarted = false;
 
 /**
@@ -29,7 +30,21 @@ export function startAlertScheduler(): void {
   // Then every 24 hours
   setInterval(runDailyScan, ONE_DAY_MS);
 
-  console.log("[AlertScheduler] Scheduled to run every 24 hours");
+  // Weekly report: check every hour if it's Monday 8am
+  setInterval(maybeRunWeeklyReport, ONE_HOUR_MS);
+  maybeRunWeeklyReport();
+
+  console.log("[AlertScheduler] Scheduled to run every 24 hours (+ weekly report check hourly)");
+}
+
+/**
+ * Fires sendWeeklyReport only when the current hour is Monday 08:xx local time
+ * and we haven't sent one this week already.
+ */
+async function maybeRunWeeklyReport(): Promise<void> {
+  const now = new Date();
+  if (now.getDay() !== 1 || now.getHours() !== 8) return; // 1 = Monday
+  await sendWeeklyReport();
 }
 
 /**
@@ -49,6 +64,84 @@ async function runDailyScan(): Promise<void> {
     console.log(`[AlertScheduler] Daily scan completed in ${duration}ms`);
   } catch (error) {
     console.error("[AlertScheduler] Error during daily scan:", error);
+  }
+}
+
+// ==================== WEEKLY COMPLIANCE REPORT ====================
+
+async function sendWeeklyReport(): Promise<void> {
+  console.log("[AlertScheduler] Running weekly compliance report...");
+
+  try {
+    // Deduplication: check if we already sent a report this Monday
+    const now = new Date();
+    const mondayStart = new Date(now);
+    mondayStart.setHours(0, 0, 0, 0);
+    const sentKey = `weekly_report_${mondayStart.toISOString().slice(0, 10)}`;
+
+    const alreadySent = await hasRecentNotification("__system__", "weekly_report" as any, sentKey);
+    if (alreadySent) {
+      console.log("[AlertScheduler] Weekly report already sent this week — skipping");
+      return;
+    }
+
+    // Gather stats
+    const [totalWorkers, pendingDisputes, expiringDocs, criticalRisk] = await Promise.all([
+      prisma.tbl_Worker_PersonalInfo.count(),
+      prisma.tbl_SalaryDispute.count({ where: { Status: "Pending" } }).catch(() => 0),
+      prisma.tbl_Worker_PersonalInfo.count({
+        where: {
+          Passport_Expire_Date: {
+            gte: now,
+            lte: new Date(now.getTime() + 30 * ONE_DAY_MS),
+          },
+        },
+      }),
+      prisma.tbl_Worker_Risk_Scores.count({ where: { Risk_Level: "critical" } }).catch(() => 0),
+    ]);
+
+    const activeWorkers = totalWorkers; // Active = all with a record; adjust if status column exists
+    const weekStart = mondayStart.toDateString();
+
+    const reportData = {
+      weekStart,
+      totalWorkers,
+      activeWorkers,
+      pendingDisputes,
+      expiringDocs,
+      criticalRiskWorkers: criticalRisk,
+    };
+
+    // Get all Admin (roleId=1) and Agency (roleId=4) users
+    const recipients = await prisma.tbl_User.findMany({
+      where: {
+        User_Role: { in: [1, 4] },
+        User_Status: { not: 0 },
+      },
+      select: { User_Id: true, Email_Id: true, User_Role: true },
+      take: 200,
+    });
+
+    let sent = 0;
+    for (const r of recipients ?? []) {
+      const email = (r.Email_Id ?? "").toString().trim();
+      if (!email || email.startsWith("deleted_")) continue;
+      await sendNotificationEmail(email, "weekly_report", reportData);
+      sent++;
+    }
+
+    // Record sentinel so we don't send again this week
+    await createNotification({
+      userId: "__system__",
+      type: "weekly_report" as any,
+      title: `Weekly report sent — ${weekStart}`,
+      message: sentKey,
+      actionUrl: "/",
+    });
+
+    console.log(`[AlertScheduler] Weekly report sent to ${sent} recipients`);
+  } catch (err) {
+    console.error("[AlertScheduler] Weekly report error:", err);
   }
 }
 

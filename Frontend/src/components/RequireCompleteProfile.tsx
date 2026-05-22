@@ -19,6 +19,7 @@ const SKIP_PATHS = [
   "/forgot-password",
   "/reset-password",
   "/logout",
+  "/blog",
 ];
 
 export default function RequireCompleteProfile({ children }: { children: ReactNode }) {
