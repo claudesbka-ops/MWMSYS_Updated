@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import {
   Globe2, Users, AlertTriangle, Calendar, FileCheck,
-  TrendingUp, TrendingDown, ArrowUpRight, ShieldAlert, MapPin,
+  TrendingUp, TrendingDown, ArrowUpRight, ShieldAlert, MapPin, Sparkles,
 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { AtRiskNationalsWidget } from "@/components/embassy/AtRiskNationalsWidget";
@@ -148,28 +149,51 @@ export default function EmbassyDashboardPage() {
       {/* Tab Content */}
       <div className="space-y-6">
         {activeTab === "Overview" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-red-500" /> At-Risk Nationals
-                </h2>
-                <span onClick={() => setActiveTab("At-Risk")} className="text-xs text-slate-400 flex items-center gap-1 cursor-pointer hover:text-red-500">
-                  View all <ArrowUpRight className="w-3 h-3" />
-                </span>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-500" /> At-Risk Nationals
+                  </h2>
+                  <span onClick={() => setActiveTab("At-Risk")} className="text-xs text-slate-400 flex items-center gap-1 cursor-pointer hover:text-red-500">
+                    View all <ArrowUpRight className="w-3 h-3" />
+                  </span>
+                </div>
+                <AtRiskNationalsWidget />
               </div>
-              <AtRiskNationalsWidget />
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-amber-500" /> Document Expiry Monitor
+                  </h2>
+                  <span onClick={() => setActiveTab("Documents")} className="text-xs text-slate-400 flex items-center gap-1 cursor-pointer hover:text-amber-500">
+                    View all <ArrowUpRight className="w-3 h-3" />
+                  </span>
+                </div>
+                <NationalDocExpiryWidget />
+              </div>
             </div>
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-amber-500" /> Document Expiry Monitor
-                </h2>
-                <span onClick={() => setActiveTab("Documents")} className="text-xs text-slate-400 flex items-center gap-1 cursor-pointer hover:text-amber-500">
-                  View all <ArrowUpRight className="w-3 h-3" />
-                </span>
+            
+            {/* AI Copilot Widget */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-500 text-white">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-blue-900">Ask Embassy AI</h3>
+                    <p className="text-sm text-blue-700">Get insights about your nationals</p>
+                  </div>
+                </div>
+                <Link
+                  to="/embassy-copilot"
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+                >
+                  Open AI
+                </Link>
               </div>
-              <NationalDocExpiryWidget />
             </div>
           </div>
         )}

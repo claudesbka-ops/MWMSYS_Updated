@@ -63,6 +63,8 @@ import EmbassyDashboardPage from "./pages/EmbassyDashboardPage.tsx";
 import LabourDashboardPage from "./pages/LabourDashboardPage.tsx";
 import NotificationSettingsPage from "./pages/NotificationSettingsPage.tsx";
 import CopilotPage from "./pages/CopilotPage.tsx";
+import EmbassyCopilotPage from "./pages/EmbassyCopilotPage.tsx";
+import LabourCopilotPage from "./pages/LabourCopilotPage.tsx";
 import AuditLogPage from "./pages/AuditLogPage.tsx";
 import BillingSuccessPage from "./pages/BillingSuccessPage.tsx";
 import BillingCancelPage from "./pages/BillingCancelPage.tsx";
@@ -221,6 +223,22 @@ function AnimatedRoutes() {
             element={
               <ProtectedRoute allow={["admin", "agency"]}>
                 <CopilotPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/embassy-copilot"
+            element={
+              <ProtectedRoute allow={["embassy_source", "embassy_destination"]}>
+                <EmbassyCopilotPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/labour-copilot"
+            element={
+              <ProtectedRoute allow={["labour"]}>
+                <LabourCopilotPage />
               </ProtectedRoute>
             }
           />

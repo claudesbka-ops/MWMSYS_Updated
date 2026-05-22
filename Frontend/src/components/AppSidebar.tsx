@@ -29,6 +29,8 @@ const navItems: NavItem[] = [
   { label: "Search", icon: Search, path: "/search", roles: ["admin", "agency", "embassy_source", "embassy_destination", "labour"] },
   { label: "Notifications", icon: Bell, path: "/notification-settings", roles: ["admin", "agency", "employer", "worker"] },
   { label: "AI Copilot", icon: Sparkles, path: "/copilot", roles: ["admin", "agency"] },
+  { label: "AI Copilot", icon: Sparkles, path: "/embassy-copilot", roles: ["embassy_source", "embassy_destination"] },
+  { label: "AI Copilot", icon: Sparkles, path: "/labour-copilot", roles: ["labour"] },
   { label: "Audit Log", icon: ShieldCheck, path: "/audit-log", roles: ["admin"] },
   { label: "Billing", icon: CreditCard, path: "/billing", roles: ["agency", "employer"] },
   {

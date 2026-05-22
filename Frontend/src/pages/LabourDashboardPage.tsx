@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import {
   ShieldCheck, Users, Building2, AlertTriangle, Scale,
-  TrendingUp, TrendingDown, BarChart3, FileText, ArrowUpRight,
+  TrendingUp, TrendingDown, BarChart3, FileText, ArrowUpRight, Sparkles,
 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { WorkforceStatsWidget } from "@/components/labour/WorkforceStatsWidget";
@@ -158,6 +159,27 @@ export default function LabourDashboardPage() {
                 </span>
               </div>
               <WorkforceStatsWidget />
+            </div>
+            
+            {/* AI Copilot Widget */}
+            <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl border border-purple-200 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-purple-500 text-white">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-purple-900">Labour Intelligence AI</h3>
+                    <p className="text-sm text-purple-700">Analyze workforce compliance & risks</p>
+                  </div>
+                </div>
+                <Link
+                  to="/labour-copilot"
+                  className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium"
+                >
+                  Open AI
+                </Link>
+              </div>
             </div>
           </>
         )}
