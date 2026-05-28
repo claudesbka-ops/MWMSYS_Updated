@@ -3182,7 +3182,7 @@ app.get("/admin/verify-test-accounts", async (req, res) => {
       ]
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 // Bootstrap schema bootstrappers up-front (idempotent, errors swallowed),
