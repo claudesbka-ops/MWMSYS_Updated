@@ -1,8 +1,16 @@
 {
   "rewrites": [
     {
+      "source": "/Api/(.*)",
+      "destination": "https://mwmsysmaster-production.up.railway.app/auth/Api/$1"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "https://mwmsysmaster-production.up.railway.app/api/$1"
+    },
+    {
+      "source": "/auth/(.*)",
+      "destination": "https://mwmsysmaster-production.up.railway.app/auth/$1"
     },
     {
       "source": "/signup",
@@ -10,7 +18,7 @@
     },
     {
       "source": "/login",
-      "destination": "https://mwmsysmaster-production.up.railway.app/login"
+      "destination": "https://mwmsysmaster-production.up.railway.app/auth/login"
     },
     {
       "source": "/logout",
