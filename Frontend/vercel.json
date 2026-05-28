@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/socket.io/(.*)",
+      "destination": "https://mwmsysmaster-production.up.railway.app/socket.io/$1"
+    },
+    {
       "source": "/Api/(.*)",
       "destination": "https://mwmsysmaster-production.up.railway.app/auth/Api/$1"
     },
@@ -32,5 +36,10 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "app/api/*.js": {
+      "maxDuration": 30
+    }
+  }
 }
