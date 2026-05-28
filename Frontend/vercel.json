@@ -5,8 +5,12 @@
       "destination": "https://mwmsysmaster-production.up.railway.app/socket.io/$1"
     },
     {
+      "source": "/Api/token",
+      "destination": "https://mwmsysmaster-production.up.railway.app/auth/Api/token"
+    },
+    {
       "source": "/Api/(.*)",
-      "destination": "https://mwmsysmaster-production.up.railway.app/auth/Api/$1"
+      "destination": "https://mwmsysmaster-production.up.railway.app/Api/$1"
     },
     {
       "source": "/api/(.*)",
