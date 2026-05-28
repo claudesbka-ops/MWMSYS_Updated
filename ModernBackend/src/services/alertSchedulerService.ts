@@ -414,7 +414,7 @@ async function scanComplianceScores(): Promise<void> {
   const lowScores = await prisma.tbl_Compliance_Scores.findMany({
     where: {
       Score: { lt: 50 },
-      Calculated_At: { gte: since },
+      Scanned_At: { gte: since },
     },
   });
 
