@@ -3160,6 +3160,31 @@ app.get("/", (req, res) => {
     serverTime: new Date().toISOString()
   });
 });
+
+// Admin endpoint to verify test accounts
+app.get("/admin/verify-test-accounts", async (req, res) => {
+  try {
+    const result = await prisma.tbl_User.updateMany({
+      where: {
+        User_Id: { in: [
+          "test_admin", "test_worker", "test_employer",
+          "test_agent", "test_embassy", "test_labour"
+        ]}
+      },
+      data: { Is_Verified: true }
+    });
+
+    res.json({
+      message: `Verified ${result.count} test accounts`,
+      accounts: [
+        "test_admin", "test_worker", "test_employer",
+        "test_agent", "test_embassy", "test_labour"
+      ]
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 // Bootstrap schema bootstrappers up-front (idempotent, errors swallowed),
 // then start listening. Route-level `ensure*TableExists()` calls remain
 // in place as cheap no-ops after the initial run for defense-in-depth.
